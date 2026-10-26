@@ -888,6 +888,10 @@ function FileDropzone({
   }
 
   const openFilePicker = () => {
+    if (window.self !== window.top) {
+      window.open(window.location.href, '_blank', 'noopener,noreferrer')
+      return
+    }
     fileInputRef.current?.click()
   }
 
@@ -909,6 +913,12 @@ function FileDropzone({
       accept={importAccept}
       aria-label={`Sélecteur natif — ${label}`}
       className="mt-1.5 block w-full cursor-pointer text-[10px] text-mute file:mr-2 file:cursor-pointer file:border-0 file:bg-ink file:px-3 file:py-1.5 file:text-[10px] file:font-medium file:text-white"
+      onClick={(event) => {
+        if (window.self !== window.top) {
+          event.preventDefault()
+          window.open(window.location.href, '_blank', 'noopener,noreferrer')
+        }
+      }}
       onChange={handleFile}
     />
   )
