@@ -87,9 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
+    const target = user?.role === 'professor' ? '/connexion' : '/etudiant/connexion'
     dbLogout()
-    navigate('/connexion')
-  }, [navigate])
+    navigate(target)
+  }, [navigate, user?.role])
 
   const value = useMemo<AuthContextValue>(
     () => ({ db, user, loading: false, login, logout, pendingRequest, latestRequest, access, homePath }),

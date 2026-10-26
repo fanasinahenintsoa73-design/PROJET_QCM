@@ -61,8 +61,10 @@ export function ExpirationPage() {
                 </p>
               ) : (
                 <p className="mt-7 max-w-2xl text-[15px] leading-[1.7] text-white/65">
-                  Votre cycle de 30 jours est arrivé à expiration. Le prochain sujet de votre
-                  parcours sera attribué automatiquement dès que votre renouvellement sera accepté.
+                  Votre cycle de 30 jours est arrivé à expiration.{' '}
+                  {subject
+                    ? 'Le prochain sujet de votre parcours sera attribué automatiquement dès que votre renouvellement sera accepté.'
+                    : 'Le prochain sujet n’est pas encore disponible. Votre demande restera en attente jusqu’à ce que le docteur ajoute un sujet à la file.'}
                 </p>
               )}
 
@@ -79,7 +81,9 @@ export function ExpirationPage() {
                 <ButtonLink to="/reinscription" variant="white" size="lg" className="w-full sm:w-auto">
                   {rejected
                     ? 'Transmettre un nouveau justificatif'
-                    : 'Faire une nouvelle demande pour le nouveau sujet'}
+                    : subject
+                      ? 'Faire une nouvelle demande pour le nouveau sujet'
+                      : 'Demander le renouvellement'}
                   <ArrowRight size={16} />
                 </ButtonLink>
                 <Link
@@ -144,12 +148,10 @@ export function ExpirationPage() {
                 Un nouveau mois.
               </h2>
               <p className="mt-5 max-w-xs text-[13px] leading-[1.7] text-ash">
-                Le prochain sujet de votre parcours est déjà prêt. Il ne manque que votre nouveau
-                justificatif pour rouvrir l’accès.
+                {subject
+                  ? 'Le prochain sujet de votre parcours est déjà prêt. Il ne manque que votre nouveau justificatif pour rouvrir l’accès.'
+                  : 'Le prochain sujet n’est pas encore disponible. Votre dossier restera en attente jusqu’à ce que le docteur ajoute un sujet.'}
               </p>
-              <ButtonLink to="/reinscription" size="md" className="mt-6">
-                Renouveler mon accès <ArrowRight size={15} />
-              </ButtonLink>
             </div>
 
             <div className="lg:col-span-8">
@@ -158,8 +160,10 @@ export function ExpirationPage() {
                   {
                     icon: RotateCcw,
                     number: '01',
-                    title: 'Le sujet suivant est prêt',
-                    text: 'Votre parcours avance dans la file des sujets préparés par le docteur. Votre historique de résultats reste conservé.',
+                    title: subject ? 'Le sujet suivant est prêt' : 'Le sujet suivant est en préparation',
+                    text: subject
+                      ? 'Votre parcours avance dans la file des sujets préparés par le docteur. Votre historique de résultats reste conservé.'
+                      : 'Le docteur doit ajouter un nouveau sujet à la file. Votre historique de résultats reste conservé pendant l’attente.',
                   },
                   {
                     icon: CalendarX2,

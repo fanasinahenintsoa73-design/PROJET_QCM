@@ -66,7 +66,7 @@ export function SignupPage() {
   }
 
   return (
-    <AuthShell>
+    <AuthShell accessLabel="Espace étudiant">
       <div>
         <div className="flex items-center justify-between gap-3">
           <p className="eyebrow">Demande d’accès</p>
@@ -234,7 +234,7 @@ export function SignupPage() {
 
           <p className="text-center text-[11px] text-mute">
             J’ai déjà un dossier ?{' '}
-            <Link to="/connexion" className="font-medium text-ink underline decoration-1 underline-offset-4">
+            <Link to="/etudiant/connexion" className="font-medium text-ink underline decoration-1 underline-offset-4">
               Me connecter
             </Link>
           </p>

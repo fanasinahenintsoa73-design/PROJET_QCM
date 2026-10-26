@@ -18,7 +18,6 @@ import {
 import type { Question } from '@/types'
 
 export default function QuizPage() {
-  usePageTitle('Série de 20 QCM')
   const navigate = useNavigate()
   const { user, db } = useAuth()
 
@@ -27,6 +26,7 @@ export default function QuizPage() {
     ? db.subjects.find((candidate) => candidate.id === assignment.subjectId)
     : undefined
   const bank = subject ? getSubjectQuestions(subject.id, db) : []
+  const planned = Math.min(20, bank.length)
 
   const [questions] = useState<Question[]>(() => {
     if (!subject) return []
@@ -35,6 +35,7 @@ export default function QuizPage() {
       .map((id) => byId.get(id))
       .filter((question): question is Question => Boolean(question))
   })
+  usePageTitle(`Série de ${questions.length || planned} QCM`)
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [blocked, setBlocked] = useState(!assignment || !subject || isExpired(assignment.expiresAt))

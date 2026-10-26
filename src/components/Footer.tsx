@@ -14,8 +14,8 @@ const columns = [
   {
     title: 'Étudiants',
     links: [
-      { label: 'Créer ma demande', href: '/inscription' },
-      { label: 'Se connecter', href: '/connexion' },
+      { label: 'Créer ma demande', href: '/etudiant/inscription' },
+      { label: 'Se connecter', href: '/etudiant/connexion' },
       { label: 'Renouveler mon accès', href: '/reinscription' },
       { label: 'Mon tableau de bord', href: '/app' },
     ],
@@ -32,10 +32,10 @@ const columns = [
   {
     title: 'Accès',
     links: [
-      { label: 'Téléphone · tablette · ordinateur', href: '/#methode' },
-      { label: 'Disponible 24 h / 24', href: '/#methode' },
-      { label: 'Validation sous 24 h', href: '/#faq' },
-      { label: 'Zéro installation', href: '/#faq' },
+      { label: 'Téléphone · tablette · ordinateur', href: '/etudiant#methode' },
+      { label: 'Disponible 24 h / 24', href: '/etudiant#methode' },
+      { label: 'Validation sous 24 h', href: '/etudiant#faq' },
+      { label: 'Zéro installation', href: '/etudiant#faq' },
     ],
   },
 ]

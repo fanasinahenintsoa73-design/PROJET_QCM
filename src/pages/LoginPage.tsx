@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from 'lucide-react'
 import { AuthShell } from '@/components/AuthShell'
 import { Field, Input } from '@/components/ui/Field'
@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
 
 export function LoginPage() {
-  usePageTitle('Connexion administrateur — MEDQCM L1')
+  usePageTitle('Connexion docteur — MEDQCM L1')
   const { login } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -27,7 +27,7 @@ export function LoginPage() {
       (candidate) => candidate.email.toLowerCase() === email.trim().toLowerCase(),
     )
     if (!account || account.role !== 'professor') {
-      setError('Identifiants administrateur incorrects.')
+      setError('Identifiants docteur incorrects.')
       return
     }
 
@@ -37,22 +37,22 @@ export function LoginPage() {
       return
     }
 
-    toast(`Bonjour ${account.firstName}. Espace administrateur ouvert.`)
+    toast(`Bonjour ${account.firstName}. Espace docteur ouvert.`)
     navigate('/admin/sujet#importer', { replace: true })
   }
 
   return (
     <AuthShell>
       <div>
-        <p className="eyebrow">Espace administrateur</p>
+        <p className="eyebrow">Espace docteur</p>
         <h1 className="display mt-4 text-[clamp(3.2rem,8vw,4.3rem)]">
           Connexion
           <br />
-          administrateur.
+          docteur.
         </h1>
         <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-ash">
-          Cet accès est réservé à l’administrateur. Identifiez-vous avec votre adresse email et
-          votre mot de passe.
+          Cet accès est réservé au docteur. Identifiez-vous avec votre adresse email et votre mot
+          de passe.
         </p>
 
         <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
@@ -70,7 +70,7 @@ export function LoginPage() {
               id="login-email"
               type="email"
               autoComplete="username"
-              placeholder="Adresse email administrateur"
+              placeholder="Adresse email docteur"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
@@ -105,10 +105,13 @@ export function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-6 text-[10px] text-mute">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft pt-4 text-[10px] text-mute">
           <span className="inline-flex items-center gap-1.5">
-            <LockKeyhole size={11} /> Accès réservé — identifiants administrateur requis
+            <LockKeyhole size={11} /> Accès réservé — identifiants docteur requis
           </span>
+          <Link to="/etudiant" className="font-medium text-ink underline underline-offset-4">
+            Portail étudiant
+          </Link>
         </div>
       </div>
     </AuthShell>

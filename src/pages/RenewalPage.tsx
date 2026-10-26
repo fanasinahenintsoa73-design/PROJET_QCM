@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Check, FileCheck2, LockKeyhole, ShieldCheck, TimerReset } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { submitRenewal } from '@/lib/db'
+import { getNextSubjectForUser, submitRenewal } from '@/lib/db'
 import { makeDemoReceipt } from '@/lib/demoReceipt'
 import { usePageTitle } from '@/components/Layouts'
 import { ReceiptDropzone } from '@/components/ui/Receipt'
@@ -14,7 +14,7 @@ import { cn, formatDateLong } from '@/lib/utils'
 
 export function RenewalPage() {
   usePageTitle('Renouveler mon accès — MEDQCM L1')
-  const { user, access, latestRequest } = useAuth()
+  const { user, access, latestRequest, db } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [receipt, setReceipt] = useState<Receipt | null>(null)
@@ -26,6 +26,7 @@ export function RenewalPage() {
 
   const rejected = access === 'rejected'
   const reason = user.rejectionReason || latestRequest?.note
+  const nextSubject = getNextSubjectForUser(user.id, db)
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -65,7 +66,9 @@ export function RenewalPage() {
             <p className="mt-5 max-w-xl text-[14px] leading-[1.7] text-ash">
               {rejected
                 ? 'Transmettez un nouveau justificatif conforme pour que votre docteur puisse rouvrir votre accès. Aucun paiement n’est encaissé sur cette plateforme.'
-                : 'Le nouveau sujet est en ligne. Joignez votre nouveau reçu de paiement : votre docteur le vérifie sous 24 heures, puis votre accès repart pour 30 jours.'}
+                : nextSubject
+                  ? 'Le nouveau sujet est en ligne. Joignez votre nouveau reçu de paiement : votre docteur le vérifie sous 24 heures, puis votre accès repart pour 30 jours.'
+                  : 'Le prochain sujet n’est pas encore disponible. Vous pouvez tout de même envoyer votre renouvellement : il restera en attente jusqu’à ce que le docteur ajoute un sujet à la file.'}
             </p>
 
             {rejected && reason && (
@@ -218,7 +221,13 @@ export function RenewalPage() {
                 {[
                   ['01', 'Vous envoyez votre reçu', 'Un seul justificatif suffit.'],
                   ['02', 'Le docteur vérifie', 'Délai habituel : moins de 24 heures.'],
-                  ['03', 'Le QCM se rouvre', 'Nouveau sujet, nouvelles séries illimitées.'],
+                  [
+                    '03',
+                    nextSubject ? 'Le QCM se rouvre' : 'Le dossier reste en attente',
+                    nextSubject
+                      ? 'Nouveau sujet, nouvelles séries illimitées.'
+                      : 'L’accès s’ouvrira dès qu’un sujet sera disponible.',
+                  ],
                 ].map(([number, title, detail]) => (
                   <div key={number} className="flex gap-3">
                     <span className="font-display text-[20px] leading-none text-white/30">{number}</span>

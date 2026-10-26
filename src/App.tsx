@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
 import { ToastProvider } from '@/components/ui/Toast'
 import {
+  PublicLayout,
   StudentLayout,
   StatusLayout,
   RequireGuest,
@@ -14,6 +15,9 @@ import {
 } from '@/components/Layouts'
 import { AdminLayout } from '@/components/AdminLayout'
 import { LoginPage } from '@/pages/LoginPage'
+import { StudentLoginPage } from '@/pages/StudentLoginPage'
+import { LandingPage } from '@/pages/LandingPage'
+import { SignupPage } from '@/pages/SignupPage'
 import { PendingPage } from '@/pages/PendingPage'
 import { ExpirationPage } from '@/pages/ExpirationPage'
 import { RenewalPage } from '@/pages/RenewalPage'
@@ -51,6 +55,25 @@ export default function App() {
           <ScrollToTop />
           <Suspense fallback={<RouteFallback />}>
             <Routes>
+              <Route path="/etudiant" element={<PublicLayout />}>
+                <Route index element={<LandingPage />} />
+              </Route>
+              <Route
+                path="/etudiant/inscription"
+                element={
+                  <RequireGuest>
+                    <SignupPage />
+                  </RequireGuest>
+                }
+              />
+              <Route
+                path="/etudiant/connexion"
+                element={
+                  <RequireGuest>
+                    <StudentLoginPage />
+                  </RequireGuest>
+                }
+              />
               <Route
                 path="/connexion"
                 element={
@@ -59,7 +82,7 @@ export default function App() {
                   </RequireGuest>
                 }
               />
-              <Route path="/" element={<Navigate to="/connexion" replace />} />
+              <Route path="/" element={<Navigate to="/etudiant" replace />} />
 
               <Route element={<RequireStudent />}>
                 <Route element={<StudentLayout />}>

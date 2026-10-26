@@ -66,7 +66,8 @@ export function LandingPage() {
   const subjects = getPublishedSubjects(db)
   const subject = subjects[0]
   const open = subjects.length > 0
-  const startHref = user ? homePath : '/inscription'
+  const studentUser = user?.role === 'student' ? user : null
+  const startHref = studentUser ? homePath : '/etudiant/inscription'
   const sessionLabel = subject?.monthLabel ?? monthLabel()
 
   return (
@@ -379,7 +380,7 @@ export function LandingPage() {
                 size="lg"
                 className="mt-7 w-full"
               >
-                {user ? 'Accéder à mon espace' : 'Demander mon accès'} <ArrowRight size={16} />
+                {studentUser ? 'Accéder à mon espace' : 'Demander mon accès'} <ArrowRight size={16} />
               </ButtonLink>
               <p className="mt-3 text-center text-[10px] text-white/40">
                 Validation du justificatif sous 24 h · Accès immédiat
@@ -519,10 +520,10 @@ export function LandingPage() {
                   Le docteur répond aux étudiants validés directement depuis leur espace.
                 </p>
                 <Link
-                  to={user ? homePath : '/connexion'}
+                  to={studentUser ? homePath : '/etudiant/connexion'}
                   className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium underline decoration-1 underline-offset-4"
                 >
-                  {user ? 'Ouvrir mon espace' : 'Accéder à mon espace'}
+                  {studentUser ? 'Ouvrir mon espace' : 'Accéder à mon espace'}
                   <ArrowRight size={12} />
                 </Link>
               </div>
@@ -552,7 +553,7 @@ export function LandingPage() {
             </h2>
             <div className="shrink-0 lg:pb-3">
               <ButtonLink to={startHref} variant="white" size="lg" className="w-full sm:w-auto">
-                {user ? 'Reprendre l’entraînement' : 'Créer ma demande'} <ArrowRight size={16} />
+                {studentUser ? 'Reprendre l’entraînement' : 'Créer ma demande'} <ArrowRight size={16} />
               </ButtonLink>
               <p className="mt-3 text-[10px] text-white/40">
                 Reçu obligatoire · Validation sous 24 h · 30 jours d’accès

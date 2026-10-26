@@ -201,14 +201,6 @@ export default function ResultPage() {
               Retour au tableau de bord
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </Link>
-            <button
-              type="button"
-              onClick={exportResult}
-              className="inline-flex items-center gap-2 py-2 text-[13px] font-medium text-white/70 transition-colors hover:text-white"
-            >
-              <Download className="size-3.5" aria-hidden="true" />
-              Télécharger le résultat
-            </button>
           </div>
         </div>
       </section>
@@ -243,11 +235,6 @@ export default function ResultPage() {
                 Une question à réponses multiples n’est validée que si toutes les bonnes
                 réponses sont cochées, sans erreur supplémentaire.
               </p>
-
-              <ButtonLink to="/app/entrainement" variant="secondary" className="mt-5 w-full gap-2">
-                Nouvelle série
-                <ArrowRight className="size-3.5" aria-hidden="true" />
-              </ButtonLink>
 
               <button
                 type="button"
@@ -380,18 +367,6 @@ export default function ResultPage() {
               })}
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 bg-cloud p-6 sm:p-7">
-              <div>
-                <p className="text-[15px] font-medium text-ink">Prêt pour une autre série ?</p>
-                <p className="mt-1 text-[12px] text-mute">
-                  Vingt nouvelles questions tirées au hasard, sans limite.
-                </p>
-              </div>
-              <ButtonLink to="/app/entrainement" variant="primary" className="gap-2">
-                Refaire une série
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </ButtonLink>
-            </div>
           </div>
         </div>
       </section>

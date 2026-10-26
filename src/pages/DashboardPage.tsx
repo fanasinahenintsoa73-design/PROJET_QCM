@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const subject = assignment
     ? db.subjects.find((candidate) => candidate.id === assignment.subjectId)
     : undefined
+  const seriesSize = Math.min(20, subject?.questionCount ?? 20)
   const remaining = daysLeft(user?.expiresAt)
   const lowTime = remaining <= 7
 
@@ -114,7 +115,7 @@ export default function DashboardPage() {
                     size="lg"
                     className="group gap-3"
                   >
-                    Démarrer une série de 20 QCM
+                    Démarrer une série de {seriesSize} QCM
                     <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1" />
                   </ButtonLink>
                   <p className="text-[12px] text-white/45">
@@ -215,7 +216,7 @@ export default function DashboardPage() {
                 label: 'Séries terminées',
                 value: attempts.length,
                 suffix: '',
-                note: 'Ce mois-ci',
+                note: 'Sur ce sujet',
               },
               {
                 label: 'Questions vues',
@@ -279,7 +280,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[14px] font-medium text-ink">
-                          Série de 20 questions
+                          Série de {attempt.total} questions
                         </p>
                         <p className="mt-0.5 text-[11px] text-mute">
                           {relativeDate(attempt.createdAt)} · {formatDate(attempt.createdAt, {

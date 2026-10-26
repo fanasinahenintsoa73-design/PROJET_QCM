@@ -23,8 +23,8 @@ export default function NotFoundPage() {
               figuré au programme. Revenez sur un terrain connu.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <ButtonLink to={user ? homePath : '/connexion'} size="lg">
-                {user ? 'Retour à mon espace' : 'Se connecter'}
+              <ButtonLink to={user ? homePath : '/etudiant'} size="lg">
+                {user ? 'Retour à mon espace' : 'Retour au portail étudiant'}
               </ButtonLink>
             </div>
           </div>

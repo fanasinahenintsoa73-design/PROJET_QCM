@@ -2,7 +2,13 @@ import { LockKeyhole } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Logo } from '@/components/Logo'
 
-export function AuthShell({ children }: { children: ReactNode }) {
+export function AuthShell({
+  children,
+  accessLabel = 'Accès restreint',
+}: {
+  children: ReactNode
+  accessLabel?: string
+}) {
   return (
     <div className="min-h-screen bg-canvas">
       <div className="mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-5 py-5 sm:px-10 lg:py-7">
@@ -10,7 +16,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
           <Logo />
           <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-mute">
             <LockKeyhole size={10} aria-hidden="true" />
-            Accès restreint
+            {accessLabel}
           </span>
         </div>
 
