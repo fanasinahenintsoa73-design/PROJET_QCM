@@ -2,13 +2,14 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
 import { ToastProvider } from '@/components/ui/Toast'
+import { isDoctorPortal } from '@/lib/portal'
 import {
   PublicLayout,
   StudentLayout,
   StatusLayout,
   RequireGuest,
   RequireStudent,
-  RequirePending,
+  RequireStudentAccount,
   RequireBlocked,
   RequireAdmin,
   ScrollToTop,
@@ -37,13 +38,96 @@ function RouteFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-6">
       <div className="text-center">
-        <span className="mx-auto grid h-10 w-10 place-items-center bg-ink text-xl font-light text-white">
+        <span className="mx-auto grid h-10 w-10 place-items-center rounded-md bg-accent text-xl font-light text-white">
           +
         </span>
-        <p className="eyebrow mt-6">MEDQCM L1</p>
-        <p className="mt-2 font-display text-3xl uppercase tracking-[0.02em]">Chargement du programme…</p>
+        <p className="mt-5 text-sm font-medium text-ink">MEDQCM L1</p>
+        <p className="mt-1 text-sm text-mute">Chargement…</p>
       </div>
     </div>
+  )
+}
+
+function StudentRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<PublicLayout />}>
+        <Route index element={<LandingPage />} />
+      </Route>
+      <Route
+        path="/inscription"
+        element={
+          <RequireGuest>
+            <SignupPage />
+          </RequireGuest>
+        }
+      />
+      <Route
+        path="/connexion"
+        element={
+          <RequireGuest>
+            <StudentLoginPage />
+          </RequireGuest>
+        }
+      />
+      <Route path="/etudiant" element={<Navigate to="/" replace />} />
+      <Route path="/etudiant/inscription" element={<Navigate to="/inscription" replace />} />
+      <Route path="/etudiant/connexion" element={<Navigate to="/connexion" replace />} />
+
+      <Route element={<RequireStudentAccount />}>
+        <Route path="/en-attente" element={<PendingPage />} />
+      </Route>
+
+      <Route element={<RequireStudent />}>
+        <Route element={<StudentLayout />}>
+          <Route path="/app" element={<DashboardPage />} />
+          <Route path="/app/entrainement" element={<QuizPage />} />
+          <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
+          <Route path="/app/historique" element={<HistoryPage />} />
+        </Route>
+      </Route>
+
+      <Route element={<StatusLayout />}>
+        <Route element={<RequireBlocked />}>
+          <Route path="/expiration" element={<ExpirationPage />} />
+          <Route path="/reinscription" element={<RenewalPage />} />
+        </Route>
+      </Route>
+
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  )
+}
+
+function DoctorRoutes() {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <RequireGuest>
+            <LoginPage />
+          </RequireGuest>
+        }
+      />
+      <Route path="/connexion" element={<Navigate to="/" replace />} />
+      <Route element={<RequireAdmin />}>
+        <Route element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/demandes" element={<AdminRequestsPage />} />
+          <Route
+            path="/admin/sujet"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <AdminSubjectPage />
+              </Suspense>
+            }
+          />
+          <Route path="/admin/etudiants" element={<AdminStudentsPage />} />
+        </Route>
+      </Route>
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
   )
 }
 
@@ -54,73 +138,7 @@ export default function App() {
         <ToastProvider>
           <ScrollToTop />
           <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/etudiant" element={<PublicLayout />}>
-                <Route index element={<LandingPage />} />
-              </Route>
-              <Route
-                path="/etudiant/inscription"
-                element={
-                  <RequireGuest>
-                    <SignupPage />
-                  </RequireGuest>
-                }
-              />
-              <Route
-                path="/etudiant/connexion"
-                element={
-                  <RequireGuest>
-                    <StudentLoginPage />
-                  </RequireGuest>
-                }
-              />
-              <Route
-                path="/connexion"
-                element={
-                  <RequireGuest>
-                    <LoginPage />
-                  </RequireGuest>
-                }
-              />
-              <Route path="/" element={<Navigate to="/etudiant" replace />} />
-
-              <Route element={<RequireStudent />}>
-                <Route element={<StudentLayout />}>
-                  <Route path="/app" element={<DashboardPage />} />
-                  <Route path="/app/entrainement" element={<QuizPage />} />
-                  <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
-                  <Route path="/app/historique" element={<HistoryPage />} />
-                </Route>
-              </Route>
-
-              <Route element={<StatusLayout />}>
-                <Route element={<RequirePending />}>
-                  <Route path="/en-attente" element={<PendingPage />} />
-                </Route>
-                <Route element={<RequireBlocked />}>
-                  <Route path="/expiration" element={<ExpirationPage />} />
-                  <Route path="/reinscription" element={<RenewalPage />} />
-                </Route>
-              </Route>
-
-              <Route element={<RequireAdmin />}>
-                <Route element={<AdminLayout />}>
-                  <Route path="/admin" element={<AdminDashboardPage />} />
-                  <Route path="/admin/demandes" element={<AdminRequestsPage />} />
-                  <Route
-                    path="/admin/sujet"
-                    element={
-                      <Suspense fallback={<RouteFallback />}>
-                        <AdminSubjectPage />
-                      </Suspense>
-                    }
-                  />
-                  <Route path="/admin/etudiants" element={<AdminStudentsPage />} />
-                </Route>
-              </Route>
-
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
+            {isDoctorPortal ? <DoctorRoutes /> : <StudentRoutes />}
           </Suspense>
         </ToastProvider>
       </AuthProvider>

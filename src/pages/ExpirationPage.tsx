@@ -1,5 +1,4 @@
-import { ArrowRight, ArrowUpRight, CalendarX2, Check, Clock3, LockKeyhole, RotateCcw } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { ArrowRight, CalendarX2, FileText, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { getNextSubjectForUser } from '@/lib/db'
 import { usePageTitle } from '@/components/Layouts'
@@ -8,220 +7,114 @@ import { StatusPill } from '@/components/ui/StatusPill'
 import { formatDateLong } from '@/lib/utils'
 
 export function ExpirationPage() {
-  usePageTitle('Accès expiré — MEDQCM L1')
+  usePageTitle('Accès terminé — MEDQCM L1')
   const { user, db, latestRequest, access } = useAuth()
   if (!user) return null
 
   const rejected = access === 'rejected'
   const reason = user.rejectionReason || latestRequest?.note
-  const subject = getNextSubjectForUser(user.id, db)
+  const nextSubject = getNextSubjectForUser(user.id, db)
   const expiredDaysAgo = user.expiresAt
     ? Math.max(0, Math.floor((Date.now() - new Date(user.expiresAt).getTime()) / 86_400_000))
     : null
 
   return (
-    <>
-      <section className="relative overflow-hidden bg-ink text-white">
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-8 top-1/2 hidden -translate-y-1/2 select-none font-display text-[420px] leading-none text-white/[0.04] lg:block"
-        >
-          {rejected ? '!' : '30'}
-        </span>
-        <div className="relative mx-auto max-w-content px-5 py-12 sm:px-10 lg:px-10 lg:py-20">
-          <div className="flex flex-col justify-between gap-4 border-b border-white/15 pb-5 sm:flex-row sm:items-center">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">
-              Accès mensuel — Médecine L1
+    <div className="bg-canvas">
+      <div className="mx-auto max-w-content px-5 py-12 sm:px-8 lg:px-10 lg:py-20">
+        <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:gap-16">
+          <div>
+            <StatusPill tone={rejected ? 'error' : 'warning'} dot>
+              {rejected ? 'Dossier non accepté' : 'Cycle terminé'}
+            </StatusPill>
+
+            <h1 className="mt-6 max-w-xl font-display text-[clamp(2.5rem,5.4vw,4rem)] leading-[1.03] tracking-[-0.035em] text-ink">
+              {rejected ? 'Votre dossier n’a pas été accepté.' : 'Votre cycle est terminé.'}
+            </h1>
+
+            <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-mute">
+              {rejected
+                ? 'Le justificatif transmis n’a pas permis d’ouvrir votre accès. Vous pouvez déposer un nouveau reçu pour une nouvelle vérification.'
+                : `Votre accès de 30 jours s’est achevé le ${formatDateLong(user.expiresAt)}${
+                    expiredDaysAgo && expiredDaysAgo > 0
+                      ? `, il y a ${expiredDaysAgo} jour${expiredDaysAgo > 1 ? 's' : ''}`
+                      : ''
+                  }. Vos résultats restent consultables, mais le QCM est fermé jusqu’au renouvellement.`}
             </p>
-            <StatusPill tone="error">{rejected ? 'Demande refusée' : 'Accès expiré'}</StatusPill>
+
+            {rejected && reason ? (
+              <div className="mt-6 max-w-lg rounded-xl border border-sale/20 bg-danger-soft p-4">
+                <p className="text-[11px] font-medium text-sale">Motif du refus</p>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-ash">{reason}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-7 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+              <ButtonLink to="/reinscription" size="lg">
+                {rejected ? 'Déposer un nouveau reçu' : 'Renouveler mon accès'} <ArrowRight size={16} />
+              </ButtonLink>
+              <p className="text-[12px] leading-relaxed text-mute">
+                Le nouveau cycle démarre après validation du docteur.
+              </p>
+            </div>
+
+            <div className="mt-10 flex items-start gap-3 border-t border-line pt-6">
+              <FileText size={16} className="mt-0.5 shrink-0 text-mute" />
+              <p className="max-w-md text-[12px] leading-relaxed text-mute">
+                Votre historique de séries et vos corrections restent accessibles depuis votre
+                espace. Aucun résultat n’est supprimé.
+              </p>
+            </div>
           </div>
 
-          <div className="grid gap-10 pt-10 lg:grid-cols-12 lg:gap-16 lg:pt-14">
-            <div className="lg:col-span-8">
-              <h1 className="display text-[clamp(3.5rem,9vw,7.5rem)]">
-                {rejected ? (
-                  <>
-                    Justificatif
-                    <br />
-                    à revoir.
-                  </>
-                ) : (
-                  <>
-                    Cycle
-                    <br />
-                    terminé.
-                  </>
-                )}
-              </h1>
-
-              {rejected ? (
-                <p className="mt-7 max-w-2xl text-[15px] leading-[1.7] text-white/65">
-                  Votre demande n’a pas pu être validée. Vous pouvez transmettre un nouveau justificatif
-                  dès maintenant : votre docteur le vérifiera sous 24 heures.
+          <aside className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-accent">
+                {rejected ? <ShieldCheck size={16} /> : <CalendarX2 size={16} />}
+              </span>
+              <div>
+                <p className="text-[13px] font-medium text-ink">
+                  {rejected ? 'Nouvelle demande' : 'Prochain cycle'}
                 </p>
-              ) : (
-                <p className="mt-7 max-w-2xl text-[15px] leading-[1.7] text-white/65">
-                  Votre cycle de 30 jours est arrivé à expiration.{' '}
-                  {subject
-                    ? 'Le prochain sujet de votre parcours sera attribué automatiquement dès que votre renouvellement sera accepté.'
-                    : 'Le prochain sujet n’est pas encore disponible. Votre demande restera en attente jusqu’à ce que le docteur ajoute un sujet à la file.'}
+                <p className="text-[11px] text-mute">
+                  {rejected ? 'Un nouveau reçu suffit' : '30 jours après validation'}
                 </p>
-              )}
+              </div>
+            </div>
 
-              {rejected && reason && (
-                <div className="mt-6 max-w-2xl border-l-2 border-sale bg-white/5 px-4 py-3">
-                  <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/40">
-                    Motif indiqué par le docteur
-                  </p>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-white/80">{reason}</p>
-                </div>
-              )}
-
-              <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                <ButtonLink to="/reinscription" variant="white" size="lg" className="w-full sm:w-auto">
+            <dl className="mt-6 space-y-3 border-t border-line pt-5 text-[12px]">
+              <div className="flex items-start justify-between gap-5">
+                <dt className="text-mute">Compte</dt>
+                <dd className="text-right font-medium text-ink">{user.email}</dd>
+              </div>
+              <div className="flex items-start justify-between gap-5">
+                <dt className="text-mute">{rejected ? 'Dernière demande' : 'Fin de l’accès'}</dt>
+                <dd className="text-right font-medium text-ink">
                   {rejected
-                    ? 'Transmettre un nouveau justificatif'
-                    : subject
-                      ? 'Faire une nouvelle demande pour le nouveau sujet'
-                      : 'Demander le renouvellement'}
-                  <ArrowRight size={16} />
-                </ButtonLink>
-                <Link
-                  to="/"
-                  className="py-2 text-[12px] font-medium text-white/60 underline decoration-white/30 underline-offset-[6px] transition hover:text-white"
-                >
-                  Retour à l’accueil
-                </Link>
+                    ? formatDateLong(latestRequest?.createdAt ?? user.createdAt)
+                    : formatDateLong(user.expiresAt)}
+                </dd>
               </div>
+              <div className="flex items-start justify-between gap-5">
+                <dt className="text-mute">Prochain sujet</dt>
+                <dd className="max-w-[60%] text-right font-medium text-ink">
+                  {nextSubject ? nextSubject.title : 'Attribué après validation'}
+                </dd>
+              </div>
+            </dl>
 
-              <p className="mt-5 flex items-start gap-2 text-[10px] leading-relaxed text-white/40">
-                <LockKeyhole size={11} className="mt-0.5 shrink-0" />
-                {rejected
-                  ? 'Aucun accès QCM n’est ouvert tant que le docteur n’a pas validé un justificatif conforme.'
-                  : 'L’accès est bloqué immédiatement au terme des 30 jours. Vos résultats passés restent conservés.'}
-              </p>
-            </div>
-
-            <div className="lg:col-span-4">
-              <div className="border border-white/15 p-5">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/40">
-                  Récapitulatif du compte
+            <div className="mt-6 rounded-xl bg-accent-soft p-4">
+              <div className="flex items-start gap-2.5">
+                <RotateCcw size={14} className="mt-0.5 shrink-0 text-accent" />
+                <p className="text-[11px] leading-relaxed text-ash">
+                  {rejected
+                    ? 'Le docteur vérifie chaque nouveau justificatif. Vous conservez le même compte et le même mot de passe.'
+                    : 'Le sujet suivant de la file vous sera attribué automatiquement à l’ouverture du prochain cycle.'}
                 </p>
-                <div className="mt-4 divide-y divide-white/10">
-                  {[
-                    ['Titulaire', `${user.firstName} ${user.lastName}`],
-                    ['Email', user.email],
-                    rejected
-                      ? ['Demande', latestRequest ? formatDateLong(latestRequest.createdAt) : '—']
-                      : ['Expiré le', user.expiresAt ? formatDateLong(user.expiresAt) : '—'],
-                    rejected
-                      ? ['Statut', 'Justificatif refusé']
-                      : [
-                          'Depuis',
-                          expiredDaysAgo === 0
-                            ? 'Aujourd’hui'
-                            : `${expiredDaysAgo} jour${expiredDaysAgo && expiredDaysAgo > 1 ? 's' : ''}`,
-                        ],
-                  ].map(([label, value]) => (
-                    <div key={label} className="py-3">
-                      <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-white/35">
-                        {label}
-                      </p>
-                      <p className="mt-1 text-[12px] text-white/85">{value}</p>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
-          </div>
+          </aside>
         </div>
-      </section>
-
-      <section className="bg-canvas">
-        <div className="mx-auto max-w-content px-5 py-14 sm:px-10 lg:px-10 lg:py-20">
-          <div className="grid gap-10 lg:grid-cols-12 lg:gap-16">
-            <div className="lg:col-span-4">
-              <p className="eyebrow">La suite</p>
-              <h2 className="display mt-4 text-[clamp(2.6rem,5vw,4rem)]">
-                Trois temps.
-                <br />
-                Un nouveau mois.
-              </h2>
-              <p className="mt-5 max-w-xs text-[13px] leading-[1.7] text-ash">
-                {subject
-                  ? 'Le prochain sujet de votre parcours est déjà prêt. Il ne manque que votre nouveau justificatif pour rouvrir l’accès.'
-                  : 'Le prochain sujet n’est pas encore disponible. Votre dossier restera en attente jusqu’à ce que le docteur ajoute un sujet.'}
-              </p>
-            </div>
-
-            <div className="lg:col-span-8">
-              <div className="border-t border-ink">
-                {[
-                  {
-                    icon: RotateCcw,
-                    number: '01',
-                    title: subject ? 'Le sujet suivant est prêt' : 'Le sujet suivant est en préparation',
-                    text: subject
-                      ? 'Votre parcours avance dans la file des sujets préparés par le docteur. Votre historique de résultats reste conservé.'
-                      : 'Le docteur doit ajouter un nouveau sujet à la file. Votre historique de résultats reste conservé pendant l’attente.',
-                  },
-                  {
-                    icon: CalendarX2,
-                    number: '02',
-                    title: 'Vous joignez un nouveau reçu',
-                    text: 'La demande de renouvellement prend moins d’une minute. Le justificatif est obligatoire.',
-                  },
-                  {
-                    icon: Check,
-                    number: '03',
-                    title: '30 jours sont réactivés',
-                    text: 'Après vérification, votre docteur active un nouveau cycle complet de 30 jours.',
-                  },
-                ].map((step) => {
-                  const Icon = step.icon
-                  return (
-                    <div
-                      key={step.number}
-                      className="grid gap-4 border-b border-hairline-soft py-6 sm:grid-cols-[56px_1fr] sm:gap-6"
-                    >
-                      <div className="flex items-center gap-3 sm:block">
-                        <span className="font-display text-[30px] leading-none text-mute">{step.number}</span>
-                        <Icon size={16} className="text-mute sm:mt-3 sm:block" />
-                      </div>
-                      <div>
-                        <h3 className="text-[15px] font-medium">{step.title}</h3>
-                        <p className="mt-1.5 max-w-lg text-[12px] leading-relaxed text-ash">{step.text}</p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {subject && (
-                <div className="mt-8 flex flex-col justify-between gap-4 bg-cloud p-5 sm:flex-row sm:items-center">
-                  <div className="flex items-start gap-3">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white">
-                      <Clock3 size={15} />
-                    </span>
-                    <div>
-                      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-mute">
-                        Prochain sujet de votre parcours · {subject.monthLabel}
-                      </p>
-                      <p className="mt-1 text-[13px] font-medium">{subject.title}</p>
-                    </div>
-                  </div>
-                  <Link
-                    to="/#sujet"
-                    className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium underline decoration-1 underline-offset-4"
-                  >
-                    Voir le programme <ArrowUpRight size={12} />
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
+      </div>
+    </div>
   )
 }

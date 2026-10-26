@@ -178,7 +178,7 @@ export default function AdminStudentsPage() {
                   className={cn(
                     'inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[12px] font-medium transition-colors',
                     filter === item.value
-                      ? 'border-ink bg-ink text-white'
+                      ? 'border-accent bg-accent text-white'
                       : 'border-hairline bg-white text-charcoal hover:border-stone',
                   )}
                 >

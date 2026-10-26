@@ -59,7 +59,7 @@ export function Faq() {
               <span
                 className={cn(
                   'grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-300',
-                  isOpen ? 'rotate-45 bg-ink text-white' : 'bg-cloud text-ink',
+                  isOpen ? 'rotate-45 bg-accent text-white' : 'bg-cloud text-ink',
                 )}
                 aria-hidden
               >

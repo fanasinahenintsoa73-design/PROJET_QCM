@@ -6,6 +6,7 @@
   "description": "QCM Médecine L1 — plateforme d'entraînement mensuelle",
   "scripts": {
     "dev": "vite",
+    "server": "node server/index.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit"

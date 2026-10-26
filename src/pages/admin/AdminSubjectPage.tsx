@@ -336,7 +336,7 @@ export default function AdminSubjectPage() {
                   <article key={subject.id} className="flex flex-col justify-between border border-hairline bg-white p-4 sm:p-5">
                     <div>
                       <div className="flex items-start justify-between gap-3">
-                        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-ink text-[11px] font-semibold text-white">
+                        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-[11px] font-semibold text-white">
                           {index + 1}
                         </span>
                         <span className={cn(
@@ -410,7 +410,7 @@ export default function AdminSubjectPage() {
           </div>
 
           {embedded && (
-            <div className="mt-4 border border-ink bg-ink px-5 py-4 text-white">
+            <div className="mt-4 border border-accent bg-accent px-5 py-4 text-white">
               <div className="flex items-start gap-3">
                 <AlertCircle className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />
                 <div>
@@ -912,7 +912,7 @@ function FileDropzone({
       type="file"
       accept={importAccept}
       aria-label={`Sélecteur natif — ${label}`}
-      className="mt-1.5 block w-full cursor-pointer text-[10px] text-mute file:mr-2 file:cursor-pointer file:border-0 file:bg-ink file:px-3 file:py-1.5 file:text-[10px] file:font-medium file:text-white"
+      className="mt-1.5 block w-full cursor-pointer text-[10px] text-mute file:mr-2 file:cursor-pointer file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-[10px] file:font-medium file:text-white"
       onClick={(event) => {
         if (window.self !== window.top) {
           event.preventDefault()
@@ -1032,7 +1032,7 @@ function FileDropzone({
         <button
           type="button"
           onClick={openFilePicker}
-          className="mt-4 inline-flex min-h-11 items-center gap-2 bg-ink px-4 py-3 text-[11px] font-medium text-white transition hover:opacity-90"
+          className="mt-4 inline-flex min-h-11 items-center gap-2 bg-accent px-4 py-3 text-[11px] font-medium text-white transition hover:opacity-90"
         >
           <FolderOpen className="size-3.5" aria-hidden="true" />
           Sélectionner le fichier

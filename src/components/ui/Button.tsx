@@ -7,17 +7,17 @@ type Size = 'sm' | 'md' | 'lg'
 
 export function buttonClasses(variant: Variant = 'primary', size: Size = 'md', className?: string) {
   return cn(
-    'inline-flex select-none items-center justify-center gap-2 rounded-full font-medium transition duration-200 disabled:cursor-not-allowed disabled:opacity-40',
-    'active:scale-[0.98]',
-    size === 'sm' && 'h-10 px-5 text-[13px]',
-    size === 'md' && 'h-12 px-7 text-[14px]',
-    size === 'lg' && 'h-14 px-9 text-[15px]',
-    variant === 'primary' && 'bg-ink text-white hover:bg-[#2a2a2a]',
-    variant === 'secondary' && 'bg-cloud text-ink hover:bg-[#e9e9e9]',
-    variant === 'outline' && 'border border-ink bg-transparent text-ink hover:bg-ink hover:text-white',
+    'inline-flex select-none items-center justify-center gap-2 rounded-[10px] font-medium transition duration-200 disabled:cursor-not-allowed disabled:opacity-45',
+    'active:translate-y-px',
+    size === 'sm' && 'h-9 px-4 text-[13px]',
+    size === 'md' && 'h-11 px-5 text-[14px]',
+    size === 'lg' && 'h-[52px] px-6 text-[15px]',
+    variant === 'primary' && 'bg-accent text-white hover:bg-accent-deep',
+    variant === 'secondary' && 'border border-line bg-surface text-ink hover:border-accent hover:text-accent',
+    variant === 'outline' && 'border border-accent bg-transparent text-accent hover:bg-accent hover:text-white',
     variant === 'ghost' && 'bg-transparent text-ink hover:bg-cloud',
-    variant === 'danger' && 'bg-sale text-white hover:bg-[#b00004]',
-    variant === 'white' && 'bg-white text-ink hover:bg-[#f0f0f0]',
+    variant === 'danger' && 'bg-sale text-white hover:bg-[#951d14]',
+    variant === 'white' && 'bg-white text-ink hover:bg-cloud',
     className,
   )
 }

@@ -29,6 +29,9 @@ Thumbs.db
 # Vercel
 .vercel
 
+# Shared local demo data
+server/data/
+
 # Demo screenshots / local artefacts
 screenshots
 /*.png

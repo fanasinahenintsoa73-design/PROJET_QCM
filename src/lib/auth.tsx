@@ -19,6 +19,7 @@ import {
   subscribe,
 } from '@/lib/db'
 import { getLatestRequest, getPendingRequest, getStudentAccess, studentHomePath } from '@/lib/access'
+import { isDoctorPortal } from '@/lib/portal'
 
 interface AuthContextValue {
   db: Database
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [db, user, clock],
   )
   const homePath = useMemo(() => {
-    if (!user) return '/connexion'
+    if (!user) return isDoctorPortal ? '/' : '/connexion'
     if (user.role === 'professor') return '/admin'
     return studentHomePath(user, db)
   }, [db, user, clock])
@@ -87,10 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
-    const target = user?.role === 'professor' ? '/connexion' : '/etudiant/connexion'
+    const target = isDoctorPortal ? '/' : '/connexion'
     dbLogout()
     navigate(target)
-  }, [navigate, user?.role])
+  }, [navigate])
 
   const value = useMemo<AuthContextValue>(
     () => ({ db, user, loading: false, login, logout, pendingRequest, latestRequest, access, homePath }),

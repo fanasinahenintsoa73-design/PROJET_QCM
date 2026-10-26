@@ -10,16 +10,19 @@ import { registerStudent } from '@/lib/db'
 import { makeDemoReceipt } from '@/lib/demoReceipt'
 import { usePageTitle } from '@/components/Layouts'
 import type { Receipt } from '@/types'
-import { cn } from '@/lib/utils'
 
 type Errors = Partial<
-  Record<'firstName' | 'lastName' | 'email' | 'password' | 'confirm' | 'receipt' | 'attestation' | 'form', string>
+  Record<
+    'firstName' | 'lastName' | 'email' | 'password' | 'confirm' | 'receipt' | 'attestation' | 'form',
+    string
+  >
 >
 
 export function SignupPage() {
   usePageTitle('Créer ma demande — MEDQCM L1')
   const navigate = useNavigate()
   const { toast } = useToast()
+
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -30,31 +33,40 @@ export function SignupPage() {
   const [errors, setErrors] = useState<Errors>({})
   const [submitting, setSubmitting] = useState(false)
 
-  function validate(): boolean {
+  function validate(): Errors {
     const next: Errors = {}
     if (firstName.trim().length < 2) next.firstName = 'Indiquez votre prénom.'
     if (lastName.trim().length < 2) next.lastName = 'Indiquez votre nom.'
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) next.email = 'Saisissez une adresse email valide.'
-    if (password.length < 8) next.password = 'Choisissez au moins 8 caractères.'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      next.email = 'Saisissez une adresse email valide.'
+    }
+    if (password.length < 8) next.password = 'Le mot de passe doit contenir au moins 8 caractères.'
     if (confirm !== password) next.confirm = 'Les deux mots de passe ne correspondent pas.'
-    if (!receipt) next.receipt = 'Le reçu de paiement est obligatoire pour transmettre votre demande.'
-    if (!attestation) next.attestation = 'Confirmez que le justificatif correspond à votre paiement.'
-    setErrors(next)
-    return Object.keys(next).length === 0
+    if (!receipt) next.receipt = 'Ajoutez votre reçu de paiement.'
+    if (!attestation) next.attestation = 'Confirmez que le reçu correspond à votre paiement.'
+    return next
   }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    setErrors({})
-    if (!validate() || !receipt) return
+    const next = validate()
+    setErrors(next)
+    if (Object.keys(next).length > 0) return
+
     setSubmitting(true)
     try {
-      registerStudent({ firstName, lastName, email, password, receipt })
+      registerStudent({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        password,
+        receipt: receipt!,
+      })
       toast('Votre demande a été transmise au docteur.')
       navigate('/en-attente', { replace: true })
-    } catch (caught) {
+    } catch (error) {
       setErrors({
-        form: caught instanceof Error ? caught.message : 'Impossible d’enregistrer votre demande.',
+        form: error instanceof Error ? error.message : 'La demande n’a pas pu être enregistrée.',
       })
       setSubmitting(false)
     }
@@ -67,79 +79,73 @@ export function SignupPage() {
 
   return (
     <AuthShell accessLabel="Espace étudiant">
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <p className="eyebrow">Demande d’accès</p>
-          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-mute">01 — Identité & reçu</p>
-        </div>
-        <h1 className="display mt-4 text-[clamp(3.1rem,7.5vw,4.2rem)]">
-          Ouvrir
-          <br />
-          mon dossier.
+      <div className="pb-4">
+        <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
+          Ouvrir mon dossier.
         </h1>
-        <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-ash">
-          Votre place se confirme en deux temps : votre dossier, puis la vérification de votre reçu par
-          le docteur. Le QCM s’ouvre dès validation.
+        <p className="mt-3 text-[14px] leading-relaxed text-mute">
+          Votre demande est vérifiée par le docteur. Le QCM s’ouvrira après validation de votre
+          reçu de paiement.
         </p>
 
-        <form className="mt-7 space-y-5" onSubmit={handleSubmit} noValidate>
+        <form className="mt-8 space-y-7" onSubmit={handleSubmit} noValidate>
           {errors.form && (
-            <div className="border-l-2 border-sale bg-[#fdecec] px-4 py-3 text-[12px] leading-relaxed text-sale" role="alert">
+            <div className="rounded-lg border border-sale/20 bg-danger-soft px-4 py-3 text-[13px] leading-relaxed text-sale" role="alert">
               {errors.form}
             </div>
           )}
 
-          <fieldset>
-            <legend className="mb-3 flex w-full items-center gap-2 border-b border-hairline-soft pb-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-mute">
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-[9px] text-white">1</span>
-              Votre identité
-            </legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Prénom" htmlFor="signup-firstname" required error={errors.firstName}>
-                <Input
-                  id="signup-firstname"
-                  autoComplete="given-name"
-                  placeholder="Camille"
-                  value={firstName}
-                  onChange={(event) => setFirstName(event.target.value)}
-                />
-              </Field>
-              <Field label="Nom" htmlFor="signup-lastname" required error={errors.lastName}>
-                <Input
-                  id="signup-lastname"
-                  autoComplete="family-name"
-                  placeholder="Rousseau"
-                  value={lastName}
-                  onChange={(event) => setLastName(event.target.value)}
-                />
-              </Field>
+          <section>
+            <div className="mb-4 flex items-baseline gap-2.5">
+              <span className="text-[11px] font-semibold text-accent">01</span>
+              <h2 className="text-[15px] font-medium text-ink">Votre identité</h2>
             </div>
-            <div className="mt-4">
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Prénom" htmlFor="signup-first-name" required error={errors.firstName}>
+                  <Input
+                    id="signup-first-name"
+                    autoComplete="given-name"
+                    placeholder="Jean"
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                  />
+                </Field>
+                <Field label="Nom" htmlFor="signup-last-name" required error={errors.lastName}>
+                  <Input
+                    id="signup-last-name"
+                    autoComplete="family-name"
+                    placeholder="Dupont"
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                  />
+                </Field>
+              </div>
               <Field label="Adresse email" htmlFor="signup-email" required error={errors.email}>
                 <Input
                   id="signup-email"
                   type="email"
                   autoComplete="email"
-                  placeholder="camille.rousseau@email.com"
+                  placeholder="votre.email@exemple.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
               </Field>
             </div>
-          </fieldset>
+          </section>
 
-          <fieldset>
-            <legend className="mb-3 flex w-full items-center gap-2 border-b border-hairline-soft pb-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-mute">
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-[9px] text-white">2</span>
-              Votre accès personnel
-            </legend>
+          <section className="border-t border-line pt-6">
+            <div className="mb-4 flex items-baseline gap-2.5">
+              <span className="text-[11px] font-semibold text-accent">02</span>
+              <h2 className="text-[15px] font-medium text-ink">Votre accès personnel</h2>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Mot de passe"
                 htmlFor="signup-password"
                 required
-                error={errors.password}
                 hint="8 caractères minimum."
+                error={errors.password}
               >
                 <Input
                   id="signup-password"
@@ -150,7 +156,12 @@ export function SignupPage() {
                   onChange={(event) => setPassword(event.target.value)}
                 />
               </Field>
-              <Field label="Confirmation" htmlFor="signup-confirm" required error={errors.confirm}>
+              <Field
+                label="Confirmer"
+                htmlFor="signup-confirm"
+                required
+                error={errors.confirm}
+              >
                 <Input
                   id="signup-confirm"
                   type="password"
@@ -161,24 +172,24 @@ export function SignupPage() {
                 />
               </Field>
             </div>
-          </fieldset>
+          </section>
 
-          <fieldset>
-            <legend className="mb-3 flex w-full items-center gap-2 border-b border-hairline-soft pb-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-mute">
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-ink text-[9px] text-white">3</span>
-              Votre justificatif de paiement
-            </legend>
-            <div className="mb-3 grid grid-cols-2 gap-2 text-[10px] text-mute">
-              <div className="bg-cloud px-3 py-2">
-                <span className="block font-semibold uppercase tracking-[0.12em] text-ink">Formats</span>
-                Photo, capture ou PDF
-              </div>
-              <div className="bg-cloud px-3 py-2">
-                <span className="block font-semibold uppercase tracking-[0.12em] text-ink">Taille max</span>
-                3 Mo · lisible et complet
-              </div>
+          <section className="border-t border-line pt-6">
+            <div className="mb-2 flex items-baseline gap-2.5">
+              <span className="text-[11px] font-semibold text-accent">03</span>
+              <h2 className="text-[15px] font-medium text-ink">Votre justificatif</h2>
             </div>
-            <ReceiptDropzone value={receipt} onChange={(value) => setReceipt(value)} compact />
+            <p className="mb-4 text-[12px] leading-relaxed text-mute">
+              Photo, capture d’écran ou PDF · 3 Mo maximum. Le reçu doit être lisible et complet.
+            </p>
+            <ReceiptDropzone
+              value={receipt}
+              onChange={(next) => {
+                setReceipt(next)
+                setErrors((current) => ({ ...current, receipt: undefined }))
+              }}
+              compact
+            />
             {errors.receipt && (
               <p className="mt-2 text-[12px] text-sale" role="alert">
                 {errors.receipt}
@@ -187,33 +198,26 @@ export function SignupPage() {
             <button
               type="button"
               onClick={useDemoReceipt}
-              className="mt-2.5 text-[10px] font-medium text-mute underline decoration-1 underline-offset-4 transition hover:text-ink"
+              className="mt-2 text-[11px] text-mute underline decoration-line underline-offset-4 transition hover:text-accent"
             >
               Utiliser un reçu de démonstration
             </button>
-          </fieldset>
+          </section>
 
-          <div>
-            <label className="flex cursor-pointer items-start gap-3">
-              <span className="relative mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                <input
-                  type="checkbox"
-                  checked={attestation}
-                  onChange={(event) => setAttestation(event.target.checked)}
-                  className="peer h-4 w-4 appearance-none border border-hairline bg-white checked:border-ink checked:bg-ink"
-                />
-                <Check
-                  size={11}
-                  strokeWidth={3}
-                  className={cn(
-                    'pointer-events-none absolute text-white transition',
-                    attestation ? 'opacity-100' : 'opacity-0',
-                  )}
-                />
-              </span>
-              <span className="text-[11px] leading-relaxed text-ash">
-                J’atteste avoir effectué le paiement et que ce justificatif m’appartient. Je comprends que
-                l’accès ne sera ouvert qu’après vérification par le docteur.
+          <section className="border-t border-line pt-5">
+            <label className="flex cursor-pointer items-start gap-3 text-[12px] leading-relaxed text-ash">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+                checked={attestation}
+                onChange={(event) => {
+                  setAttestation(event.target.checked)
+                  setErrors((current) => ({ ...current, attestation: undefined }))
+                }}
+              />
+              <span>
+                Je certifie que ce reçu correspond à mon paiement et j’accepte que le docteur
+                vérifie ces informations avant d’ouvrir mon accès.
               </span>
             </label>
             {errors.attestation && (
@@ -221,30 +225,30 @@ export function SignupPage() {
                 {errors.attestation}
               </p>
             )}
-          </div>
+          </section>
 
           <Button type="submit" size="lg" className="w-full" loading={submitting}>
             Envoyer ma demande <ArrowRight size={16} />
           </Button>
-
-          <div className="flex items-center justify-center gap-2 text-[10px] text-mute">
-            <ShieldCheck size={12} />
-            Validation humaine sous 24 h · QCM bloqué avant activation
-          </div>
-
-          <p className="text-center text-[11px] text-mute">
-            J’ai déjà un dossier ?{' '}
-            <Link to="/etudiant/connexion" className="font-medium text-ink underline decoration-1 underline-offset-4">
-              Me connecter
-            </Link>
-          </p>
         </form>
 
-        <p className="mt-6 flex items-start gap-2 border-t border-hairline-soft pt-4 text-[10px] leading-relaxed text-mute">
-          <LockKeyhole size={11} className="mt-0.5 shrink-0" />
-          Prototype local : votre reçu et vos données restent sur cet appareil. La version de production
-          prévoit un stockage privé sécurisé.
+        <div className="mt-5 flex items-start gap-2 text-[11px] leading-relaxed text-mute">
+          <ShieldCheck size={14} className="mt-0.5 shrink-0 text-accent" />
+          Validation humaine · le QCM reste fermé avant l’accord du docteur.
+        </div>
+
+        <p className="mt-5 border-t border-line pt-4 text-[12px] text-mute">
+          Vous avez déjà un dossier ?{' '}
+          <Link to="/connexion" className="font-medium text-accent underline decoration-1 underline-offset-4">
+            Me connecter
+          </Link>
         </p>
+
+        <div className="mt-5 flex items-start gap-2 text-[11px] leading-relaxed text-mute">
+          <LockKeyhole size={13} className="mt-0.5 shrink-0" />
+          Démo locale : les données sont synchronisées avec l’espace docteur de démonstration. En
+          production, le reçu est stocké dans un espace privé sécurisé.
+        </div>
       </div>
     </AuthShell>
   )

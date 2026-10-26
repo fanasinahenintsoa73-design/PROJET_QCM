@@ -1,11 +1,14 @@
 import { useEffect } from 'react'
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { BookOpenCheck, History, Home } from 'lucide-react'
+import { History, Home } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { isDoctorPortal } from '@/lib/portal'
 import { MinimalHeader } from '@/components/Headers'
 import { Footer, StudentFooter } from '@/components/Footer'
 import { PublicHeader, StudentHeader } from '@/components/Headers'
 import { clearSession } from '@/lib/db'
+import { Logo } from '@/components/Logo'
+import { Button } from '@/components/ui/Button'
 
 export function PublicLayout() {
   return (
@@ -38,17 +41,16 @@ export function StudentLayout() {
 
 function StudentBottomNav() {
   const items = [
-    { to: '/app', label: 'Accueil', icon: Home, end: true },
-    { to: '/app/entrainement', label: 'S’entraîner', icon: BookOpenCheck, end: false },
+    { to: '/app', label: 'Mon cycle', icon: Home, end: true },
     { to: '/app/historique', label: 'Historique', icon: History, end: false },
   ]
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-hairline-soft bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
       aria-label="Navigation étudiant mobile"
     >
-      <div className="mx-auto grid max-w-md grid-cols-3">
+      <div className="mx-auto grid max-w-sm grid-cols-2">
         {items.map((item) => {
           const Icon = item.icon
           return (
@@ -57,8 +59,8 @@ function StudentBottomNav() {
               to={item.to}
               end={item.end}
               className={({ isActive }) =>
-                `flex min-h-14 flex-col items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-                  isActive ? 'text-ink' : 'text-mute'
+                `flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors ${
+                  isActive ? 'text-accent' : 'text-mute'
                 }`
               }
             >
@@ -73,17 +75,15 @@ function StudentBottomNav() {
 }
 
 export function StatusLayout() {
+  const { logout } = useAuth()
   return (
     <>
       <MinimalHeader
         right={
           <button
             type="button"
-            className="text-[11px] font-medium uppercase tracking-[0.14em] text-mute transition hover:text-ink"
-            onClick={() => {
-              clearSession()
-              window.location.href = '/etudiant/connexion'
-            }}
+            className="text-sm text-mute transition hover:text-ink"
+            onClick={logout}
           >
             Se déconnecter
           </button>
@@ -96,34 +96,65 @@ export function StatusLayout() {
   )
 }
 
+function PortalMismatch({ expected }: { expected: 'student' | 'doctor' }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-5">
+      <div className="w-full max-w-md">
+        <Logo />
+        <h1 className="mt-10 font-display text-4xl text-ink">
+          {expected === 'doctor' ? 'Espace réservé au docteur.' : 'Espace réservé aux étudiants.'}
+        </h1>
+        <p className="mt-4 text-[15px] leading-relaxed text-mute">
+          {expected === 'doctor'
+            ? 'Cette session appartient à un compte étudiant. Le portail docteur utilise une session séparée.'
+            : 'Cette session appartient à un compte docteur. Le portail étudiant utilise une session séparée.'}
+        </p>
+        <Button
+          className="mt-7"
+          onClick={() => {
+            clearSession()
+            window.location.href = '/'
+          }}
+        >
+          Fermer la session
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function RequireGuest({ children }: { children: React.ReactNode }) {
   const { user, homePath } = useAuth()
-  if (user) return <Navigate to={homePath} replace />
+  if (user) {
+    if (isDoctorPortal && user.role !== 'professor') return <PortalMismatch expected="doctor" />
+    if (!isDoctorPortal && user.role !== 'student') return <PortalMismatch expected="student" />
+    return <Navigate to={homePath} replace />
+  }
   return <>{children}</>
 }
 
+/** A student account in any state (pending, active, expired, rejected). */
+export function RequireStudentAccount() {
+  const { user } = useAuth()
+  if (!user) return <Navigate to="/connexion" replace />
+  if (user.role !== 'student') return <PortalMismatch expected="student" />
+  return <Outlet />
+}
+
+/** A student with a currently usable cycle. */
 export function RequireStudent() {
-  const { user, access, homePath } = useAuth()
-  const location = useLocation()
-  if (!user) return <Navigate to="/etudiant/connexion" state={{ from: location.pathname }} replace />
-  if (user.role === 'professor') return <Navigate to="/admin" replace />
+  const { user, access } = useAuth()
+  if (!user) return <Navigate to="/connexion" replace />
+  if (user.role !== 'student') return <PortalMismatch expected="student" />
   if (access === 'pending') return <Navigate to="/en-attente" replace />
   if (access === 'expired' || access === 'rejected') return <Navigate to="/expiration" replace />
   return <Outlet />
 }
 
-export function RequirePending() {
-  const { user, access, homePath } = useAuth()
-  if (!user) return <Navigate to="/etudiant/connexion" replace />
-  if (user.role !== 'student') return <Navigate to="/admin" replace />
-  if (access !== 'pending') return <Navigate to={homePath} replace />
-  return <Outlet />
-}
-
 export function RequireBlocked() {
-  const { user, access, homePath } = useAuth()
-  if (!user) return <Navigate to="/etudiant/connexion" replace />
-  if (user.role !== 'student') return <Navigate to="/admin" replace />
+  const { user, access } = useAuth()
+  if (!user) return <Navigate to="/connexion" replace />
+  if (user.role !== 'student') return <PortalMismatch expected="student" />
   if (access === 'active') return <Navigate to="/app" replace />
   if (access === 'pending') return <Navigate to="/en-attente" replace />
   return <Outlet />
@@ -131,8 +162,8 @@ export function RequireBlocked() {
 
 export function RequireAdmin() {
   const { user } = useAuth()
-  if (!user) return <Navigate to="/connexion" replace />
-  if (user.role !== 'professor') return <Navigate to="/app" replace />
+  if (!user) return <Navigate to="/" replace />
+  if (user.role !== 'professor') return <PortalMismatch expected="doctor" />
   return <Outlet />
 }
 

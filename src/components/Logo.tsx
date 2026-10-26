@@ -21,18 +21,18 @@ export function Logo({
     >
       <span
         className={cn(
-          'grid place-items-center',
-          compact ? 'h-8 w-8' : 'h-9 w-9',
-          dark ? 'bg-white text-ink' : 'bg-ink text-white',
+          'grid place-items-center rounded-[7px]',
+          compact ? 'h-7 w-7' : 'h-8 w-8',
+          dark ? 'bg-white text-accent' : 'bg-accent text-white',
         )}
       >
-        <Plus size={compact ? 16 : 18} strokeWidth={2.5} aria-hidden />
+        <Plus size={compact ? 15 : 17} strokeWidth={2.4} aria-hidden />
       </span>
       <span className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            'font-display leading-none tracking-[0.03em]',
-            compact ? 'text-[24px]' : 'text-[28px]',
+            'font-display leading-none tracking-[-0.02em]',
+            compact ? 'text-[22px]' : 'text-[25px]',
             dark ? 'text-white' : 'text-ink',
           )}
         >
@@ -40,8 +40,8 @@ export function Logo({
         </span>
         <span
           className={cn(
-            'text-[9px] font-semibold tracking-[0.18em]',
-            dark ? 'text-stone' : 'text-mute',
+            'text-[9px] font-semibold tracking-[0.14em]',
+            dark ? 'text-white/60' : 'text-accent',
           )}
         >
           L1

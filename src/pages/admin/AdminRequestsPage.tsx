@@ -146,7 +146,7 @@ export default function AdminRequestsPage() {
                   className={cn(
                     'inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[12px] font-medium transition-colors',
                     filter === item.value
-                      ? 'border-ink bg-ink text-white'
+                      ? 'border-accent bg-accent text-white'
                       : 'border-hairline bg-white text-charcoal hover:border-stone',
                   )}
                 >
@@ -418,7 +418,7 @@ export default function AdminRequestsPage() {
             <div className="bg-cloud p-2">
               {preview.receipt.mime === 'application/pdf' ? (
                 <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-12 text-center">
-                  <span className="grid size-12 place-items-center bg-ink text-white">
+                  <span className="grid size-12 place-items-center bg-accent text-white">
                     <FileText className="size-5" strokeWidth={1.5} />
                   </span>
                   <p className="mt-4 max-w-[240px] truncate text-[13px] font-medium">

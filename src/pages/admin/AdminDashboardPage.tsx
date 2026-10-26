@@ -50,7 +50,7 @@ export default function AdminDashboardPage() {
     { state: 'active', label: 'Actifs', note: 'Accès en cours', dot: 'bg-success' },
     { state: 'expiring', label: 'Expirent bientôt', note: '7 jours ou moins', dot: 'bg-warning' },
     { state: 'expired', label: 'Expirés', note: 'Renouvellement requis', dot: 'bg-stone' },
-    { state: 'pending', label: 'En attente', note: 'Reçu à vérifier', dot: 'bg-ink' },
+    { state: 'pending', label: 'En attente', note: 'Reçu à vérifier', dot: 'bg-accent' },
     { state: 'rejected', label: 'Suspendus', note: 'Accès fermé', dot: 'bg-sale' },
   ]
 
@@ -97,7 +97,7 @@ export default function AdminDashboardPage() {
                 >
                   <div className="h-12 w-9 shrink-0 overflow-hidden bg-cloud">
                     {request.receipt.mime === 'application/pdf' ? (
-                      <div className="grid h-full place-items-center bg-ink text-white">
+                      <div className="grid h-full place-items-center bg-accent text-white">
                         <FileText className="size-4" strokeWidth={1.5} />
                       </div>
                     ) : (
@@ -179,7 +179,7 @@ export default function AdminDashboardPage() {
             </Link>
           </section>
 
-          <section className="bg-ink p-6 text-white">
+          <section className="bg-accent p-6 text-white">
             <div className="flex items-start justify-between gap-3">
               <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/50">
                 Parcours QCM

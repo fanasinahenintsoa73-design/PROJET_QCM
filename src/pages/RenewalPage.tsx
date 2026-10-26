@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Check, FileCheck2, LockKeyhole, ShieldCheck, TimerReset } from 'lucide-react'
+import { ArrowRight, Check, LockKeyhole, ShieldCheck, TimerReset } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { getNextSubjectForUser, submitRenewal } from '@/lib/db'
 import { makeDemoReceipt } from '@/lib/demoReceipt'
@@ -16,14 +15,12 @@ export function RenewalPage() {
   usePageTitle('Renouveler mon accès — MEDQCM L1')
   const { user, access, latestRequest, db } = useAuth()
   const { toast } = useToast()
-  const navigate = useNavigate()
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const [attestation, setAttestation] = useState(false)
   const [errors, setErrors] = useState<{ receipt?: string; attestation?: string; form?: string }>({})
   const [submitting, setSubmitting] = useState(false)
   if (!user) return null
   const studentId = user.id
-
   const rejected = access === 'rejected'
   const reason = user.rejectionReason || latestRequest?.note
   const nextSubject = getNextSubjectForUser(user.id, db)
@@ -39,7 +36,7 @@ export function RenewalPage() {
     try {
       submitRenewal(studentId, receipt)
       toast('Votre demande de renouvellement a été transmise.')
-      navigate('/en-attente', { replace: true })
+      window.location.href = '/en-attente'
     } catch (caught) {
       setErrors({ form: caught instanceof Error ? caught.message : 'Impossible d’envoyer la demande.' })
       setSubmitting(false)
@@ -47,212 +44,97 @@ export function RenewalPage() {
   }
 
   return (
-    <section className="bg-canvas">
-      <div className="mx-auto max-w-content px-5 py-10 sm:px-10 lg:px-10 lg:py-16">
-        <div className="flex flex-col justify-between gap-3 border-b border-hairline-soft pb-5 sm:flex-row sm:items-center">
-          <p className="eyebrow">Renouvellement · Accès mensuel</p>
+    <div className="bg-canvas">
+      <div className="mx-auto max-w-content px-5 py-10 sm:px-8 lg:px-10 lg:py-16">
+        <div className="flex flex-col justify-between gap-3 border-b border-line pb-5 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-[11px] font-medium text-accent uppercase tracking-[0.14em]">Renouvellement · Accès mensuel</p>
+            <h1 className="mt-1 font-display text-[2.2rem] leading-[1.05] tracking-[-0.03em] text-ink">Un nouveau mois commence.</h1>
+          </div>
           <StatusPill tone={rejected ? 'error' : 'warning'}>
             {rejected ? 'Nouveau justificatif requis' : 'Accès à renouveler'}
           </StatusPill>
         </div>
 
-        <div className="mt-8 grid gap-10 lg:grid-cols-12 lg:gap-16">
-          <div className="lg:col-span-7">
-            <h1 className="display text-[clamp(3.2rem,7vw,5.6rem)]">
-              Un nouveau
-              <br />
-              mois commence.
-            </h1>
-            <p className="mt-5 max-w-xl text-[14px] leading-[1.7] text-ash">
+        <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_0.92fr] lg:gap-16">
+          <div>
+            <p className="text-[14px] leading-relaxed text-ash">
               {rejected
-                ? 'Transmettez un nouveau justificatif conforme pour que votre docteur puisse rouvrir votre accès. Aucun paiement n’est encaissé sur cette plateforme.'
-                : nextSubject
-                  ? 'Le nouveau sujet est en ligne. Joignez votre nouveau reçu de paiement : votre docteur le vérifie sous 24 heures, puis votre accès repart pour 30 jours.'
-                  : 'Le prochain sujet n’est pas encore disponible. Vous pouvez tout de même envoyer votre renouvellement : il restera en attente jusqu’à ce que le docteur ajoute un sujet à la file.'}
+                ? 'Le justificatif précédent n’a pas été accepté. Vous pouvez déposer un nouveau reçu pour faire valoir un renouvellement. Le docteur vérifiera votre demande sous 24 heures.'
+                : `Votre cycle s’est achevé le ${formatDateLong(user.expiresAt)}. Un nouveau sujet de la file vous est attribué automatiquement après validation du docteur.`}
             </p>
-
-            {rejected && reason && (
-              <div className="mt-5 border-l-2 border-sale bg-[#fdecec] px-4 py-3">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-sale">
-                  Motif du dernier refus
-                </p>
-                <p className="mt-1.5 text-[12px] leading-relaxed text-ash">{reason}</p>
+            {rejected && reason ? (
+              <div className="mt-5 rounded-xl border border-sale/20 bg-danger-soft p-4">
+                <p className="text-[11px] font-medium text-sale">Motif du refus</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-ash">{reason}</p>
               </div>
-            )}
+            ) : null}
 
-            <form className="mt-8" onSubmit={handleSubmit} noValidate>
+            <form className="mt-7 space-y-6" onSubmit={handleSubmit} noValidate>
               {errors.form && (
-                <div className="mb-5 border-l-2 border-sale bg-[#fdecec] px-4 py-3 text-[12px] text-sale" role="alert">
-                  {errors.form}
-                </div>
+                <div className="rounded-lg border border-sale/20 bg-danger-soft px-4 py-3 text-[13px] text-sale" role="alert">{errors.form}</div>
               )}
 
-              <div className="border border-hairline-soft">
-                <div className="border-b border-hairline-soft bg-cloud px-4 py-3">
-                  <p className="text-[9px] font-semibold uppercase tracking-[0.16em]">
-                    Compte à renouveler
-                  </p>
-                </div>
-                <div className="grid gap-4 p-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-mute">Titulaire</p>
-                    <p className="mt-1 text-[13px]">
-                      {user.firstName} {user.lastName}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-mute">Email</p>
-                    <p className="mt-1 break-all text-[13px]">{user.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-mute">
-                      Dernière échéance
-                    </p>
-                    <p className="mt-1 text-[13px]">
-                      {user.expiresAt ? formatDateLong(user.expiresAt) : 'Aucune période active'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-mute">Offre</p>
-                    <p className="mt-1 text-[13px]">Accès QCM mensuel — 30 jours</p>
-                  </div>
-                </div>
+              <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
+                <h2 className="text-[15px] font-medium text-ink">Votre nouveau justificatif</h2>
+                <p className="mt-2 text-[12px] leading-relaxed text-mute">Photo, capture ou PDF · 3 Mo maximum. Le reçu doit être lisible et complet.</p>
+                <ReceiptDropzone value={receipt} onChange={(next) => { setReceipt(next); setErrors((c) => ({ ...c, receipt: undefined })); }} compact />
+                <button type="button" onClick={() => setReceipt(makeDemoReceipt(`${user.firstName||'etudiant'}-${user.lastName||'demo'}`))} className="mt-2 text-[11px] text-mute underline decoration-line underline-offset-4 hover:text-accent">Utiliser un reçu de démonstration</button>
+                {errors.receipt && <p className="mt-2 text-[12px] text-sale" role="alert">{errors.receipt}</p>}
               </div>
 
-              <div className="mt-6">
-                <p className="form-label">Nouveau justificatif de paiement *</p>
-                <p className="mb-3 text-[11px] leading-relaxed text-mute">
-                  Photo, capture d’écran ou PDF. Le document doit être lisible, complet et daté.
-                </p>
-                <ReceiptDropzone
-                  value={receipt}
-                  onChange={(value) => {
-                    setReceipt(value)
-                    setErrors((current) => ({ ...current, receipt: undefined }))
-                  }}
-                  label="Joindre le nouveau reçu"
-                  compact
-                />
-                {errors.receipt && (
-                  <p className="mt-2 text-[12px] text-sale" role="alert">
-                    {errors.receipt}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReceipt(makeDemoReceipt(`renouvellement-${user.firstName}`))
-                    setErrors((current) => ({ ...current, receipt: undefined }))
-                  }}
-                  className="mt-2.5 text-[10px] font-medium text-mute underline decoration-1 underline-offset-4 transition hover:text-ink"
-                >
-                  Utiliser un reçu de démonstration
-                </button>
-              </div>
+              <label className="flex cursor-pointer items-start gap-3 text-[12px] leading-relaxed text-ash">
+                <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-accent" checked={attestation} onChange={(e) => { setAttestation(e.target.checked); setErrors((c) => ({ ...c, attestation: undefined })); }} />
+                <span>Je certifie que ce reçu correspond à mon paiement et j’accepte que le docteur vérifie ces informations.</span>
+              </label>
+              {errors.attestation && <p className="text-[12px] text-sale" role="alert">{errors.attestation}</p>}
 
-              <div className="mt-6">
-                <label className="flex cursor-pointer items-start gap-3">
-                  <span className="relative mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                    <input
-                      type="checkbox"
-                      checked={attestation}
-                      onChange={(event) => setAttestation(event.target.checked)}
-                      className="peer h-4 w-4 appearance-none border border-hairline bg-white checked:border-ink checked:bg-ink"
-                    />
-                    <Check
-                      size={11}
-                      strokeWidth={3}
-                      className={cn(
-                        'pointer-events-none absolute text-white transition',
-                        attestation ? 'opacity-100' : 'opacity-0',
-                      )}
-                    />
-                  </span>
-                  <span className="text-[11px] leading-relaxed text-ash">
-                    J’atteste que ce justificatif correspond à mon paiement pour le nouveau mois et
-                    j’accepte que l’accès soit ouvert après vérification par le docteur.
-                  </span>
-                </label>
-                {errors.attestation && (
-                  <p className="mt-2 text-[12px] text-sale" role="alert">
-                    {errors.attestation}
-                  </p>
-                )}
-              </div>
-
-              <Button type="submit" size="lg" className="mt-6 w-full sm:w-auto" loading={submitting}>
+              <Button type="submit" size="lg" className="w-full sm:w-auto" loading={submitting}>
                 Envoyer mon renouvellement <ArrowRight size={16} />
               </Button>
 
-              <p className="mt-4 flex items-start gap-2 text-[10px] leading-relaxed text-mute">
-                <LockKeyhole size={11} className="mt-0.5 shrink-0" />
-                Le QCM reste fermé jusqu’à la validation. Vous serez redirigé vers le suivi de votre
-                dossier.
-              </p>
+              <div className="flex flex-wrap items-center gap-4 text-[11px] leading-relaxed text-mute">
+                <span className="inline-flex items-center gap-1.5"><LockKeyhole size={13} /> Démo locale : synchronisation avec l’espace docteur.</span>
+                <a href="/app" className="text-mute underline decoration-line underline-offset-4 hover:text-accent">Retour au tableau de bord</a>
+              </div>
             </form>
-
-            <div className="mt-8 flex flex-wrap items-center gap-5 border-t border-hairline-soft pt-5 text-[11px] text-mute">
-              <Link to="/expiration" className="underline decoration-1 underline-offset-4 hover:text-ink">
-                Retour à mon statut
-              </Link>
-              <Link to="/" className="underline decoration-1 underline-offset-4 hover:text-ink">
-                Accueil
-              </Link>
-            </div>
           </div>
 
-          <aside className="lg:col-span-5">
-            <div className="bg-ink p-6 text-white sm:p-8">
-              <div className="flex items-center justify-between">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/50">
-                  Votre prochain cycle
-                </p>
-                <TimerReset size={16} className="text-white/40" />
-              </div>
-              <p className="mt-6 font-display text-[clamp(5rem,10vw,7.5rem)] leading-[0.75]">30</p>
-              <p className="mt-3 font-display text-[26px] uppercase leading-none text-white/80">
-                jours d’accès
-              </p>
-              <p className="mt-3 text-[12px] leading-relaxed text-white/45">
-                À compter de la validation de votre nouveau reçu, pas de la date d’envoi.
-              </p>
-
-              <div className="mt-7 space-y-4 border-t border-white/15 pt-5">
-                {[
-                  ['01', 'Vous envoyez votre reçu', 'Un seul justificatif suffit.'],
-                  ['02', 'Le docteur vérifie', 'Délai habituel : moins de 24 heures.'],
-                  [
-                    '03',
-                    nextSubject ? 'Le QCM se rouvre' : 'Le dossier reste en attente',
-                    nextSubject
-                      ? 'Nouveau sujet, nouvelles séries illimitées.'
-                      : 'L’accès s’ouvrira dès qu’un sujet sera disponible.',
-                  ],
-                ].map(([number, title, detail]) => (
-                  <div key={number} className="flex gap-3">
-                    <span className="font-display text-[20px] leading-none text-white/30">{number}</span>
-                    <div>
-                      <p className="text-[11px] font-medium">{title}</p>
-                      <p className="mt-0.5 text-[10px] text-white/40">{detail}</p>
-                    </div>
-                  </div>
-                ))}
+          <aside className="rounded-2xl border border-line bg-accent-soft p-6 sm:p-8">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-accent text-white"><TimerReset size={16} /></span>
+              <div>
+                <p className="text-[13px] font-medium text-ink">Votre prochain cycle</p>
+                <p className="text-[11px] text-mute">30 jours après validation</p>
               </div>
             </div>
-
             <div className="mt-5 space-y-3">
-              <p className="flex items-start gap-2 text-[11px] leading-relaxed text-ash">
-                <ShieldCheck size={14} className="mt-0.5 shrink-0" />
-                Vérification humaine et confidentielle. Votre reçu n’est jamais rendu public.
-              </p>
-              <p className="flex items-start gap-2 text-[11px] leading-relaxed text-ash">
-                <FileCheck2 size={14} className="mt-0.5 shrink-0" />
-                Une demande refusée n’efface ni votre compte ni vos séries précédentes.
-              </p>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] text-mute">Prochain sujet</span>
+                <span className="text-[14px] font-medium text-ink">{nextSubject ? nextSubject.title : 'Attribué après validation'}</span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] text-mute">Durée</span>
+                <span className="text-[14px] font-medium text-ink">30 jours</span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] text-mute">Questions</span>
+                <span className="text-[14px] font-medium text-ink">20</span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] text-mute">Corrections</span>
+                <span className="text-[14px] font-medium text-ink">Après envoi</span>
+              </div>
+            </div>
+            <div className="mt-6 rounded-xl bg-white p-4 shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <ShieldCheck size={14} className="mt-0.5 shrink-0 text-accent" />
+                <p className="text-[11px] leading-relaxed text-ash">Le renouvellement ne crée pas de nouveau compte. Vous conservez vos résultats et votre historique. Le prochain sujet est choisi automatiquement parmi ceux jamais assignés.</p>
+              </div>
             </div>
           </aside>
         </div>
       </div>
-    </section>
+    </div>
   )
 }

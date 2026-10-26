@@ -39,28 +39,24 @@ export function StudentLoginPage() {
       return
     }
 
-    toast(`Bonjour ${account.firstName}. Votre espace est ouvert.`)
+    toast(`Bonjour ${account.firstName}.`)
     navigate(studentHomePath(account, getDB()), { replace: true })
   }
 
   return (
     <AuthShell accessLabel="Espace étudiant">
       <div>
-        <p className="eyebrow">Carnet de préparation</p>
-        <h1 className="display mt-4 text-[clamp(3.2rem,8vw,4.3rem)]">
-          Connexion
-          <br />
-          étudiant.
+        <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
+          Reprendre ma préparation.
         </h1>
-        <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-ash">
-          Retrouvez votre sujet, vos séries et vos corrections. Votre accès reste personnel et
-          limité à votre cycle en cours.
+        <p className="mt-3 max-w-sm text-[14px] leading-relaxed text-mute">
+          Retrouvez votre sujet du mois, vos séries et les corrections détaillées.
         </p>
 
-        <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           {error && (
             <div
-              className="border-l-2 border-sale bg-[#fdecec] px-4 py-3 text-[12px] leading-relaxed text-sale"
+              className="rounded-lg border border-sale/20 bg-danger-soft px-4 py-3 text-[13px] leading-relaxed text-sale"
               role="alert"
             >
               {error}
@@ -94,7 +90,7 @@ export function StudentLoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
-                className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-mute transition hover:bg-white hover:text-ink"
+                className="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-mute transition hover:bg-cloud hover:text-ink"
                 aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -103,27 +99,19 @@ export function StudentLoginPage() {
           </Field>
 
           <Button type="submit" size="lg" className="w-full">
-            Ouvrir mon espace <ArrowRight size={16} />
+            Se connecter <ArrowRight size={16} />
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-[11px] text-mute">
+        <p className="mt-6 text-[13px] text-mute">
           Pas encore de dossier ?{' '}
-          <Link
-            to="/etudiant/inscription"
-            className="font-medium text-ink underline decoration-1 underline-offset-4"
-          >
-            Créer ma demande
+          <Link to="/inscription" className="font-medium text-accent underline decoration-1 underline-offset-4">
+            Créer mon dossier
           </Link>
         </p>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-hairline-soft pt-4 text-[10px] text-mute">
-          <span className="inline-flex items-center gap-1.5">
-            <LockKeyhole size={11} /> Accès personnel étudiant
-          </span>
-          <Link to="/connexion" className="underline decoration-1 underline-offset-4 hover:text-ink">
-            Espace docteur
-          </Link>
+        <div className="mt-7 flex items-center gap-2 border-t border-line pt-4 text-[12px] text-mute">
+          <LockKeyhole size={13} /> Accès personnel et limité à votre cycle.
         </div>
       </div>
     </AuthShell>

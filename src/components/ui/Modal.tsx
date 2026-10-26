@@ -1,83 +1,94 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+type Size = 'sm' | 'md' | 'lg' | 'xl'
+
+const sizes: Record<Size, string> = {
+  sm: 'md:max-w-sm',
+  md: 'md:max-w-lg',
+  lg: 'md:max-w-2xl',
+  xl: 'md:max-w-4xl',
+}
 
 export function Modal({
   open,
   onClose,
   title,
   eyebrow,
-  children,
-  footer,
   size = 'md',
+  footer,
+  children,
 }: {
   open: boolean
   onClose: () => void
   title?: string
   eyebrow?: string
-  children: ReactNode
+  size?: Size
   footer?: ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  children: ReactNode
 }) {
-  const panelRef = useRef<HTMLDivElement>(null)
-
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
-    document.addEventListener('keydown', onKeyDown)
-    const previousOverflow = document.body.style.overflow
+    const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const focusTimer = window.setTimeout(() => panelRef.current?.focus(), 30)
+    window.addEventListener('keydown', onKeyDown)
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
-      window.clearTimeout(focusTimer)
+      document.body.style.overflow = previous
+      window.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, onClose])
+  }, [onClose, open])
 
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-6">
-      <div
-        className="absolute inset-0 animate-fade-in bg-ink/60 backdrop-blur-[2px]"
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title ?? 'Fenêtre'}
+    >
+      <button
+        type="button"
+        aria-label="Fermer"
         onClick={onClose}
-        aria-hidden
+        className="absolute inset-0 animate-fade-in bg-ink/30 backdrop-blur-sm"
       />
       <div
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
         className={cn(
-          'relative flex max-h-[calc(100dvh-1rem)] w-full animate-fade-up flex-col overflow-hidden rounded-t-[24px] bg-canvas outline-none md:max-h-[calc(100dvh-3rem)] md:rounded-none',
-          size === 'sm' && 'md:max-w-md',
-          size === 'md' && 'md:max-w-2xl',
-          size === 'lg' && 'md:max-w-4xl',
-          size === 'xl' && 'md:max-w-6xl',
+          'relative flex max-h-[calc(100dvh-1rem)] w-full animate-fade-up flex-col overflow-hidden rounded-t-2xl border border-line bg-surface shadow-soft md:max-h-[calc(100dvh-3rem)] md:rounded-2xl',
+          sizes[size],
         )}
       >
-        <div className="flex items-start justify-between gap-6 border-b border-hairline-soft px-6 py-5 md:px-8">
-          <div>
-            {eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>}
-            {title && <h2 className="text-[22px] font-medium leading-tight tracking-[-0.01em]">{title}</h2>}
+        {(title || eyebrow) && (
+          <div className="flex items-start justify-between gap-5 border-b border-line px-5 py-5 sm:px-7">
+            <div>
+              {eyebrow && <p className="text-[11px] text-mute">{eyebrow}</p>}
+              {title && (
+                <h2 className="mt-1 font-display text-[24px] leading-tight tracking-[-0.02em] text-ink">
+                  {title}
+                </h2>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-mute transition hover:bg-cloud hover:text-ink"
+              aria-label="Fermer"
+            >
+              <X size={17} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-cloud transition hover:bg-hairline-soft"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-8">{children}</div>
+        )}
+
+        <div className="overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">{children}</div>
+
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-hairline-soft px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 md:px-8 md:pb-5">
+          <div className="border-t border-line px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-7">
             {footer}
           </div>
         )}

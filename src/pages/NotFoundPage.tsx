@@ -1,58 +1,55 @@
-import { Plus } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { isDoctorPortal } from '@/lib/portal'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
+import { Logo } from '@/components/Logo'
 
 export default function NotFoundPage() {
   usePageTitle('Page introuvable — MEDQCM L1')
   const { user, homePath } = useAuth()
+  const fallback = isDoctorPortal ? '/' : '/'
+  const target = user ? homePath : fallback
 
   return (
-    <section className="bg-cloud">
-      <div className="mx-auto max-w-content px-5 py-16 sm:px-8 lg:px-12 lg:py-24">
-        <div className="grid gap-14 lg:grid-cols-12 lg:items-end">
-          <div className="lg:col-span-7">
-            <p className="eyebrow">Erreur 404 · Hors programme</p>
-            <h1 className="display mt-6 text-[clamp(4rem,10vw,8rem)]">
-              Page
-              <br />
-              introuvable.
+    <div className="flex min-h-screen flex-col bg-canvas">
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto flex h-[68px] max-w-content items-center justify-between px-5 lg:px-10">
+          <Logo to={isDoctorPortal ? '/' : '/'} />
+          <span className="text-[11px] font-medium text-mute">
+            {isDoctorPortal ? 'Espace docteur' : 'Espace étudiant'}
+          </span>
+        </div>
+      </header>
+
+      <main className="mx-auto flex w-full max-w-content flex-1 items-center px-5 py-12 sm:px-8 lg:px-10">
+        <div className="grid w-full gap-10 lg:grid-cols-[1fr_0.72fr] lg:items-center">
+          <div>
+            <p className="text-[12px] font-medium text-accent">Erreur 404</p>
+            <h1 className="mt-4 max-w-lg font-display text-[clamp(2.7rem,6vw,4.6rem)] leading-[1.02] tracking-[-0.03em] text-ink">
+              Cette page n’existe pas.
             </h1>
-            <p className="mt-8 max-w-md text-[15px] leading-relaxed text-mute">
-              La page que vous cherchez a peut-être été déplacée, archivée, ou n’a jamais
-              figuré au programme. Revenez sur un terrain connu.
+            <p className="mt-4 max-w-md text-[14px] leading-relaxed text-mute">
+              Le lien est peut-être incomplet, ou la page a été déplacée. Revenez à votre espace
+              pour retrouver votre cycle, vos séries et vos corrections.
             </p>
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <ButtonLink to={user ? homePath : '/etudiant'} size="lg">
-                {user ? 'Retour à mon espace' : 'Retour au portail étudiant'}
-              </ButtonLink>
-            </div>
+            <ButtonLink to={target} size="lg" className="mt-7">
+              {user ? 'Retour à mon espace' : 'Retour à l’accueil'}
+            </ButtonLink>
           </div>
 
-          <div className="lg:col-span-5">
-            <div className="relative aspect-[4/3] bg-canvas p-8 sm:p-10">
-              <span className="absolute right-7 top-6 font-display text-5xl leading-none text-hairline">
-                404
-              </span>
-              <div className="flex h-full flex-col justify-between">
-                <span className="grid h-11 w-11 place-items-center bg-ink text-white">
-                  <Plus size={22} strokeWidth={2.5} aria-hidden />
-                </span>
-                <div>
-                  <p className="eyebrow">MEDQCM L1</p>
-                  <p className="mt-3 max-w-[16rem] text-lg font-medium leading-snug">
-                    20 questions. 30 jours. Aucune impasse.
-                  </p>
-                  <p className="mt-4 text-[11px] uppercase tracking-[0.14em] text-stone">
-                    Prototype de démonstration
-                  </p>
-                </div>
-              </div>
+          <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
+            <p className="font-display text-[5.5rem] leading-none tracking-[-0.04em] text-accent/20">
+              404
+            </p>
+            <div className="mt-4 border-t border-line pt-4">
+              <p className="text-[13px] font-medium text-ink">MEDQCM L1</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-mute">
+                20 questions. 30 jours. Aucune impasse.
+              </p>
             </div>
           </div>
         </div>
-
-      </div>
-    </section>
+      </main>
+    </div>
   )
 }

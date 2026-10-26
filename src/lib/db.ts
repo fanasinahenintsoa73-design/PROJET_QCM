@@ -92,6 +92,31 @@ function emit() {
   listeners.forEach((listener) => listener())
 }
 
+/**
+ * Replace the local snapshot with data received from the shared server.
+ * The session is deliberately untouched: sessions belong to each portal origin.
+ */
+export function replaceDatabase(next: Database) {
+  if (
+    !next ||
+    !Array.isArray(next.users) ||
+    !Array.isArray(next.requests) ||
+    !Array.isArray(next.subjects) ||
+    !Array.isArray(next.assignments) ||
+    !Array.isArray(next.questions) ||
+    !Array.isArray(next.attempts)
+  ) {
+    throw new Error('La base partagée est invalide.')
+  }
+  cache = migrateDatabase(next)
+  try {
+    localStorage.setItem(DB_KEY, JSON.stringify(cache))
+  } catch {
+    // The shared snapshot still lives in memory; local storage is only a cache.
+  }
+  emit()
+}
+
 export function subscribe(listener: () => void) {
   listeners.add(listener)
   return () => {

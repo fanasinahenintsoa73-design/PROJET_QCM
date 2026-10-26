@@ -18,6 +18,7 @@ import {
 import type { Question } from '@/types'
 
 export default function QuizPage() {
+  usePageTitle('Série en cours — MEDQCM L1')
   const navigate = useNavigate()
   const { user, db } = useAuth()
 
@@ -27,15 +28,11 @@ export default function QuizPage() {
     : undefined
   const bank = subject ? getSubjectQuestions(subject.id, db) : []
   const planned = Math.min(20, bank.length)
-
-  const [questions] = useState<Question[]>(() => {
-    if (!subject) return []
-    const byId = new Map(bank.map((question) => [question.id, question]))
-    return randomQuestionIds(bank, 20)
-      .map((id) => byId.get(id))
-      .filter((question): question is Question => Boolean(question))
-  })
-  usePageTitle(`Série de ${questions.length || planned} QCM`)
+  const [questions] = useState<Question[]>(() =>
+    randomQuestionIds(bank, 20)
+      .map((id) => bank.find((question) => question.id === id))
+      .filter((question): question is Question => Boolean(question)),
+  )
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [blocked, setBlocked] = useState(!assignment || !subject || isExpired(assignment.expiresAt))
@@ -44,21 +41,17 @@ export default function QuizPage() {
 
   const current = questions[index]
   const selected = current ? answers[current.id] ?? [] : []
-  const answeredCount = Object.values(answers).filter((letters) => letters.length > 0).length
+  const answeredCount = questions.filter((question) => (answers[question.id] ?? []).length > 0).length
   const isLast = index === questions.length - 1
 
-  /* Live expiration engine: the quiz is interrupted as soon as the month ends. */
   useEffect(() => {
     const check = () => {
       if (isExpired(user?.expiresAt)) {
         navigate('/expiration', { replace: true })
         return
       }
-      if (!assignment || !subject || isExpired(assignment.expiresAt)) {
-        setBlocked(true)
-      }
+      if (!assignment || !subject || isExpired(assignment.expiresAt)) setBlocked(true)
     }
-
     check()
     const interval = window.setInterval(check, 15_000)
     window.addEventListener('focus', check)
@@ -70,46 +63,43 @@ export default function QuizPage() {
     }
   }, [assignment, navigate, subject, user?.expiresAt])
 
-  const toggleAnswer = (letter: AnswerLetter) => {
+  function toggleAnswer(letter: AnswerLetter) {
     if (!current) return
     setAnswers((previous) => {
       const existing = previous[current.id] ?? []
       const next = existing.includes(letter)
-        ? existing.filter((item) => item !== letter)
-        : [...existing, letter].sort()
-      return { ...previous, [current.id]: next }
+        ? existing.filter((value) => value !== letter)
+        : [...existing, letter]
+      return { ...previous, [current.id]: next.sort() }
     })
   }
 
-  const canContinue = () => {
+  function canContinue() {
     if (isExpired(user?.expiresAt)) {
-      navigate('/expiration', { replace: true })
+      setBlocked(true)
       return false
     }
-    if (!assignment || !subject || isExpired(assignment.expiresAt)) {
+    if (!assignment || !subject) {
       setBlocked(true)
       return false
     }
     return true
   }
 
-  const goNext = () => {
-    if (!canContinue()) return
+  function goNext() {
     if (!isLast) {
-      setIndex((value) => value + 1)
+      if (!canContinue()) return
+      setIndex((value) => Math.min(value + 1, questions.length - 1))
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-
-    if (saving || !subject || !user || finished.current) return
+    if (!canContinue() || !user || !assignment || !subject || saving || finished.current) return
     setSaving(true)
     finished.current = true
-
-    const score = questions.reduce((total, question) => {
-      const given = answers[question.id] ?? []
-      return total + (sameAnswer(given, question.correctAnswers) ? 1 : 0)
-    }, 0)
-
+    const score = questions.reduce(
+      (total, question) => total + (sameAnswer(answers[question.id] ?? [], question.correctAnswers) ? 1 : 0),
+      0,
+    )
     const attempt = saveAttempt({
       userId: user.id,
       subjectId: subject.id,
@@ -120,7 +110,7 @@ export default function QuizPage() {
     navigate(`/app/resultat/${attempt.id}`, { replace: true })
   }
 
-  const quit = () => {
+  function quit() {
     if (
       answeredCount > 0 &&
       !window.confirm('Quitter cette série ? Vos réponses ne seront pas enregistrées.')
@@ -132,90 +122,86 @@ export default function QuizPage() {
 
   if (blocked) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-content flex-col justify-center px-5 py-16 sm:px-8 lg:px-12">
-        <p className="eyebrow">Série interrompue</p>
-        <h1 className="display mt-5 max-w-3xl text-[clamp(3rem,7vw,5rem)]">
-          Le cycle est terminé.
-        </h1>
-        <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-mute">
-          La période de 30 jours associée à ce sujet est terminée. Aucune nouvelle question ne
-          peut être chargée.
-        </p>
-        <ButtonLink to="/app" variant="primary" className="mt-7">
-          Retour au tableau de bord
-        </ButtonLink>
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
+        <div className="max-w-lg">
+          <p className="text-[12px] text-mute">Série interrompue</p>
+          <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+            Le cycle est terminé.
+          </h1>
+          <p className="mt-4 text-[14px] leading-relaxed text-mute">
+            Votre accès n’est plus actif. Vos anciens résultats restent consultables dans
+            l’historique.
+          </p>
+          <ButtonLink to="/app" className="mt-6">
+            Retour au tableau de bord
+          </ButtonLink>
+        </div>
       </div>
     )
   }
 
-  if (!current) {
+  if (!current || questions.length === 0) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-content flex-col justify-center px-5 py-16 sm:px-8 lg:px-12">
-        <p className="eyebrow">Banque vide</p>
-        <h1 className="display mt-5 max-w-3xl text-[clamp(3rem,7vw,5rem)]">
-          Aucune question à afficher.
-        </h1>
-        <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-mute">
-          Le sujet qui vous a été attribué ne contient pas encore de questions. Contactez votre
-          docteur.
-        </p>
-        <ButtonLink to="/app" variant="primary" className="mt-7">
-          Retour au tableau de bord
-        </ButtonLink>
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
+        <div className="max-w-lg">
+          <p className="text-[12px] text-mute">Banque vide</p>
+          <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+            Aucune question à afficher.
+          </h1>
+          <p className="mt-4 text-[14px] leading-relaxed text-mute">
+            Le sujet n’a pas encore de questions publiées. Contactez votre docteur.
+          </p>
+          <ButtonLink to="/app" className="mt-6">
+            Retour au tableau de bord
+          </ButtonLink>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-canvas">
-      {/* Quiz progress bar */}
-      <div className="border-b border-hairline-soft">
-        <div className="mx-auto max-w-content px-5 pb-4 pt-4 sm:px-8 lg:px-12">
+    <div className="min-h-[calc(100vh-68px)] bg-canvas">
+      <div className="border-b border-line bg-surface">
+        <div className="mx-auto max-w-content px-5 py-4 sm:px-8 lg:px-10">
           <div className="flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={quit}
-              className="inline-flex items-center gap-2 py-2 text-[12px] font-medium text-mute transition-colors hover:text-ink"
+              className="inline-flex items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"
             >
-              <ArrowLeft className="size-3.5" aria-hidden="true" />
-              Quitter
+              <ArrowLeft size={14} /> Quitter
             </button>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-mute">
-              Question <span className="text-ink">{String(index + 1).padStart(2, '0')}</span>
-              <span className="text-stone"> / {String(questions.length).padStart(2, '0')}</span>
+            <p className="text-[12px] tabular-nums text-mute">
+              Question <span className="font-medium text-ink">{String(index + 1).padStart(2, '0')}</span>{' '}
+              / {String(questions.length).padStart(2, '0')}
             </p>
-            <p className="hidden items-center gap-1.5 text-[11px] text-mute sm:flex">
-              <Clock3 className="size-3.5" aria-hidden="true" />
-              {timeLeft(user?.expiresAt)} restants
-            </p>
-            <p className="text-[11px] text-mute sm:hidden">{timeLeft(user?.expiresAt)}</p>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
+              <Clock3 size={13} /> {timeLeft(assignment?.expiresAt)}
+            </span>
           </div>
           <ProgressBar
             value={((index + 1) / questions.length) * 100}
-            className="mt-3 h-[2px]"
+            className="mt-3 h-1"
+            barClassName="bg-accent"
           />
         </div>
       </div>
 
-      <div className="mx-auto max-w-[920px] px-5 py-9 sm:px-8 sm:py-12">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="eyebrow">
-            Question {String(questionNumber(current)).padStart(2, '0')}
-          </span>
-          <span className="h-px w-6 bg-hairline" aria-hidden="true" />
-          <span className="text-[10px] uppercase tracking-[0.16em] text-mute">
-            {current.matiere}
-          </span>
-          <span className="ml-auto border border-hairline px-2.5 py-1 text-[9px] uppercase tracking-[0.14em] text-mute">
-            Une ou plusieurs réponses
+      <div className="mx-auto max-w-[900px] px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
+        <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-mute">
+          <span className="font-medium text-ink">{current.matiere}</span>
+          <span className="h-1 w-1 rounded-full bg-line" />
+          <span>Une ou plusieurs réponses</span>
+          <span className="ml-auto rounded-full bg-cloud px-2.5 py-1">
+            {planned} questions au total
           </span>
         </div>
 
-        <h1 className="mt-5 max-w-[760px] text-[clamp(1.35rem,2.6vw,1.85rem)] font-medium leading-[1.35] tracking-[-0.01em] text-ink">
+        <h1 className="mt-5 max-w-3xl font-display text-[clamp(1.7rem,3.2vw,2.35rem)] leading-[1.25] tracking-[-0.02em] text-ink">
           {current.statement}
         </h1>
 
-        <div className="mt-8 border-t border-hairline" role="group" aria-label="Réponses possibles">
+        <div className="mt-7 space-y-2.5" role="group" aria-label="Réponses possibles">
           {answerLetters.map((letter) => {
             const active = selected.includes(letter)
             return (
@@ -226,87 +212,69 @@ export default function QuizPage() {
                 aria-checked={active}
                 onClick={() => toggleAnswer(letter)}
                 className={cn(
-                  'group flex w-full items-start gap-4 border-b border-hairline py-5 text-left transition-colors sm:gap-5 sm:px-3',
-                  active ? 'bg-cloud' : 'hover:bg-cloud/60',
+                  'flex w-full items-start gap-3.5 rounded-xl border px-3.5 py-3.5 text-left transition',
+                  active
+                    ? 'border-accent bg-accent-soft'
+                    : 'border-line bg-surface hover:border-accent/50 hover:bg-canvas',
                 )}
               >
                 <span
                   className={cn(
-                    'mt-0.5 grid size-9 shrink-0 place-items-center border text-[13px] font-medium transition-colors',
+                    'grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-[12px] font-semibold',
                     active
-                      ? 'border-ink bg-ink text-white'
-                      : 'border-hairline bg-canvas text-ash group-hover:border-stone',
+                      ? 'border-accent bg-accent text-white'
+                      : 'border-line bg-canvas text-mute',
                   )}
                 >
                   {letter}
                 </span>
-                <span className="flex-1 text-[14.5px] leading-relaxed text-charcoal sm:text-[15px]">
+                <span className="flex-1 pt-1 text-[14px] leading-relaxed text-ash">
                   {current.options[letter]}
                 </span>
                 <span
                   className={cn(
-                    'mt-1 grid size-5 shrink-0 place-items-center border transition-colors',
-                    active ? 'border-ink bg-ink text-white' : 'border-hairline text-transparent',
+                    'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border transition',
+                    active ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
                   )}
-                  aria-hidden="true"
+                  aria-hidden
                 >
-                  <Check className="size-3" strokeWidth={2.5} />
+                  {active && <Check size={12} strokeWidth={3} />}
                 </span>
               </button>
             )
           })}
         </div>
 
-        <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <button
-              type="button"
-              onClick={() => {
-                if (index === 0) {
-                  quit()
-                  return
-                }
-                setIndex((value) => value - 1)
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-              disabled={index === 0}
-              className="inline-flex items-center gap-2 py-2 text-[13px] font-medium text-mute transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-35"
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-              Question précédente
-            </button>
-            <p className="mt-1 text-[11px] text-stone">
-              {answeredCount} réponse{answeredCount > 1 ? 's' : ''} sur {questions.length}
-            </p>
-          </div>
-
-          <Button
+        <div className="mt-8 flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <button
             type="button"
-            variant="primary"
-            size="lg"
-            onClick={goNext}
-            disabled={selected.length === 0 || saving}
-            loading={saving}
-            className="group min-w-[200px] gap-3"
+            onClick={index === 0 ? quit : () => setIndex((value) => Math.max(0, value - 1))}
+            disabled={index === 0}
+            className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink disabled:opacity-40"
           >
-            {isLast ? 'Terminer la série' : 'Question suivante'}
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </Button>
+            <ArrowLeft size={14} /> {index === 0 ? 'Quitter la série' : 'Précédente'}
+          </button>
+
+          <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center">
+            <span className="text-center text-[11px] text-mute sm:text-right">
+              {answeredCount} / {questions.length} répondues
+            </span>
+            <Button
+              onClick={goNext}
+              disabled={selected.length === 0 || saving}
+              className="min-w-[172px]"
+            >
+              {isLast ? (saving ? 'Enregistrement…' : 'Terminer la série') : 'Question suivante'}
+              {!isLast && <ArrowRight size={15} />}
+            </Button>
+          </div>
         </div>
 
-        <div className="mt-8 flex items-start gap-2.5 border-t border-hairline-soft pt-5 text-[11px] leading-relaxed text-mute">
-          <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-          <p>
-            Votre score et le corrigé détaillé s’affichent à la fin de la série. Vous pouvez
-            revenir sur une question avant de terminer. L’accès se coupe automatiquement à la
-            fin de votre mois.
-          </p>
-        </div>
+        <p className="mt-5 flex items-start gap-2 text-[11px] leading-relaxed text-mute">
+          <ShieldCheck size={13} className="mt-0.5 shrink-0 text-accent" />
+          La correction et les bonnes réponses apparaîtront uniquement après l’envoi de la série.
+        </p>
       </div>
     </div>
   )
-}
-
-function questionNumber(question: Question) {
-  return question.number
 }

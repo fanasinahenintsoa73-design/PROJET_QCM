@@ -6,8 +6,8 @@ import { cn, formatBytes, prepareReceipt } from '@/lib/utils'
 export function ReceiptDropzone({
   value,
   onChange,
-  label = 'Ajouter le reçu de paiement',
-  hint = 'Photo ou PDF · 3 Mo max · Obligatoire',
+  label = 'Reçu de paiement',
+  hint = 'Photo ou PDF · 3 Mo maximum',
   compact = false,
 }: {
   value: Receipt | null
@@ -21,16 +21,15 @@ export function ReceiptDropzone({
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
 
-  async function handleFiles(files: FileList | null) {
-    const file = files?.[0]
+  async function handleFile(file?: File) {
     if (!file) return
     setError('')
     setBusy(true)
     try {
       const receipt = await prepareReceipt(file)
       onChange(receipt)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Impossible de lire ce fichier.')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Ce fichier n’a pas pu être lu.')
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -38,39 +37,34 @@ export function ReceiptDropzone({
   }
 
   if (value) {
-    const isPdf = value.mime === 'application/pdf'
     return (
-      <div className="border border-hairline-soft bg-cloud/50 p-3">
-        <div className="flex items-stretch gap-4">
-          <div className="relative h-[104px] w-[82px] shrink-0 overflow-hidden bg-ink">
-            {isPdf ? (
-              <div className="grid h-full place-items-center text-white">
-                <FileText size={28} strokeWidth={1.4} />
-              </div>
+      <div>
+        <div className="flex flex-col gap-4 rounded-xl border border-line bg-canvas p-3 sm:flex-row sm:items-center">
+          <span className="grid h-[104px] w-[82px] shrink-0 place-items-center overflow-hidden rounded-lg bg-cloud">
+            {value.mime === 'application/pdf' ? (
+              <FileText size={24} className="text-ink" strokeWidth={1.4} />
             ) : (
-              <img src={value.dataUrl} alt="Aperçu du reçu" className="h-full w-full object-cover" />
+              <img src={value.dataUrl} alt="" className="h-full w-full object-cover" />
             )}
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col justify-between py-1">
-            <div className="min-w-0">
-              <p className="eyebrow mb-1 text-success">Reçu ajouté</p>
-              <p className="truncate text-[14px] font-medium">{value.name}</p>
-              <p className="mt-1 text-[12px] text-mute">
-                {isPdf ? 'PDF' : 'Image'} · {formatBytes(value.size)}
-              </p>
-            </div>
-            <div className="flex items-center gap-4 pt-2">
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-medium text-accent">Reçu ajouté</p>
+            <p className="mt-1 truncate text-[14px] font-medium text-ink">{value.name}</p>
+            <p className="mt-0.5 text-[11px] text-mute">
+              {value.mime === 'application/pdf' ? 'PDF' : 'Image'} · {formatBytes(value.size)}
+            </p>
+            <div className="mt-3 flex items-center gap-4">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 text-[12px] font-medium underline decoration-1 underline-offset-4 hover:text-mute"
+                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent underline decoration-1 underline-offset-4"
               >
                 <RefreshCw size={12} /> Remplacer
               </button>
               <button
                 type="button"
                 onClick={() => onChange(null)}
-                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-sale hover:opacity-70"
+                className="inline-flex items-center gap-1.5 text-[12px] text-mute transition hover:text-sale"
               >
                 <Trash2 size={12} /> Supprimer
               </button>
@@ -79,12 +73,13 @@ export function ReceiptDropzone({
         </div>
         <input
           ref={inputRef}
+          id="receipt-upload"
           type="file"
           accept="image/*,application/pdf"
-          className="hidden"
-          onChange={(event) => void handleFiles(event.target.files)}
+          className="sr-only"
+          onChange={(event) => void handleFile(event.target.files?.[0])}
         />
-        {error && <p className="mt-3 text-[12px] text-sale">{error}</p>}
+        {error && <p className="mt-2 text-[12px] text-sale">{error}</p>}
       </div>
     )
   }
@@ -101,20 +96,22 @@ export function ReceiptDropzone({
         onDrop={(event) => {
           event.preventDefault()
           setDragOver(false)
-          void handleFiles(event.dataTransfer.files)
+          void handleFile(event.dataTransfer.files?.[0])
         }}
         className={cn(
-          'group flex cursor-pointer flex-col items-center justify-center border border-dashed px-6 text-center transition',
+          'group flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center transition',
           compact ? 'min-h-[142px] py-5' : 'min-h-[190px] py-8',
-          dragOver ? 'border-ink bg-cloud' : 'border-hairline bg-cloud/40 hover:border-ink hover:bg-cloud',
+          dragOver
+            ? 'border-accent bg-accent-soft/50'
+            : 'border-line bg-canvas hover:border-accent hover:bg-accent-soft/30',
         )}
       >
-        <span className="mb-4 grid h-11 w-11 place-items-center rounded-full bg-white transition group-hover:bg-ink group-hover:text-white">
-          {busy ? <Loader2 size={18} className="animate-spin" /> : <ImageUp size={18} strokeWidth={1.6} />}
+        <span className="grid h-11 w-11 place-items-center rounded-full bg-surface text-accent transition group-hover:bg-accent group-hover:text-white">
+          {busy ? <Loader2 size={18} className="animate-spin" /> : <ImageUp size={18} />}
         </span>
-        <span className="text-[14px] font-medium">{busy ? 'Préparation du fichier…' : label}</span>
-        <span className="mt-1.5 text-[11px] text-mute">{hint}</span>
-        <span className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] underline decoration-1 underline-offset-4">
+        <span className="mt-3 text-[14px] font-medium text-ink">{label}</span>
+        <span className="mt-1 text-[11px] text-mute">{hint}</span>
+        <span className="mt-3 text-[12px] font-medium text-accent underline decoration-1 underline-offset-4">
           Parcourir mes fichiers
         </span>
       </label>
@@ -123,45 +120,41 @@ export function ReceiptDropzone({
         id="receipt-upload"
         type="file"
         accept="image/*,application/pdf"
-        className="hidden"
-        onChange={(event) => void handleFiles(event.target.files)}
+        className="sr-only"
+        disabled={busy}
+        onChange={(event) => void handleFile(event.target.files?.[0])}
       />
-      {error && (
-        <p className="mt-2 text-[12px] text-sale" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <p className="mt-2 text-[12px] text-sale">{error}</p>}
     </div>
   )
 }
 
-export function ReceiptThumb({ receipt, onClick }: { receipt: Receipt; onClick: () => void }) {
-  if (receipt.mime === 'application/pdf') {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex items-center gap-2 border border-hairline-soft px-3 py-2 text-[12px] font-medium transition hover:border-ink"
-      >
-        <FileText size={15} /> Voir le reçu
-      </button>
-    )
-  }
+export function ReceiptThumb({
+  receipt,
+  onClick,
+}: {
+  receipt: Receipt
+  onClick?: () => void
+}) {
+  const isPdf = receipt.mime === 'application/pdf'
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group inline-flex items-center gap-2.5 text-left"
-      aria-label="Voir le reçu de paiement"
+      className="group flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2 text-left transition hover:border-accent"
     >
-      <span className="h-11 w-9 overflow-hidden bg-cloud">
-        <img
-          src={receipt.dataUrl}
-          alt=""
-          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-        />
-      </span>
-      <span className="text-[12px] font-medium underline decoration-1 underline-offset-4 group-hover:text-mute">
+      {isPdf ? (
+        <FileText size={18} className="text-mute" strokeWidth={1.4} />
+      ) : (
+        <span className="h-11 w-9 overflow-hidden rounded bg-cloud">
+          <img
+            src={receipt.dataUrl}
+            alt=""
+            className="h-full w-full object-cover transition group-hover:scale-105"
+          />
+        </span>
+      )}
+      <span className="text-[12px] font-medium text-ink underline decoration-line underline-offset-4 group-hover:decoration-accent">
         Voir le reçu
       </span>
     </button>

@@ -4,7 +4,7 @@ type Tone = 'neutral' | 'dark' | 'success' | 'warning' | 'error' | 'info'
 
 const tones: Record<Tone, { wrap: string; dot: string }> = {
   neutral: { wrap: 'bg-cloud text-charcoal', dot: 'bg-stone' },
-  dark: { wrap: 'bg-ink text-white', dot: 'bg-white' },
+  dark: { wrap: 'bg-accent text-white', dot: 'bg-white' },
   success: { wrap: 'bg-[#e9f5ee] text-success', dot: 'bg-success' },
   warning: { wrap: 'bg-[#fdf3e2] text-[#8a5300]', dot: 'bg-[#b7770b]' },
   error: { wrap: 'bg-[#fdecec] text-sale', dot: 'bg-sale' },

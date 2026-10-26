@@ -1,9 +1,9 @@
 @font-face {
-  font-family: 'Bebas Neue';
+  font-family: 'Source Serif 4';
   font-style: normal;
-  font-weight: 400;
+  font-weight: 400 600;
   font-display: swap;
-  src: url('/fonts/bebas-neue-latin.woff2') format('woff2');
+  src: url('/fonts/source-serif-4-latin.woff2') format('woff2');
 }
 
 @font-face {
@@ -19,19 +19,22 @@
 @tailwind utilities;
 
 :root {
-  --ink: #111111;
-  --canvas: #ffffff;
-  --cloud: #f5f5f5;
-  --mute: #707072;
-  --hairline: #cacacb;
-  --sale: #d30005;
-  --success: #007d48;
+  --ink: #15201b;
+  --canvas: #f5f7f3;
+  --surface: #ffffff;
+  --cloud: #eef2ed;
+  --line: #d7ded8;
+  --mute: #657069;
+  --accent: #0b6b4f;
+  --accent-soft: #e4f0ea;
+  --sale: #b42318;
+  --warning: #985b12;
   color-scheme: light;
 }
 
 @layer base {
   * {
-    @apply border-hairline-soft;
+    @apply border-line;
   }
 
   html {
@@ -45,12 +48,12 @@
   }
 
   ::selection {
-    background: #111111;
-    color: #ffffff;
+    background: var(--accent-soft);
+    color: var(--ink);
   }
 
   :focus-visible {
-    outline: 2px solid #111111;
+    outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
 
@@ -71,33 +74,53 @@
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus {
-    -webkit-text-fill-color: #111111;
-    box-shadow: 0 0 0px 1000px #f5f5f5 inset;
+    -webkit-text-fill-color: var(--ink);
+    box-shadow: 0 0 0 1000px var(--surface) inset;
     transition: background-color 5000s ease-in-out 0s;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--canvas);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid var(--canvas);
+    border-radius: 999px;
+    background: #c3cdc6;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #a9b6ad;
   }
 }
 
 @layer components {
   .display {
-    @apply font-display uppercase;
-    line-height: 0.86;
-    letter-spacing: 0.008em;
+    @apply font-display;
+    line-height: 0.98;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
   }
 
   .eyebrow {
-    @apply text-[10px] font-semibold uppercase tracking-[0.2em] text-mute;
+    @apply text-[11px] font-medium tracking-[0.06em] text-mute;
   }
 
   .eyebrow-ink {
-    @apply text-[10px] font-semibold uppercase tracking-[0.2em] text-ink;
+    @apply text-[11px] font-medium tracking-[0.06em] text-ink;
   }
 
   .hairline {
-    @apply border-t border-hairline-soft;
+    @apply border-t border-line;
   }
 
   .link-inline {
-    @apply underline decoration-1 underline-offset-4 transition-colors hover:text-mute;
+    @apply underline decoration-1 underline-offset-4 transition-colors hover:text-accent;
   }
 
   .arrow-link {
@@ -109,15 +132,15 @@
   }
 
   .arrow-link:hover svg {
-    transform: translateX(4px);
+    transform: translateX(3px);
   }
 
   .form-label {
-    @apply mb-2 block text-[10px] font-semibold uppercase tracking-[0.18em] text-mute;
+    @apply mb-2 block text-[13px] font-medium text-ink;
   }
 
   .form-input {
-    @apply h-[52px] w-full rounded-[18px] border border-transparent bg-cloud px-4 text-[15px] text-ink outline-none transition;
+    @apply h-[50px] w-full rounded-[10px] border border-line bg-surface px-3.5 text-[15px] text-ink outline-none transition;
   }
 
   .form-input::placeholder {
@@ -125,8 +148,8 @@
   }
 
   .form-input:focus {
-    @apply border-ink bg-canvas;
-    box-shadow: 0 0 0 4px #f5f5f5;
+    @apply border-accent;
+    box-shadow: 0 0 0 3px rgba(11, 107, 79, 0.12);
   }
 
   .form-input[aria-invalid='true'] {
@@ -134,12 +157,16 @@
   }
 
   .form-textarea {
-    @apply min-h-[104px] w-full resize-y rounded-[18px] border border-transparent bg-cloud px-4 py-3 text-[15px] leading-relaxed text-ink outline-none transition;
+    @apply min-h-[104px] w-full resize-y rounded-[10px] border border-line bg-surface px-3.5 py-3 text-[15px] leading-relaxed text-ink outline-none transition;
   }
 
   .form-textarea:focus {
-    @apply border-ink bg-canvas;
-    box-shadow: 0 0 0 4px #f5f5f5;
+    @apply border-accent;
+    box-shadow: 0 0 0 3px rgba(11, 107, 79, 0.12);
+  }
+
+  .panel {
+    @apply rounded-2xl border border-line bg-surface;
   }
 
   .no-scrollbar {
@@ -160,15 +187,6 @@
   .full-bleed {
     width: 100vw;
     margin-left: calc(50% - 50vw);
-  }
-
-  .grid-lines {
-    background-image: linear-gradient(to right, rgba(17, 17, 17, 0.06) 1px, transparent 1px);
-    background-size: 25% 100%;
-  }
-
-  .hide-native-caret {
-    caret-color: transparent;
   }
 }
 

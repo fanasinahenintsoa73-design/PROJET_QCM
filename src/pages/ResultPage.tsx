@@ -5,17 +5,10 @@ import { useAuth } from '@/lib/auth'
 import { getAttempt } from '@/lib/db'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
-import {
-  answerLetters,
-  cn,
-  formatDateLong,
-  formatDateTime,
-  isExpired,
-  scoreTone,
-} from '@/lib/utils'
+import { answerLetters, cn, formatDateTime, isExpired, scoreTone } from '@/lib/utils'
 
 export default function ResultPage() {
-  usePageTitle('Résultat de la série')
+  usePageTitle('Résultat de la série — MEDQCM L1')
   const { attemptId } = useParams<{ attemptId: string }>()
   const navigate = useNavigate()
   const { user, db } = useAuth()
@@ -46,16 +39,14 @@ export default function ResultPage() {
 
   if (!attempt || !ownsAttempt) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-content flex-col justify-center px-5 py-16 sm:px-8 lg:px-12">
-        <p className="eyebrow">Série introuvable</p>
-        <h1 className="display mt-5 max-w-3xl text-[clamp(3rem,7vw,5rem)]">
-          Ce résultat n’existe pas.
+      <div className="mx-auto flex min-h-[60vh] max-w-content flex-col justify-center px-5 py-16 sm:px-8 lg:px-10">
+        <h1 className="font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] text-ink">
+          Ce résultat n’est pas disponible.
         </h1>
-        <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-mute">
-          La série demandée n’est pas disponible sur cet appareil ou n’appartient pas à votre
-          compte.
+        <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-mute">
+          La série demandée n’existe pas ou n’appartient pas à votre compte.
         </p>
-        <ButtonLink to="/app/historique" variant="primary" className="mt-7">
+        <ButtonLink to="/app/historique" className="mt-6">
           Voir mon historique
         </ButtonLink>
       </div>
@@ -64,9 +55,7 @@ export default function ResultPage() {
 
   const total = attempt.total
   const score = attempt.score
-  const unanswered = attempt.questionIds.filter(
-    (id) => !(attempt.answers[id] ?? []).length,
-  ).length
+  const unanswered = attempt.questionIds.filter((id) => !(attempt.answers[id] ?? []).length).length
   const incorrect = Math.max(0, total - score - unanswered)
   const percent = total ? Math.round((score / total) * 100) : 0
   const verdict = capitalize(scoreTone(score, total))
@@ -117,258 +106,172 @@ export default function ResultPage() {
 
   return (
     <div className="bg-canvas">
-      <div className="border-b border-hairline-soft">
-        <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-[11px] sm:px-8 lg:px-12">
-          <Link
-            to="/app"
-            className="inline-flex items-center gap-2 text-mute transition-colors hover:text-ink"
-          >
-            <ArrowLeft className="size-3.5" aria-hidden="true" />
-            Tableau de bord
+      <div className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-3 px-5 py-3 text-[12px] sm:px-8 lg:px-10">
+          <Link to="/app" className="inline-flex items-center gap-2 text-mute transition hover:text-accent">
+            <ArrowLeft size={14} /> Mon cycle
           </Link>
-          <span className="uppercase tracking-[0.18em] text-stone">Résultat de la série</span>
-          <Link to="/app/historique" className="text-mute transition-colors hover:text-ink">
+          <span className="text-mute">Résultat de la série</span>
+          <Link to="/app/historique" className="text-mute transition hover:text-accent">
             Historique
           </Link>
         </div>
       </div>
 
-      {/* Score */}
-      <section className="bg-ink text-white">
-        <div className="mx-auto max-w-content px-5 py-12 sm:px-8 sm:py-16 lg:px-12">
-          <div className="grid items-end gap-8 lg:grid-cols-12">
-            <div className="lg:col-span-7">
-              <p className="eyebrow text-white/45">
+      <section className="mx-auto max-w-content px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_260px] lg:items-end lg:p-10">
+            <div>
+              <p className="text-[12px] text-mute">
                 {subject?.monthLabel ?? 'Sujet de QCM'} · {formatDateTime(attempt.createdAt)}
               </p>
-              <h1 className="display mt-5 text-[clamp(3.8rem,8vw,6.4rem)]">{verdict}.</h1>
-              <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-white/55">
-                {message}
-              </p>
+              <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.8rem)] leading-[1.02] tracking-[-0.03em] text-ink">
+                {verdict}.
+              </h1>
+              <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-mute">{message}</p>
             </div>
-            <div className="lg:col-span-5 lg:text-right">
-              <p className="eyebrow text-white/45">Score final</p>
-              <p className="mt-3 flex items-baseline gap-2 lg:justify-end" aria-label={`${score} sur ${total}`}>
-                <span className="display text-[clamp(6rem,15vw,9.5rem)] leading-[0.75]">
+            <div className="lg:text-right">
+              <p className="text-[11px] text-mute">Score final</p>
+              <p className="mt-1 flex items-baseline gap-1 lg:justify-end" aria-label={`${score} sur ${total}`}>
+                <span className="font-display text-[clamp(4rem,9vw,5.6rem)] leading-none text-accent">
                   {score}
                 </span>
-                <span className="text-[22px] font-light text-white/35">/{total}</span>
+                <span className="text-[18px] text-mute">/{total}</span>
               </p>
-              <p className="mt-4 text-[12px] text-white/55">
-                {percent} % de réussite · 1 point par question juste
-              </p>
+              <p className="mt-2 text-[11px] text-mute">{percent} % de réussite</p>
             </div>
           </div>
 
-          <div className="mt-10 grid grid-cols-3 border-t border-white/15 pt-6">
-            <div>
-              <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-white/40">
-                <span className="size-1.5 bg-success-bright" aria-hidden="true" />
-                Correctes
-              </p>
-              <p className="mt-2 text-[26px] font-light tabular-nums">{score}</p>
-            </div>
-            <div className="border-l border-white/15 pl-5 sm:pl-8">
-              <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-white/40">
-                <span className="size-1.5 bg-sale" aria-hidden="true" />
-                Incorrectes
-              </p>
-              <p className="mt-2 text-[26px] font-light tabular-nums">{incorrect}</p>
-            </div>
-            <div className="border-l border-white/15 pl-5 sm:pl-8">
-              <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-white/40">
-                <span className="size-1.5 bg-white/30" aria-hidden="true" />
-                Sans réponse
-              </p>
-              <p className="mt-2 text-[26px] font-light tabular-nums">{unanswered}</p>
-            </div>
+          <div className="grid grid-cols-3 border-t border-line">
+            {[
+              ['Correctes', score, 'text-success'],
+              ['Incorrectes', incorrect, 'text-sale'],
+              ['Sans réponse', unanswered, 'text-mute'],
+            ].map(([label, value, tone], index) => (
+              <div key={label} className={`px-5 py-4 sm:px-8 ${index > 0 ? 'border-l border-line' : ''}`}>
+                <p className="text-[10px] text-mute">{label}</p>
+                <p className={`mt-1 text-[18px] font-medium tabular-nums ${tone}`}>{value}</p>
+              </div>
+            ))}
           </div>
+        </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            <ButtonLink
-              to="/app/entrainement"
-              variant="white"
-              size="lg"
-              className="group gap-3"
-            >
-              <RotateCcw className="size-4" aria-hidden="true" />
-              Refaire une autre série
-            </ButtonLink>
-            <Link
-              to="/app"
-              className="inline-flex items-center gap-2 py-2 text-[13px] font-medium text-white/70 transition-colors hover:text-white"
-            >
-              Retour au tableau de bord
-              <ArrowRight className="size-3.5" aria-hidden="true" />
-            </Link>
-          </div>
+        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <ButtonLink to="/app/entrainement" size="lg">
+            <RotateCcw size={15} /> Refaire une série
+          </ButtonLink>
+          <Link to="/app" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:text-accent-deep">
+            Retour au cycle <ArrowRight size={14} />
+          </Link>
+          <button
+            type="button"
+            onClick={exportResult}
+            className="ml-auto inline-flex items-center gap-2 text-[12px] text-mute transition hover:text-accent"
+          >
+            <Download size={14} /> Télécharger le résultat
+          </button>
         </div>
       </section>
 
-      {/* Corrigé */}
-      <section>
-        <div className="mx-auto grid max-w-content gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-12 lg:gap-14 lg:px-12">
-          <aside className="lg:col-span-4">
-            <div className="bg-cloud p-6 sm:p-7 lg:sticky lg:top-6">
-              <p className="eyebrow">Votre série</p>
-              <h2 className="mt-2 text-[22px] font-medium leading-snug tracking-[-0.01em] text-ink">
-                {subject?.title ?? 'Sujet de QCM'}
-              </h2>
-              <dl className="mt-5 border-t border-hairline text-[12px]">
-                <div className="flex items-center justify-between gap-4 border-b border-hairline py-3">
-                  <dt className="text-mute">Série terminée le</dt>
-                  <dd className="text-right font-medium text-ink">
-                    {formatDateLong(attempt.createdAt)}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4 border-b border-hairline py-3">
-                  <dt className="text-mute">Questions</dt>
-                  <dd className="font-medium text-ink">{total}</dd>
-                </div>
-                <div className="flex items-center justify-between gap-4 py-3">
-                  <dt className="text-mute">Résultat</dt>
-                  <dd className="font-medium text-ink">{score} / {total}</dd>
-                </div>
-              </dl>
+      <section className="mx-auto max-w-content px-5 pb-16 sm:px-8 lg:px-10">
+        <div className="border-b border-line pb-4">
+          <h2 className="text-[18px] font-medium text-ink">Corrigé détaillé</h2>
+          <p className="mt-1 text-[12px] text-mute">
+            {subject?.title ?? 'Sujet de QCM'} · {total} questions · une question à réponses
+            multiples n’est juste que si toutes les bonnes réponses sont cochées.
+          </p>
+        </div>
 
-              <p className="mt-5 border-t border-hairline pt-5 text-[11px] leading-relaxed text-mute">
-                Une question à réponses multiples n’est validée que si toutes les bonnes
-                réponses sont cochées, sans erreur supplémentaire.
-              </p>
-
-              <button
-                type="button"
-                onClick={exportResult}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 border border-hairline bg-white px-4 py-2.5 text-[12px] font-medium text-ink transition hover:bg-cloud"
-              >
-                <Download className="size-3.5" aria-hidden="true" />
-                Télécharger le résultat
-              </button>
-            </div>
-          </aside>
-
-          <div className="lg:col-span-8">
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-5">
-              <div>
-                <p className="eyebrow">Corrigé</p>
-                <h2 className="mt-2 text-[24px] font-medium tracking-[-0.01em] text-ink">
-                  Le détail, question par question.
-                </h2>
+        {questions.map((question, questionIndex) => {
+          const given = attempt.answers[question.id] ?? []
+          const isCorrect = sameLetters(given, question.correctAnswers)
+          const isBlank = given.length === 0
+          return (
+            <article key={question.id} className="border-b border-line py-7 sm:py-9">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-[11px] font-medium text-mute">
+                  Question {String(questionIndex + 1).padStart(2, '0')}
+                </span>
+                <span className="text-[11px] text-stone">·</span>
+                <span className="text-[11px] text-mute">{question.matiere}</span>
+                <span
+                  className={cn(
+                    'ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium',
+                    isBlank
+                      ? 'bg-cloud text-mute'
+                      : isCorrect
+                        ? 'bg-accent-soft text-accent'
+                        : 'bg-danger-soft text-sale',
+                  )}
+                >
+                  {isBlank ? (
+                    'Sans réponse'
+                  ) : isCorrect ? (
+                    <>
+                      <Check size={11} strokeWidth={2.5} /> Juste
+                    </>
+                  ) : (
+                    <>
+                      <X size={11} strokeWidth={2.5} /> À revoir
+                    </>
+                  )}
+                </span>
               </div>
-              <p className="text-[11px] text-mute">{total} questions · explications incluses</p>
-            </div>
 
-            <div>
-              {questions.map((question, questionIndex) => {
-                const given = attempt.answers[question.id] ?? []
-                const isCorrect = sameLetters(given, question.correctAnswers)
-                const isBlank = given.length === 0
-                return (
-                  <article
-                    key={question.id}
-                    className="border-b border-hairline py-8 first:pt-7 sm:py-9"
-                  >
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="eyebrow">
-                        Question {String(questionIndex + 1).padStart(2, '0')}
-                      </span>
-                      <span className="h-px w-5 bg-hairline" aria-hidden="true" />
-                      <span className="text-[10px] uppercase tracking-[0.14em] text-mute">
-                        {question.matiere}
-                      </span>
+              <h3 className="mt-3 max-w-3xl text-[16px] font-medium leading-relaxed text-ink">
+                {question.statement}
+              </h3>
+
+              <div className="mt-4 max-w-3xl overflow-hidden rounded-lg border border-line">
+                {answerLetters.map((letter) => {
+                  const isExpected = question.correctAnswers.includes(letter)
+                  const isGiven = given.includes(letter)
+                  return (
+                    <div
+                      key={letter}
+                      className={cn(
+                        'flex items-start gap-3 border-b border-line px-3.5 py-3 last:border-b-0',
+                        isExpected && 'bg-accent-soft/60',
+                        !isExpected && isGiven && 'bg-danger-soft/60',
+                      )}
+                    >
                       <span
                         className={cn(
-                          'ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em]',
-                          isBlank
-                            ? 'bg-cloud text-mute'
-                            : isCorrect
-                              ? 'bg-[#e9f5ee] text-success'
-                              : 'bg-[#fdecec] text-sale',
+                          'mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded border text-[11px] font-medium',
+                          isExpected
+                            ? 'border-accent bg-accent text-white'
+                            : isGiven
+                              ? 'border-sale bg-sale text-white'
+                              : 'border-line text-mute',
                         )}
                       >
-                        {isBlank ? (
-                          'Sans réponse'
-                        ) : isCorrect ? (
-                          <>
-                            <Check className="size-3" strokeWidth={2.5} aria-hidden="true" />
-                            Juste
-                          </>
-                        ) : (
-                          <>
-                            <X className="size-3" strokeWidth={2.5} aria-hidden="true" />
-                            À revoir
-                          </>
-                        )}
+                        {letter}
                       </span>
+                      <span className="flex-1 text-[13px] leading-relaxed text-ash">
+                        {question.options[letter]}
+                      </span>
+                      {isExpected && (
+                        <span className="mt-0.5 shrink-0 text-[10px] font-medium text-accent">
+                          Attendue
+                        </span>
+                      )}
+                      {!isExpected && isGiven && (
+                        <span className="mt-0.5 shrink-0 text-[10px] font-medium text-sale">
+                          Votre réponse
+                        </span>
+                      )}
                     </div>
+                  )
+                })}
+              </div>
 
-                    <h3 className="mt-4 text-[16px] font-medium leading-relaxed text-ink">
-                      {question.statement}
-                    </h3>
-
-                    <div className="mt-4 border-t border-hairline-soft">
-                      {answerLetters.map((letter) => {
-                        const isExpected = question.correctAnswers.includes(letter)
-                        const isGiven = given.includes(letter)
-                        return (
-                          <div
-                            key={letter}
-                            className={cn(
-                              'flex items-start gap-3 border-b border-hairline-soft px-2 py-3 sm:px-3',
-                              isExpected && 'bg-[#f3faf5]',
-                              !isExpected && isGiven && 'bg-[#fff5f5]',
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                'mt-0.5 grid size-6 shrink-0 place-items-center border text-[11px] font-medium',
-                                isExpected
-                                  ? 'border-success bg-success text-white'
-                                  : isGiven
-                                    ? 'border-sale bg-sale text-white'
-                                    : 'border-hairline text-mute',
-                              )}
-                            >
-                              {letter}
-                            </span>
-                            <span className="flex-1 text-[13px] leading-relaxed text-charcoal">
-                              {question.options[letter]}
-                            </span>
-                            {isExpected && (
-                              <span className="mt-0.5 shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-success">
-                                Réponse attendue
-                              </span>
-                            )}
-                            {!isExpected && isGiven && (
-                              <span className="mt-0.5 shrink-0 text-[9px] font-semibold uppercase tracking-[0.1em] text-sale">
-                                Votre réponse
-                              </span>
-                            )}
-                            {isExpected && isGiven && (
-                              <Check
-                                className="mt-1 size-3.5 shrink-0 text-success"
-                                strokeWidth={2}
-                                aria-hidden="true"
-                              />
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    <div className="mt-4 border-l-2 border-ink bg-cloud px-5 py-4 sm:px-6">
-                      <p className="eyebrow">Explication médicale</p>
-                      <p className="mt-2 text-[13px] leading-relaxed text-charcoal">
-                        {question.explanation}
-                      </p>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-
-          </div>
-        </div>
+              <div className="mt-4 max-w-3xl rounded-lg bg-cloud px-4 py-4">
+                <p className="text-[11px] font-medium text-ink">Explication</p>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-ash">{question.explanation}</p>
+              </div>
+            </article>
+          )
+        })}
       </section>
     </div>
   )

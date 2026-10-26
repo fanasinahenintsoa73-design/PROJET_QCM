@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from 'lucide-react'
 import { AuthShell } from '@/components/AuthShell'
 import { Field, Input } from '@/components/ui/Field'
@@ -37,40 +37,46 @@ export function LoginPage() {
       return
     }
 
-    toast(`Bonjour ${account.firstName}. Espace docteur ouvert.`)
-    navigate('/admin/sujet#importer', { replace: true })
+    toast(`Bonjour Dr ${account.lastName}.`)
+    navigate('/admin', { replace: true })
   }
 
   return (
-    <AuthShell>
+    <AuthShell accessLabel="Espace docteur">
       <div>
-        <p className="eyebrow">Espace docteur</p>
-        <h1 className="display mt-4 text-[clamp(3.2rem,8vw,4.3rem)]">
-          Connexion
-          <br />
-          docteur.
+        <div className="mb-9 flex items-center gap-3 rounded-xl border border-line bg-surface p-4">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft font-display text-lg text-accent">
+            SR
+          </span>
+          <div>
+            <p className="text-[15px] font-medium text-ink">Dr Sun RAZAFIMANDIMBY</p>
+            <p className="mt-0.5 text-[13px] text-mute">Docteur · Espace praticien</p>
+          </div>
+        </div>
+
+        <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
+          Accéder aux dossiers.
         </h1>
-        <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-ash">
-          Cet accès est réservé au docteur. Identifiez-vous avec votre adresse email et votre mot
-          de passe.
+        <p className="mt-3 max-w-sm text-[14px] leading-relaxed text-mute">
+          Vérifiez les reçus, ouvrez les cycles et publiez les sujets du mois.
         </p>
 
-        <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           {error && (
             <div
-              className="border-l-2 border-sale bg-[#fdecec] px-4 py-3 text-[12px] leading-relaxed text-sale"
+              className="rounded-lg border border-sale/20 bg-danger-soft px-4 py-3 text-[13px] leading-relaxed text-sale"
               role="alert"
             >
               {error}
             </div>
           )}
 
-          <Field label="Identifiant" htmlFor="login-email" required>
+          <Field label="Adresse email" htmlFor="login-email" required>
             <Input
               id="login-email"
               type="email"
               autoComplete="username"
-              placeholder="Adresse email docteur"
+              placeholder="prof@medqcm.fr"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
@@ -92,7 +98,7 @@ export function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
-                className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-mute transition hover:bg-white hover:text-ink"
+                className="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-mute transition hover:bg-cloud hover:text-ink"
                 aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -105,13 +111,8 @@ export function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-hairline-soft pt-4 text-[10px] text-mute">
-          <span className="inline-flex items-center gap-1.5">
-            <LockKeyhole size={11} /> Accès réservé — identifiants docteur requis
-          </span>
-          <Link to="/etudiant" className="font-medium text-ink underline underline-offset-4">
-            Portail étudiant
-          </Link>
+        <div className="mt-7 flex items-center gap-2 border-t border-line pt-4 text-[12px] text-mute">
+          <LockKeyhole size={13} /> Session séparée de l’espace étudiant.
         </div>
       </div>
     </AuthShell>

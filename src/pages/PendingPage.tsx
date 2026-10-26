@@ -1,220 +1,173 @@
 import { useState } from 'react'
-import {
-  ArrowUpRight,
-  Check,
-  Clock3,
-  FileText,
-  Hourglass,
-  Loader2,
-  LockKeyhole,
-  Mail,
-  ShieldCheck,
-  X,
-} from 'lucide-react'
+import { Navigate } from 'react-router-dom'
+import { ArrowRight, Check, FileText, Hourglass, LockKeyhole, Mail } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { usePageTitle } from '@/components/Layouts'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { Modal } from '@/components/ui/Modal'
+import { ButtonLink } from '@/components/ui/Button'
 import type { Receipt } from '@/types'
 import { formatBytes, formatDateTime, formatDateLong } from '@/lib/utils'
 
 export function PendingPage() {
   usePageTitle('Dossier en vérification — MEDQCM L1')
-  const { user, latestRequest, pendingRequest } = useAuth()
+  const { user, latestRequest, pendingRequest, access } = useAuth()
   const [receiptOpen, setReceiptOpen] = useState(false)
+
   if (!user) return null
+  if (access === 'rejected' || access === 'expired') return <Navigate to="/expiration" replace />
+
   const request = pendingRequest ?? latestRequest
+  const validated = access === 'active'
 
   return (
     <section className="bg-canvas">
-      <div className="mx-auto max-w-content px-5 py-12 sm:px-10 lg:px-10 lg:py-20">
-        <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
-          <div className="lg:col-span-7">
-            <StatusPill tone="warning">En attente de validation</StatusPill>
-            <h1 className="display mt-6 text-[clamp(3.4rem,8.5vw,6.4rem)]">
-              Dossier
-              <br />
-              sous
-              <br />
-              vérification.
-            </h1>
-
-            <div className="mt-7 max-w-xl border-l-2 border-ink pl-5">
-              <p className="text-[15px] leading-[1.7] text-ash">
-                Merci {user.firstName}. Votre justificatif a bien été transmis au docteur. Votre
-                compte sera activé sous 24 h après vérification.
+      <div className="mx-auto flex max-w-content justify-center px-5 py-12 sm:px-8 lg:py-20">
+        <div className="w-full max-w-[720px]">
+          {validated ? (
+            <div className="rounded-2xl border border-line bg-surface p-6 sm:p-10">
+              <StatusPill tone="success" dot>
+                Inscription validée
+              </StatusPill>
+              <h1 className="mt-6 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+                Votre inscription est validée.
+              </h1>
+              <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-mute">
+                Votre dossier a été accepté par le docteur. Votre cycle de 30 jours est ouvert et
+                votre sujet vous attend dans votre espace.
               </p>
-            </div>
 
-            <div className="mt-7 flex items-start gap-3 bg-cloud p-4">
-              <LockKeyhole size={16} className="mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[12px] font-medium">Le QCM reste inaccessible jusqu’à activation.</p>
-                <p className="mt-1 text-[11px] leading-relaxed text-mute">
-                  Cette protection garantit que seuls les étudiants dont le paiement a été vérifié
-                  accèdent au sujet qui leur est attribué.
-                </p>
+              <div className="mt-7 flex items-start gap-3 rounded-xl bg-accent-soft p-4">
+                <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-white">
+                  <Check size={13} strokeWidth={2.5} />
+                </span>
+                <div>
+                  <p className="text-[13px] font-medium text-ink">Accès activé</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-ash">
+                    Votre compte est actif. Vous pouvez commencer votre première série dès
+                    maintenant.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-10 border-t border-ink">
-              {[
-                {
-                  title: 'Demande transmise',
-                  detail: `Reçue le ${formatDateTime(request?.createdAt ?? user.createdAt)}`,
-                  state: 'done' as const,
-                },
-                {
-                  title: 'Vérification du justificatif',
-                  detail: 'Votre docteur contrôle le reçu et l’identité du dossier.',
-                  state: 'current' as const,
-                },
-                {
-                  title: 'Ouverture des 30 jours',
-                  detail: 'Le QCM et le corrigé se débloquent automatiquement après validation.',
-                  state: 'next' as const,
-                },
-              ].map((step) => (
-                <div
-                  key={step.title}
-                  className={`flex items-start gap-4 border-b border-hairline-soft py-5 ${
-                    step.state === 'next' ? 'opacity-45' : ''
-                  }`}
-                >
-                  <span
-                    className={
-                      step.state === 'done'
-                        ? 'mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-white'
-                        : step.state === 'current'
-                          ? 'mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-ink bg-white'
-                          : 'mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-cloud text-mute'
-                    }
-                  >
-                    {step.state === 'done' ? (
-                      <Check size={13} strokeWidth={2.5} />
-                    ) : step.state === 'current' ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <LockKeyhole size={12} />
-                    )}
-                  </span>
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[13px] font-medium">{step.title}</p>
-                      {step.state === 'current' && (
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-mute">
-                          En cours
-                        </span>
-                      )}
+              <ButtonLink to="/app" size="lg" className="mt-7">
+                Ouvrir mon espace <ArrowRight size={16} />
+              </ButtonLink>
+            </div>
+          ) : (
+            <div>
+              <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
+                <StatusPill tone="warning" dot>
+                  En attente de validation
+                </StatusPill>
+                <h1 className="mt-5 font-display text-[clamp(2.2rem,4.8vw,3.2rem)] leading-[1.06] tracking-[-0.03em] text-ink">
+                  Votre dossier est en cours de vérification.
+                </h1>
+                <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
+                  Merci {user.firstName}. Votre reçu a bien été transmis au docteur. Le QCM
+                  s’ouvrira dès que votre paiement sera vérifié.
+                </p>
+
+                <div className="mt-6 flex items-start gap-3 rounded-xl bg-cloud p-4">
+                  <LockKeyhole size={16} className="mt-0.5 shrink-0 text-mute" />
+                  <p className="text-[12px] leading-relaxed text-ash">
+                    Le QCM reste fermé jusqu’à la validation. Cette vérification est manuelle et
+                    garantit que seuls les dossiers réglés accèdent au sujet.
+                  </p>
+                </div>
+
+                <div className="mt-7 border-t border-line">
+                  {[
+                    [
+                      'Demande transmise',
+                      `Reçue le ${formatDateTime(request?.createdAt ?? user.createdAt)}`,
+                      'done',
+                    ],
+                    ['Vérification du reçu', 'Le docteur contrôle le justificatif et l’identité.', 'current'],
+                    ['Ouverture du cycle', 'Le QCM se débloque automatiquement après validation.', 'next'],
+                  ].map(([title, detail, state]) => (
+                    <div key={title} className="flex items-start gap-3 border-b border-line py-4 last:border-b-0">
+                      <span
+                        className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] ${
+                          state === 'done'
+                            ? 'bg-accent text-white'
+                            : state === 'current'
+                              ? 'border border-accent bg-accent-soft text-accent'
+                              : 'bg-cloud text-mute'
+                        }`}
+                      >
+                        {state === 'done' ? <Check size={12} strokeWidth={2.5} /> : state === 'current' ? <Hourglass size={12} /> : '3'}
+                      </span>
+                      <div>
+                        <p className="text-[13px] font-medium text-ink">{title}</p>
+                        <p className="mt-0.5 text-[12px] leading-relaxed text-mute">{detail}</p>
+                      </div>
                     </div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-mute">{step.detail}</p>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-
-            <div className="mt-8 grid gap-6 sm:grid-cols-2">
-              <div>
-                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
-                  <Clock3 size={13} /> Délai habituel
-                </p>
-                <p className="mt-2 text-[12px] leading-relaxed text-ash">
-                  Moins de 24 heures. Les demandes sont vérifiées manuellement, généralement dans la
-                  journée.
-                </p>
               </div>
-              <div>
-                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
-                  <ShieldCheck size={13} /> Reçu vérifié
-                </p>
-                <p className="mt-2 text-[12px] leading-relaxed text-ash">
-                  Montant, date et lisibilité sont contrôlés. Un justificatif incomplet entraîne un refus
-                  avec motif.
-                </p>
-              </div>
-            </div>
 
-            <div className="mt-8 border border-dashed border-hairline p-4 text-[10px] leading-relaxed text-mute">
-              <span className="font-semibold uppercase tracking-[0.14em] text-ink">Validation —</span>{' '}
-              votre demande est examinée par le docteur. Dès qu’elle est acceptée, votre espace se
-              met à jour automatiquement.
-            </div>
-          </div>
+              <div className="mt-4 rounded-2xl border border-line bg-surface p-6 sm:p-8">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[12px] font-medium text-ink">Votre demande</p>
+                    <p className="mt-1 text-[12px] text-mute">
+                      {request?.type === 'renewal' ? 'Renouvellement' : 'Première demande'} ·{' '}
+                      {formatDateLong(request?.createdAt ?? user.createdAt)}
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-mute">24 h indicatives</span>
+                </div>
 
-          <aside className="lg:col-span-5">
-            <div className="bg-ink p-6 text-white sm:p-8">
-              <div className="flex items-center justify-between">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/50">
-                  Votre demande
-                </p>
-                <Hourglass size={15} className="text-white/40" />
-              </div>
-              <p className="mt-6 font-display text-[clamp(4rem,8vw,6rem)] leading-[0.8]">24 h</p>
-              <p className="mt-3 text-[12px] text-white/55">Délai indicatif de vérification</p>
+                <dl className="mt-4 space-y-2 border-t border-line pt-4 text-[12px]">
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-mute">Titulaire</dt>
+                    <dd className="font-medium text-ink">
+                      {user.firstName} {user.lastName}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-mute">Email</dt>
+                    <dd className="max-w-[60%] truncate font-medium text-ink">{user.email}</dd>
+                  </div>
+                </dl>
 
-              <div className="mt-8 border-t border-white/15">
-                {[
-                  ['Titulaire', `${user.firstName} ${user.lastName}`],
-                  ['Email', user.email],
-                  ['Type', request?.type === 'renewal' ? 'Renouvellement' : 'Première demande'],
-                  ['Demande envoyée', formatDateLong(request?.createdAt ?? user.createdAt)],
-                  ['Statut', 'Reçu à vérifier'],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="flex items-start justify-between gap-5 border-b border-white/10 py-3.5"
+                {request?.receipt ? (
+                  <button
+                    type="button"
+                    onClick={() => setReceiptOpen(true)}
+                    className="mt-4 flex w-full items-center gap-3 rounded-lg border border-line p-2.5 text-left transition hover:border-accent"
                   >
-                    <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/40">
-                      {label}
+                    <span className="grid h-12 w-10 shrink-0 place-items-center overflow-hidden rounded bg-cloud">
+                      {request.receipt.mime === 'application/pdf' ? (
+                        <FileText size={17} className="text-mute" />
+                      ) : (
+                        <img src={request.receipt.dataUrl} alt="" className="h-full w-full object-cover" />
+                      )}
                     </span>
-                    <span className="max-w-[230px] text-right text-[11px] leading-snug text-white/85">
-                      {value}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-medium text-ink">
+                        {request.receipt.name}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-mute">
+                        {formatBytes(request.receipt.size)}
+                      </span>
                     </span>
-                  </div>
-                ))}
+                    <span className="text-[11px] font-medium text-accent">Voir</span>
+                  </button>
+                ) : null}
+
+                <p className="mt-4 flex items-start gap-2 text-[11px] leading-relaxed text-mute">
+                  <Mail size={12} className="mt-0.5 shrink-0" />
+                  Votre reçu n’est visible que par vous et votre docteur.
+                </p>
               </div>
 
-              {request?.receipt ? (
-                <button
-                  type="button"
-                  onClick={() => setReceiptOpen(true)}
-                  className="mt-5 flex w-full items-center gap-3 border border-white/15 p-2 text-left transition hover:border-white/40"
-                >
-                  <span className="grid h-14 w-11 shrink-0 place-items-center overflow-hidden bg-white/10">
-                    {request.receipt.mime === 'application/pdf' ? (
-                      <FileText size={18} />
-                    ) : (
-                      <img
-                        src={request.receipt.dataUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-white/40">
-                      Justificatif joint
-                    </span>
-                    <span className="mt-0.5 block truncate text-[11px]">{request.receipt.name}</span>
-                    <span className="block text-[9px] text-white/40">
-                      {formatBytes(request.receipt.size)}
-                    </span>
-                  </span>
-                  <ArrowUpRight size={14} className="shrink-0 text-white/60" />
-                </button>
-              ) : (
-                <div className="mt-5 border border-white/15 p-3 text-[11px] text-white/50">
-                  Aucun reçu n’est attaché à ce dossier.
-                </div>
-              )}
-
-              <p className="mt-5 flex items-start gap-2 text-[10px] leading-relaxed text-white/40">
-                <Mail size={11} className="mt-0.5 shrink-0" />
-                Votre reçu est visible uniquement par vous et votre docteur.
+              <p className="mt-5 text-center text-[11px] leading-relaxed text-mute">
+                Cette page se met à jour automatiquement. Vous n’avez rien à faire.
               </p>
             </div>
-
-          </aside>
+          )}
         </div>
       </div>
 
@@ -239,26 +192,30 @@ function ReceiptModal({
       title="Justificatif de paiement"
       eyebrow="Visible par vous et le docteur"
       size="md"
-      footer={<button type="button" onClick={onClose} className="text-[12px] font-medium underline underline-offset-4">Fermer</button>}
+      footer={
+        <button type="button" onClick={onClose} className="text-[12px] font-medium underline underline-offset-4">
+          Fermer
+        </button>
+      }
     >
       {!receipt ? (
         <p className="text-[13px] text-mute">Aucun justificatif disponible.</p>
       ) : receipt.mime === 'application/pdf' ? (
-        <div className="flex flex-col items-center justify-center border border-hairline-soft bg-cloud py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-line bg-cloud py-16 text-center">
           <FileText size={32} strokeWidth={1.3} />
           <p className="mt-4 text-[14px] font-medium">{receipt.name}</p>
           <p className="mt-1 text-[12px] text-mute">PDF · {formatBytes(receipt.size)}</p>
           <a
             href={receipt.dataUrl}
             download={receipt.name}
-            className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-ink px-6 text-[12px] font-medium text-white"
+            className="mt-5 inline-flex h-11 items-center gap-2 rounded-[10px] bg-accent px-6 text-[12px] font-medium text-white"
           >
             Télécharger le justificatif
           </a>
         </div>
       ) : (
         <figure>
-          <div className="bg-cloud p-2">
+          <div className="rounded-lg bg-cloud p-2">
             <img
               src={receipt.dataUrl}
               alt="Aperçu du reçu de paiement"
