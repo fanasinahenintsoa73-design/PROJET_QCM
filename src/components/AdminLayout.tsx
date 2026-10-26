@@ -21,7 +21,6 @@ export function AdminLayout() {
         <div className="mx-auto flex h-[68px] max-w-content items-center gap-5 px-5 sm:px-8 lg:px-10">
           <Logo to="/admin" />
           <span className="hidden h-5 w-px bg-line sm:block" />
-          <span className="hidden text-[11px] font-medium text-mute sm:block">Espace docteur</span>
 
           <nav className="ml-3 hidden h-[68px] items-stretch gap-6 md:flex" aria-label="Navigation docteur">
             {navItems.map((item) => (
@@ -108,8 +107,6 @@ export function AdminLayout() {
 
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex max-w-content flex-col gap-2 px-5 py-5 text-[11px] text-mute sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
-          <p>MEDQCM L1 · Espace docteur</p>
-          <p>Validation humaine · données partagées avec le portail étudiant</p>
         </div>
       </footer>
     </div>

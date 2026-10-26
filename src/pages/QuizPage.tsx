@@ -67,10 +67,10 @@ export default function QuizPage() {
     if (!current) return
     setAnswers((previous) => {
       const existing = previous[current.id] ?? []
-      const next = existing.includes(letter)
-        ? existing.filter((value) => value !== letter)
-        : [...existing, letter]
-      return { ...previous, [current.id]: next.sort() }
+      if (existing.includes(letter)) {
+        return { ...previous, [current.id]: [] }
+      }
+      return { ...previous, [current.id]: [letter] }
     })
   }
 
@@ -191,7 +191,7 @@ export default function QuizPage() {
         <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-mute">
           <span className="font-medium text-ink">{current.matiere}</span>
           <span className="h-1 w-1 rounded-full bg-line" />
-          <span>Une ou plusieurs réponses</span>
+          <span>Une seule réponse</span>
           <span className="ml-auto rounded-full bg-cloud px-2.5 py-1">
             {planned} questions au total
           </span>
@@ -246,14 +246,7 @@ export default function QuizPage() {
         </div>
 
         <div className="mt-8 flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            onClick={index === 0 ? quit : () => setIndex((value) => Math.max(0, value - 1))}
-            disabled={index === 0}
-            className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink disabled:opacity-40"
-          >
-            <ArrowLeft size={14} /> {index === 0 ? 'Quitter la série' : 'Précédente'}
-          </button>
+          <div className="flex gap-2"><button type="button" onClick={quit} className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"><ArrowLeft size={14} /> Quitter la série</button>{index > 0 && <button type="button" onClick={() => setIndex((v) => Math.max(0, v - 1))} className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"><ArrowLeft size={14} /> Précédente</button>}</div>
 
           <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center">
             <span className="text-center text-[11px] text-mute sm:text-right">

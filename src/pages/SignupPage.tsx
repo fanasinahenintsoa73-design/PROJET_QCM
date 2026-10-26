@@ -246,8 +246,7 @@ export function SignupPage() {
 
         <div className="mt-5 flex items-start gap-2 text-[11px] leading-relaxed text-mute">
           <LockKeyhole size={13} className="mt-0.5 shrink-0" />
-          Démo locale : les données sont synchronisées avec l’espace docteur de démonstration. En
-          production, le reçu est stocké dans un espace privé sécurisé.
+          En production, le reçu est stocké dans un espace privé sécurisé.
         </div>
       </div>
     </AuthShell>

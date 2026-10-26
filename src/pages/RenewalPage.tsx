@@ -94,7 +94,7 @@ export function RenewalPage() {
               </Button>
 
               <div className="flex flex-wrap items-center gap-4 text-[11px] leading-relaxed text-mute">
-                <span className="inline-flex items-center gap-1.5"><LockKeyhole size={13} /> Démo locale : synchronisation avec l’espace docteur.</span>
+                <span className="inline-flex items-center gap-1.5"><LockKeyhole size={13} /> En production, stockage privé sécurisé.</span>
                 <a href="/app" className="text-mute underline decoration-line underline-offset-4 hover:text-accent">Retour au tableau de bord</a>
               </div>
             </form>

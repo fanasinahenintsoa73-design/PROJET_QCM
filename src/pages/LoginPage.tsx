@@ -112,7 +112,7 @@ export function LoginPage() {
         </form>
 
         <div className="mt-7 flex items-center gap-2 border-t border-line pt-4 text-[12px] text-mute">
-          <LockKeyhole size={13} /> Session séparée de l’espace étudiant.
+          <LockKeyhole size={13} /> Le docteur valide chaque dossier indépendamment.
         </div>
       </div>
     </AuthShell>

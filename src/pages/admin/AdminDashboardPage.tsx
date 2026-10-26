@@ -179,58 +179,6 @@ export default function AdminDashboardPage() {
             </Link>
           </section>
 
-          <section className="bg-accent p-6 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/50">
-                Parcours QCM
-              </p>
-              <BookOpen className="size-4 text-white/50" strokeWidth={1.5} aria-hidden="true" />
-            </div>
-            {subjects.length > 0 ? (
-              <>
-                <p className="mt-4 text-[15px] font-medium leading-snug">
-                  {subjects.length} sujet{subjects.length > 1 ? 's' : ''} en file
-                </p>
-                <p className="mt-1 text-[10px] text-white/50">
-                  Le prochain sujet non fait est attribué automatiquement.
-                </p>
-                <dl className="mt-5 space-y-2 border-t border-white/15 pt-4 text-[10px]">
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-white/50">Questions disponibles</dt>
-                    <dd>{questionCount}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-white/50">Cycles ouverts</dt>
-                    <dd>{openAssignments}</dd>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-white/50">Dernier ajout</dt>
-                    <dd>{formatDate(latestSubject.publishedAt)}</dd>
-                  </div>
-                </dl>
-                <ButtonLink to="/admin/sujet" variant="white" size="sm" className="mt-5 w-full">
-                  Gérer la file
-                </ButtonLink>
-              </>
-            ) : (
-              <>
-                <p className="mt-4 text-[15px] font-medium leading-snug">
-                  La file de sujets est vide.
-                </p>
-                <p className="mt-2 text-[11px] leading-relaxed text-white/60">
-                  Ajoutez un premier sujet avant d’accepter une demande.
-                </p>
-                <ButtonLink to="/admin/sujet" variant="white" size="sm" className="mt-5 w-full">
-                  Ajouter un sujet
-                </ButtonLink>
-              </>
-            )}
-          </section>
-
-          <p className="text-[10px] leading-relaxed text-mute">
-            Dernier ajout&nbsp;:{' '}
-            {latestSubject ? formatDateLong(latestSubject.publishedAt) : 'aucun pour le moment'}.
-          </p>
         </aside>
       </div>
     </>

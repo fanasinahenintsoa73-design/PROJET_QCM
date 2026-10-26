@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
@@ -41,6 +42,7 @@ const importAccept =
 
 export default function AdminSubjectPage() {
   usePageTitle('Sujets — Espace docteur')
+  const navigate = useNavigate()
   const { db } = useAuth()
   const { toast } = useToast()
 
@@ -298,7 +300,7 @@ export default function AdminSubjectPage() {
               <p className="text-[12px] font-medium text-ink">Sujet enregistré dans la file.</p>
               <p className="mt-1 text-[11px] leading-relaxed text-charcoal">
                 « {published.title} » et ses deux fichiers sont enregistrés. Il est maintenant
-                dans la file : utilisez « Attribuer » sur sa carte pour ouvrir immédiatement
+                dans la file.
                 l’accès QCM d’un étudiant, ou laissez-le disponible pour l’acceptation d’une
                 demande.
               </p>
@@ -496,7 +498,7 @@ export default function AdminSubjectPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-success">
                 <CheckCircle2 className="size-3.5" aria-hidden="true" />
                 <span>
-                  {questions.length} questions appariées. Les deux fichiers sont prêts à être
+                  {questions.length} questions appariées.
                   enregistrés ensemble.
                 </span>
               </div>
@@ -550,56 +552,8 @@ export default function AdminSubjectPage() {
           id="enregistrer"
           className="mt-9 scroll-mt-[130px] border-t border-hairline pt-7"
         >
-          <h2 className="text-[18px] font-medium tracking-[-0.01em]">Enregistrer le sujet</h2>
-          <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-mute">
-            Les deux fichiers — questions et corrigés — seront enregistrés ensemble comme un
-            seul sujet dans la file. Aucun accès étudiant ne s’ouvre à cette étape.
-          </p>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_220px]">
-            <Field label="Titre du sujet" htmlFor="subject-title" required>
-              <Input
-                id="subject-title"
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value)
-                  setTitleError('')
-                }}
-                placeholder={`Sujet ${subjects.length + 1} — Octobre 2026`}
-              />
-            </Field>
-            <Field label="Mois affiché" htmlFor="subject-month" required>
-              <Input
-                id="subject-month"
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-                placeholder="Octobre 2026"
-              />
-            </Field>
-          </div>
-          <Field label="Description" htmlFor="subject-description" className="mt-4">
-            <Textarea
-              id="subject-description"
-              rows={3}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Thèmes couverts, consignes ou informations pour les étudiants."
-            />
-          </Field>
-
-          {titleError && <p className="mt-2 text-[11px] text-sale">{titleError}</p>}
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            <p className="max-w-md text-[10px] leading-relaxed text-mute">
-              L’enregistrement ne démarre aucun compte à rebours. Les 30 jours commencent à
-              l’attribution du sujet, manuellement ou à l’acceptation de la demande de l’étudiant.
-            </p>
-            <Button
-              type="button"
-              onClick={openConfirm}
-              disabled={!ready}
-              className="w-full gap-2 sm:w-auto"
-            >
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" onClick={() => setConfirming(true)} className="gap-2">
               <Save className="size-3.5" aria-hidden="true" />
               Enregistrer le sujet
             </Button>
@@ -643,10 +597,7 @@ export default function AdminSubjectPage() {
         eyebrow="File de sujets"
         title="Enregistrer ce sujet ?"
         footer={
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(false)}>
-              Annuler
-            </Button>
+          <div className="flex justify-end">
             <Button
               type="button"
               size="sm"
@@ -655,7 +606,7 @@ export default function AdminSubjectPage() {
               className="gap-2"
             >
               <Save className="size-3.5" aria-hidden="true" />
-              Confirmer l’enregistrement
+              Enregistrer le sujet
             </Button>
           </div>
         }
@@ -903,54 +854,8 @@ function FileDropzone({
       accept={importAccept}
       className={className}
       onChange={handleFile}
-      aria-label={`Sélectionner le fichier — ${label}`}
+      aria-label={`Choisir le fichier — ${label}`}
     />
-  )
-
-  const nativeInput = (
-    <input
-      type="file"
-      accept={importAccept}
-      aria-label={`Sélecteur natif — ${label}`}
-      className="mt-1.5 block w-full cursor-pointer text-[10px] text-mute file:mr-2 file:cursor-pointer file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-[10px] file:font-medium file:text-white"
-      onClick={(event) => {
-        if (window.self !== window.top) {
-          event.preventDefault()
-          window.open(window.location.href, '_blank', 'noopener,noreferrer')
-        }
-      }}
-      onChange={handleFile}
-    />
-  )
-
-  const pickerHelp = (
-    <details open className="mt-3 w-full max-w-xs text-left">
-      <summary className="cursor-pointer text-center text-[10px] text-mute underline decoration-1 underline-offset-4 hover:text-ink">
-        Le sélecteur ne s’ouvre pas ? Utiliser le sélecteur natif
-      </summary>
-      <div className="mt-2 border-t border-hairline-soft pt-2">
-        <p className="text-[9px] leading-relaxed text-mute">
-          Cliquez directement sur le bouton du navigateur ci-dessous :
-        </p>
-        {nativeInput}
-      </div>
-    </details>
-  )
-
-  const templateFooter = (
-    <div className="flex items-center justify-between gap-3 border-t border-hairline-soft px-4 py-2.5">
-      <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-mute">
-        Modèle vierge
-      </span>
-      <button
-        type="button"
-        onClick={onTemplate}
-        className="inline-flex items-center gap-1.5 text-[10px] font-medium underline decoration-1 underline-offset-4 hover:text-mute"
-      >
-        <Download className="size-3" aria-hidden="true" />
-        Télécharger
-      </button>
-    </div>
   )
 
   if (file) {
@@ -967,7 +872,7 @@ function FileDropzone({
             </span>
             <div className="min-w-0">
               <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-success">
-                Fichier prêt
+                Fichier enregistré
               </p>
               <p className="mt-1 truncate text-[12px] font-medium">{file.name}</p>
               <p className="mt-0.5 text-[10px] text-mute">
@@ -994,10 +899,8 @@ function FileDropzone({
               Retirer
             </button>
           </div>
-          {pickerHelp}
-        </div>
-        {templateFooter}
-      </div>
+                  </div>
+              </div>
     )
   }
 
@@ -1029,21 +932,11 @@ function FileDropzone({
         </span>
         <span className="mt-3 text-[13px] font-medium">{label}</span>
         <span className="mt-1 text-[10px] text-mute">{columns}</span>
-        <button
-          type="button"
-          onClick={openFilePicker}
-          className="mt-4 inline-flex min-h-11 items-center gap-2 bg-accent px-4 py-3 text-[11px] font-medium text-white transition hover:opacity-90"
-        >
-          <FolderOpen className="size-3.5" aria-hidden="true" />
-          Sélectionner le fichier
-        </button>
         {renderFileInput('sr-only')}
         <span className="mt-2 text-[10px] text-mute">
-          ou glissez-déposez votre fichier Excel ou PDF
+          Glissez-déposez votre fichier Excel ou PDF
         </span>
       </div>
-      <div className="px-4 pb-3">{pickerHelp}</div>
-      {templateFooter}
-    </div>
+          </div>
   )
 }

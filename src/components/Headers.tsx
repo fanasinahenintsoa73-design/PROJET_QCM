@@ -37,7 +37,6 @@ export function PublicHeader() {
     ['La méthode', '/#methode'],
     ['Le contenu', '/#contenu'],
     ['Le docteur', '/#docteur'],
-    ['FAQ', '/#faq'],
   ]
 
   return (
