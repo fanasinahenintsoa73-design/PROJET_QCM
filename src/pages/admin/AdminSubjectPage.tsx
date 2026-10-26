@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
@@ -403,28 +403,37 @@ export default function AdminSubjectPage() {
           <div>
             <h2 className="text-[18px] font-medium tracking-[-0.01em]">Importer les fichiers</h2>
             <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-mute">
-              Cliquez sur « Sélectionner le fichier » pour ouvrir l’explorateur de fichiers.
-              Choisissez le fichier des questions puis celui des corrigés, au format Excel ou PDF.
-              Un modèle vierge reste téléchargeable en bas de chaque bloc.
+              Utilisez le bouton noir ci-dessous pour ouvrir l’explorateur de fichiers. Choisissez
+              le fichier des questions puis celui des corrigés, au format Excel ou PDF. Un modèle
+              vierge reste téléchargeable en bas de chaque bloc.
             </p>
           </div>
 
           {embedded && (
-            <div className="mt-4 flex items-start gap-3 border-l-2 border-ink bg-cloud px-4 py-3">
-              <AlertCircle className="mt-0.5 size-4 shrink-0 text-ink" strokeWidth={1.8} />
-              <p className="text-[11px] leading-relaxed text-charcoal">
-                Cet aperçu intégré peut bloquer l’ouverture de l’explorateur de fichiers.{' '}
-                <button
-                  type="button"
-                  onClick={() =>
-                    window.open(window.location.href, '_blank', 'noopener,noreferrer')
-                  }
-                  className="font-medium underline decoration-1 underline-offset-4 hover:text-mute"
-                >
-                  Ouvrir l’application dans un onglet
-                </button>{' '}
-                pour sélectionner vos fichiers.
-              </p>
+            <div className="mt-4 border border-ink bg-ink px-5 py-4 text-white">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />
+                <div>
+                  <p className="text-[12px] font-medium">
+                    L’aperçu intégré bloque l’explorateur de fichiers.
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-white/70">
+                    Ouvrez l’application dans un onglet, puis cliquez sur le bouton de sélection
+                    des fichiers.
+                  </p>
+                  <a
+                    href={window.location.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-2 bg-white px-4 py-2.5 text-[11px] font-medium text-ink transition hover:bg-cloud"
+                  >
+                    Ouvrir l’application dans un onglet
+                  </a>
+                  <p className="mt-2 break-all text-[9px] text-white/50">
+                    Adresse : {window.location.href}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -490,12 +499,6 @@ export default function AdminSubjectPage() {
                   {questions.length} questions appariées. Les deux fichiers sont prêts à être
                   enregistrés ensemble.
                 </span>
-                <a
-                  href="#enregistrer"
-                  className="font-medium text-ink underline underline-offset-4"
-                >
-                  Enregistrer le sujet
-                </a>
               </div>
             )}
           </div>
@@ -652,7 +655,7 @@ export default function AdminSubjectPage() {
               className="gap-2"
             >
               <Save className="size-3.5" aria-hidden="true" />
-              Enregistrer le sujet
+              Confirmer l’enregistrement
             </Button>
           </div>
         }
@@ -877,19 +880,26 @@ function FileDropzone({
   onTemplate: () => void
 }) {
   const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     onChoose(event.target.files?.[0])
     event.target.value = ''
   }
 
-  const fileInput = (
+  const openFilePicker = () => {
+    fileInputRef.current?.click()
+  }
+
+  const renderFileInput = (className: string) => (
     <input
       id={id}
+      ref={fileInputRef}
       type="file"
       accept={importAccept}
-      className="sr-only"
+      className={className}
       onChange={handleFile}
+      aria-label={`Sélectionner le fichier — ${label}`}
     />
   )
 
@@ -904,13 +914,13 @@ function FileDropzone({
   )
 
   const pickerHelp = (
-    <details className="mt-3 w-full max-w-xs text-left">
+    <details open className="mt-3 w-full max-w-xs text-left">
       <summary className="cursor-pointer text-center text-[10px] text-mute underline decoration-1 underline-offset-4 hover:text-ink">
-        Le sélecteur ne s’ouvre pas ?
+        Le sélecteur ne s’ouvre pas ? Utiliser le sélecteur natif
       </summary>
       <div className="mt-2 border-t border-hairline-soft pt-2">
         <p className="text-[9px] leading-relaxed text-mute">
-          Utilisez le sélecteur natif du navigateur :
+          Cliquez directement sur le bouton du navigateur ci-dessous :
         </p>
         {nativeInput}
       </div>
@@ -957,12 +967,14 @@ function FileDropzone({
             </div>
           </div>
           <div className="mt-4 flex items-center gap-4">
-            <label
-              htmlFor={id}
-              className="inline-flex min-h-9 cursor-pointer items-center text-[11px] font-medium underline decoration-1 underline-offset-4 hover:text-mute"
+            <button
+              type="button"
+              onClick={openFilePicker}
+              className="inline-flex min-h-9 items-center text-[11px] font-medium underline decoration-1 underline-offset-4 hover:text-mute"
             >
               Remplacer le fichier
-            </label>
+            </button>
+            {renderFileInput('sr-only')}
             <button
               type="button"
               onClick={onRemove}
@@ -974,7 +986,6 @@ function FileDropzone({
           </div>
           {pickerHelp}
         </div>
-        {fileInput}
         {templateFooter}
       </div>
     )
@@ -982,8 +993,12 @@ function FileDropzone({
 
   return (
     <div className="flex flex-col border border-hairline bg-white">
-      <label
-        htmlFor={id}
+      <div
+        onClick={(event) => {
+          const target = event.target as HTMLElement
+          if (target.closest('button, input, a')) return
+          openFilePicker()
+        }}
         onDragOver={(event) => {
           event.preventDefault()
           setDragOver(true)
@@ -1004,16 +1019,20 @@ function FileDropzone({
         </span>
         <span className="mt-3 text-[13px] font-medium">{label}</span>
         <span className="mt-1 text-[10px] text-mute">{columns}</span>
-        <span className="mt-4 inline-flex min-h-11 items-center gap-2 bg-ink px-4 py-3 text-[11px] font-medium text-white transition group-hover:opacity-90">
+        <button
+          type="button"
+          onClick={openFilePicker}
+          className="mt-4 inline-flex min-h-11 items-center gap-2 bg-ink px-4 py-3 text-[11px] font-medium text-white transition hover:opacity-90"
+        >
           <FolderOpen className="size-3.5" aria-hidden="true" />
           Sélectionner le fichier
-        </span>
+        </button>
+        {renderFileInput('sr-only')}
         <span className="mt-2 text-[10px] text-mute">
           ou glissez-déposez votre fichier Excel ou PDF
         </span>
-      </label>
+      </div>
       <div className="px-4 pb-3">{pickerHelp}</div>
-      {fileInput}
       {templateFooter}
     </div>
   )
