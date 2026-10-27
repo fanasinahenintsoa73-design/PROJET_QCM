@@ -81,7 +81,7 @@ export function SignupPage() {
   }
 
   return (
-    <AuthShell accessLabel="Espace étudiant">
+    <AuthShell>
       <div className="pb-4">
         <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
           Ouvrir mon dossier.

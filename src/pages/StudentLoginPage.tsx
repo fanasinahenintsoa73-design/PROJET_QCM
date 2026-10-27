@@ -35,7 +35,7 @@ export function StudentLoginPage() {
   }
 
   return (
-    <AuthShell accessLabel="Espace étudiant">
+    <AuthShell>
       <div>
         <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
           Reprendre ma préparation.

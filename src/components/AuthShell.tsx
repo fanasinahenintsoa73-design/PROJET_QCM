@@ -1,21 +1,12 @@
 import type { ReactNode } from 'react'
 import { Logo } from '@/components/Logo'
 
-export function AuthShell({
-  children,
-  accessLabel = 'Espace étudiant',
-}: {
-  children: ReactNode
-  accessLabel?: string
-}) {
+export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas">
       <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-7">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center">
           <Logo />
-          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-mute">
-            {accessLabel}
-          </span>
         </div>
 
         <main className="flex flex-1 items-center justify-center py-10 sm:py-14">

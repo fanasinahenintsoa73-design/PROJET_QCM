@@ -34,7 +34,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthShell accessLabel="Espace docteur">
+    <AuthShell>
       <div>
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-mute">
           Dr Sun RAZAFIMANDIMBY · Docteur
