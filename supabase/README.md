@@ -55,19 +55,26 @@ Editor. Il crée :
 Les corrigés ne sont jamais envoyés avant la soumission : `start_quiz` renvoie
 les énoncés sans `correct_answers`, et le score est calculé côté Postgres.
 
-## Étapes manuelles restantes dans Supabase
+## Configuration Supabase vérifiée
 
-1. **Authentication → Sign In / Providers → Email** : désactiver
-   **Confirm email**, puis enregistrer. Le flux d’inscription actuel dépose le
-   reçu immédiatement après `signUp` ; sans session, ce dépôt est impossible.
-2. **Authentication → URL Configuration** :
-   - Site URL : `https://medicineqcm.vercel.app`
-   - Redirect URLs : `https://medicineqcm.vercel.app/**` et
-     `https://docteur-sun.vercel.app/**`
-3. Vérifier que le bucket `receipts` est bien **privé**.
+1. **Confirm email** est désactivé (`mailer_autoconfirm: true`). Le flux
+   d’inscription dépose le reçu immédiatement après `signUp` ; sans session, ce
+   dépôt serait impossible.
+2. Le bucket `receipts` est privé.
+3. Le parcours complet a été testé sur le projet : inscription, dépôt du reçu,
+   validation docteur, démarrage du QCM, soumission et correction. Le compte et
+   le reçu de test ont été supprimés.
 
-Ces deux réglages ne sont pas modifiables avec la clé `anon` ni avec les clés
-du projet ; ils nécessitent le dashboard Supabase ou un jeton de gestion.
+Pour un nouveau projet Supabase, refaire ces réglages dans le dashboard :
+**Authentication → Sign In / Providers → Email** (désactiver Confirm email),
+puis **Authentication → URL Configuration** :
+
+- Site URL : `https://medicineqcm.vercel.app`
+- Redirect URLs : `https://medicineqcm.vercel.app/**` et
+  `https://docteur-sun.vercel.app/**`
+
+Ces réglages ne sont pas modifiables avec la clé `anon` ni avec les clés du
+projet ; ils nécessitent le dashboard Supabase ou un jeton de gestion.
 
 ## Créer un professeur
 
@@ -103,6 +110,8 @@ Pour le portail étudiant : `http://etudiant.localhost:5173`.
 - Les policies RLS limitent chaque étudiant à ses propres lignes.
 - Les fonctions métier sont `security definer` avec `search_path = public`,
   `execute` révoqué pour `public`/`anon` et accordé à `authenticated`.
-- Le mot de passe du docteur doit être changé après la première connexion.
+- Le mot de passe du docteur est généré aléatoirement et conservé dans
+  `.secrets/doctor-credentials.txt`, hors dépôt. Changez-le après la première
+  connexion, puis supprimez ce fichier.
 - Ne jamais coller de jeton, mot de passe ou clé `service_role` dans une
   conversation.
