@@ -1,7 +1,7 @@
 # MEDQCM L1
 
 Application d'entraînement QCM pour la 1ʳᵉ année de médecine. Un sujet par cycle,
-20 questions tirées au sort, correction après envoi, 30 jours d'accès. Le docteur
+des séries de 10 questions tirées au sort, correction après envoi, 30 jours d'accès. Le docteur
 valide les dossiers et publie les sujets.
 
 - **Étudiants** : <https://medicineqcm.vercel.app>
@@ -15,7 +15,7 @@ séparées : aucune navigation de l'un vers l'autre.
 1. L'étudiant crée son compte, joint son reçu de paiement et envoie sa demande.
 2. Le docteur reçoit un email, ouvre le reçu et valide le dossier.
 3. L'étudiant reçoit un email d'activation avec ses dates et son sujet.
-4. Il travaille le sujet pendant 30 jours, en séries de 20 questions.
+4. Il travaille le sujet pendant 30 jours, en séries de 10 questions.
 5. Le score et le corrigé ne sont disponibles qu'après l'envoi de la série.
 
 ## Stack

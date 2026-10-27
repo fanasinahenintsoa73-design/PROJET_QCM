@@ -44,7 +44,7 @@ export default function NotFoundPage() {
             <div className="mt-4 border-t border-line pt-4">
               <p className="text-[13px] font-medium text-ink">MEDQCM L1</p>
               <p className="mt-1 text-[12px] leading-relaxed text-mute">
-                20 questions. 30 jours. Aucune impasse.
+                Des séries de 10 questions. 30 jours. Aucune impasse.
               </p>
             </div>
           </div>

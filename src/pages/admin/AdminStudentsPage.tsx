@@ -17,6 +17,7 @@ import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
 import {
+  averageScoreOnTen,
   cn,
   daysLeft,
   formatDate,
@@ -218,9 +219,7 @@ export default function AdminStudentsPage() {
               const state = getStudentState(student)
               const status = stateLabel(state)
               const attempts = db.attempts.filter((attempt) => attempt.userId === student.id)
-              const average = attempts.length
-                ? attempts.reduce((sum, attempt) => sum + attempt.score, 0) / attempts.length
-                : 0
+              const average = averageScoreOnTen(attempts)
               const pendingRequest = db.requests.find(
                 (request) =>
                   request.userId === student.id && request.status === 'pending',
@@ -286,7 +285,7 @@ export default function AdminStudentsPage() {
                           <>
                             {attempts.length} série{attempts.length > 1 ? 's' : ''}
                             <span className="mt-0.5 block text-[10px] text-mute">
-                              Moy. {average.toFixed(1).replace('.', ',')}/20
+                              Moy. {average.toFixed(1).replace('.', ',')}/10
                             </span>
                           </>
                         ) : (
@@ -366,9 +365,7 @@ export default function AdminStudentsPage() {
                   const state = getStudentState(student)
                   const status = stateLabel(state)
                   const attempts = db.attempts.filter((attempt) => attempt.userId === student.id)
-                  const average = attempts.length
-                    ? attempts.reduce((sum, attempt) => sum + attempt.score, 0) / attempts.length
-                    : 0
+                  const average = averageScoreOnTen(attempts)
                   const pendingRequest = db.requests.find(
                     (request) =>
                       request.userId === student.id && request.status === 'pending',
@@ -449,7 +446,7 @@ export default function AdminStudentsPage() {
                           <>
                             <p className="text-[12px] font-medium">{attempts.length}</p>
                             <p className="mt-0.5 text-[10px] text-mute">
-                              Moy. {average.toFixed(1).replace('.', ',')}/20
+                              Moy. {average.toFixed(1).replace('.', ',')}/10
                             </p>
                           </>
                         ) : (

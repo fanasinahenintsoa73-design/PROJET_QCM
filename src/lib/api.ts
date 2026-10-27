@@ -4,7 +4,7 @@ import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
 import * as remote from '@/lib/supabaseData'
 import { randomQuestionIds } from '@/lib/seed'
-import { sameAnswer } from '@/lib/utils'
+import { sameAnswer, SERIES_SIZE } from '@/lib/utils'
 import type {
   AttemptReview,
   PublishSubjectInput,
@@ -126,7 +126,7 @@ export const api = {
     demo.removeSubject(subjectId)
   },
 
-  async startQuiz(userId: string, count = 20): Promise<QuizPayload> {
+  async startQuiz(userId: string, count = SERIES_SIZE): Promise<QuizPayload> {
     if (isSupabaseConfigured) return remote.startQuiz(userId, count)
 
     const db = demo.getDB()
@@ -134,8 +134,10 @@ export const api = {
     if (!assignment) throw new Error('Votre accès n’est plus actif.')
     const subject = db.subjects.find((candidate) => candidate.id === assignment.subjectId)
     if (!subject) throw new Error('Aucun sujet actif ne vous est attribué.')
-    const bank = demo.getSubjectQuestions(subject.id, db)
-    if (bank.length === 0) throw new Error('Le sujet ne contient aucune question.')
+    const bank = demo
+      .getSubjectQuestions(subject.id, db)
+      .filter((question) => question.correctAnswers.length === 1)
+    if (bank.length === 0) throw new Error('Le sujet ne contient aucune question à réponse unique.')
     const ids = randomQuestionIds(bank, count)
     const questions = ids
       .map((id) => bank.find((question) => question.id === id))

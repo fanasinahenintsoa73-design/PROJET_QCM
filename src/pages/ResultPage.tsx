@@ -218,8 +218,7 @@ export default function ResultPage() {
         <div className="border-b border-line pb-4">
           <h2 className="text-[18px] font-medium text-ink">Corrigé détaillé</h2>
           <p className="mt-1 text-[12px] text-mute">
-            {subject?.title ?? 'Sujet de QCM'} · {total} questions · une question à réponses
-            multiples n’est juste que si toutes les bonnes réponses sont cochées.
+            {subject?.title ?? 'Sujet de QCM'} · {total} questions · chaque question compte un point.
           </p>
         </div>
 

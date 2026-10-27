@@ -338,7 +338,7 @@ grant select on public.questions to authenticated; -- policy professeur seulemen
 -- 7. RPC étudiant : lancer une série
 -- ---------------------------------------------------------------------------
 
-create or replace function public.start_quiz(p_count integer default 20)
+create or replace function public.start_quiz(p_count integer default 10)
 returns jsonb
 language plpgsql
 security definer
@@ -350,7 +350,7 @@ declare
   v_assignment_id uuid;
   v_assignment_expires_at timestamptz;
   v_questions jsonb;
-  v_count integer := greatest(1, least(coalesce(p_count, 20), 100));
+  v_count integer := greatest(1, least(coalesce(p_count, 10), 100));
 begin
   if not public.has_active_access() then
     raise exception 'ACCESS_EXPIRED' using errcode = 'P0001';
@@ -387,6 +387,7 @@ begin
     select id, number, matiere, statement, options
     from public.questions
     where subject_id = v_subject.id
+      and coalesce(array_length(correct_answers, 1), 0) = 1
     order by random()
     limit v_count
   ) q;

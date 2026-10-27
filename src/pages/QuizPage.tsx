@@ -7,7 +7,7 @@ import type { QuizPayload } from '@/lib/supabaseData'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { usePageTitle } from '@/components/Layouts'
-import { answerLetters, cn, isExpired, timeLeft, type AnswerLetter } from '@/lib/utils'
+import { answerLetters, cn, isExpired, timeLeft, SERIES_SIZE, type AnswerLetter } from '@/lib/utils'
 
 export default function QuizPage() {
   usePageTitle('Série en cours — MEDQCM L1')
@@ -39,7 +39,7 @@ export default function QuizPage() {
     setLoadError('')
 
     api
-      .startQuiz(user.id, 20)
+      .startQuiz(user.id, SERIES_SIZE)
       .then((quiz) => {
         if (!active) return
         setPayload(quiz)
@@ -143,7 +143,7 @@ export default function QuizPage() {
         <div className="max-w-lg">
           <p className="text-[12px] text-mute">Préparation de la série</p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
-            Vingt questions arrivent.
+            Dix questions arrivent.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
             Le sujet est chargé de façon sécurisée. La correction restera masquée jusqu’à l’envoi.

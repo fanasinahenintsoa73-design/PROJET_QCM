@@ -57,7 +57,7 @@ export function LandingPage() {
             {[
               ['Déposez votre dossier', 'Identité, reçu de paiement, puis validation par le docteur.'],
               ['Recevez votre sujet', 'L’accès s’ouvre après validation, pour un seul sujet à la fois.'],
-              ['Travaillez et corrigez', 'Des séries de vingt questions, correction après envoi.'],
+              ['Travaillez et corrigez', 'Des séries de dix questions, correction après envoi.'],
             ].map(([title, text]) => (
               <li key={title} className="border-b border-line py-4">
                 <p className="text-[13px] font-medium text-ink">{title}</p>

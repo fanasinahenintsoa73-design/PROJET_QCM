@@ -6,7 +6,12 @@ import { getActiveAssignment } from '@/lib/db'
 import { ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { usePageTitle } from '@/components/Layouts'
-import { cn, daysLeft, formatDate, formatDateLong, monthLabel } from '@/lib/utils'
+import { cn, daysLeft, formatDate, formatDateLong, monthLabel, averageScoreOnTen, scoreOnTen, SERIES_SIZE } from '@/lib/utils'
+
+function formatTen(value: number) {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace('.', ',')
+}
 
 export default function DashboardPage() {
   usePageTitle('Mon cycle — MEDQCM L1')
@@ -17,7 +22,7 @@ export default function DashboardPage() {
   const subject = assignment
     ? db.subjects.find((candidate) => candidate.id === assignment.subjectId)
     : undefined
-  const seriesSize = Math.min(20, subject?.questionCount ?? 20)
+  const seriesSize = Math.min(SERIES_SIZE, subject?.questionCount ?? SERIES_SIZE)
   const remaining = daysLeft(user?.expiresAt)
   const lowTime = remaining <= 7
 
@@ -40,10 +45,8 @@ export default function DashboardPage() {
 
   const visible = filter === 'all' ? attempts : attempts.filter((attempt) => attempt.subjectId === filter)
   const showSubject = subjects.length > 1
-  const best = attempts.reduce((max, attempt) => Math.max(max, attempt.score), 0)
-  const average = attempts.length
-    ? Math.round((attempts.reduce((sum, attempt) => sum + attempt.score, 0) / attempts.length) * 10) / 10
-    : 0
+  const best = attempts.reduce((max, attempt) => Math.max(max, scoreOnTen(attempt.score, attempt.total)), 0)
+  const average = averageScoreOnTen(attempts)
   const accessProgress = Math.min(100, Math.max(0, (remaining / 30) * 100))
 
   return (
@@ -100,8 +103,8 @@ export default function DashboardPage() {
             <dl className="mt-7 flex flex-wrap gap-x-10 gap-y-3">
               {[
                 ['Séries', attempts.length],
-                ['Moyenne', attempts.length ? `${average.toFixed(1).replace('.', ',')}/20` : '—'],
-                ['Meilleur', attempts.length ? `${best}/20` : '—'],
+                ['Moyenne', attempts.length ? `${formatTen(average)}/10` : '—'],
+                ['Meilleur', attempts.length ? `${formatTen(best)}/10` : '—'],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[11px] text-mute">{label}</dt>

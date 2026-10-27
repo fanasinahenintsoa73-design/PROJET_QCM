@@ -1,5 +1,5 @@
 import type { Attempt, Database, Question, Subject, SubjectAssignment } from '@/types'
-import { addDays, monthLabel, shuffle, sameAnswer } from '@/lib/utils'
+import { addDays, monthLabel, SERIES_SIZE, shuffle, sameAnswer } from '@/lib/utils'
 
 type SeedQuestion = Omit<Question, 'id' | 'subjectId'>
 
@@ -812,6 +812,6 @@ export function createSeedDatabase(): Database {
   }
 }
 
-export function randomQuestionIds(questions: Question[], count = 20) {
+export function randomQuestionIds(questions: Question[], count = SERIES_SIZE) {
   return shuffle(questions).slice(0, count).map((q) => q.id)
 }

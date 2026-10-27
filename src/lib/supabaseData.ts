@@ -13,6 +13,7 @@ import type {
   UserStatus,
 } from '@/types'
 import { requireSupabase } from '@/lib/supabase'
+import { SERIES_SIZE } from '@/lib/utils'
 
 /* ------------------------------------------------------------------ */
 /* Lignes Supabase                                                     */
@@ -555,7 +556,7 @@ export interface QuizPayload {
   questions: Question[]
 }
 
-export async function startQuiz(userId: string, count = 20): Promise<QuizPayload> {
+export async function startQuiz(userId: string, count = SERIES_SIZE): Promise<QuizPayload> {
   void userId
   const client = requireSupabase()
   const { data, error } = await client.rpc('start_quiz', { p_count: count })

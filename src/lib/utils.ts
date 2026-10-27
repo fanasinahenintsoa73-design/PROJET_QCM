@@ -94,6 +94,19 @@ export function scoreTone(score: number, total: number) {
   return 'à reprendre'
 }
 
+/** Nombre de questions tirées dans la banque à chaque série. */
+export const SERIES_SIZE = 10
+
+/** Ramène une note sur 10, y compris les anciennes séries notées sur 20. */
+export function scoreOnTen(score: number, total: number) {
+  return total > 0 ? (score / total) * 10 : 0
+}
+
+export function averageScoreOnTen(attempts: Array<{ score: number; total: number }>) {
+  if (!attempts.length) return 0
+  return attempts.reduce((sum, attempt) => sum + scoreOnTen(attempt.score, attempt.total), 0) / attempts.length
+}
+
 export function shuffle<T>(array: T[]): T[] {
   const copy = [...array]
   for (let i = copy.length - 1; i > 0; i--) {
