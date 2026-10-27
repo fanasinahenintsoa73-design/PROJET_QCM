@@ -27,6 +27,23 @@ VITE_SUPABASE_URL=https://ttoqcvlharxoyazvgcca.supabase.co
 VITE_SUPABASE_ANON_KEY=<clé anon publique>
 ```
 
+Pour les emails transactionnels, ajouter dans **les deux** projets, en
+**Production** au minimum :
+
+```text
+SMTP_USER=razafimandimby222@gmail.com
+SMTP_PASS=<mot de passe d'application Google>
+DOCTOR_EMAIL=razafimandimby222@gmail.com
+STUDENT_APP_URL=https://medicineqcm.vercel.app
+DOCTOR_APP_URL=https://docteur-sun.vercel.app
+```
+
+`SMTP_PASS` est un secret Vercel : il n'est jamais visible dans le dashboard ni
+récupérable par `vercel env pull`. Utiliser un mot de passe d'application Google
+(compte Google avec validation en deux étapes), jamais le mot de passe du compte.
+Les variables sans préfixe `VITE_` ne sont lues que par la fonction serveur
+`api/notify.mjs`.
+
 `.env.example` sert de modèle. Ne jamais exposer ni commiter :
 
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -54,6 +71,31 @@ Editor. Il crée :
 
 Les corrigés ne sont jamais envoyés avant la soumission : `start_quiz` renvoie
 les énoncés sans `correct_answers`, et le score est calculé côté Postgres.
+
+## Emails transactionnels
+
+La fonction [`api/notify.mjs`](../api/notify.mjs) envoie deux emails :
+
+1. **Nouvelle demande** — après le dépôt du reçu, le docteur reçoit un email
+   avec le nom, l'email, la date et un lien signé vers le reçu (7 jours). Le
+   bouton ouvre directement le dossier dans l'espace docteur.
+2. **Accès activé** — après validation (ou attribution manuelle d'un sujet),
+   l'étudiant reçoit ses dates de cycle, le titre du sujet et le lien de
+   connexion.
+
+La fonction vérifie le jeton Supabase de l'appelant, son rôle et l'appartenance
+de la demande. Elle utilise Gmail SMTP (`smtp.gmail.com:465`). Les envois sont
+attendus avant la fin de l'action, mais une panne SMTP n'annule jamais
+l'inscription ou la validation déjà enregistrée.
+
+Tester après déploiement sur **Production**, car les secrets SMTP ne sont pas
+récupérables localement :
+
+1. créer un compte étudiant de test avec un reçu ;
+2. vérifier l'email reçu par le docteur ;
+3. approuver la demande dans l'espace docteur ;
+4. vérifier l'email reçu par l'étudiant ;
+5. supprimer le compte, la demande, le reçu et l'essai éventuel.
 
 ## Configuration Supabase vérifiée
 
@@ -110,8 +152,9 @@ Pour le portail étudiant : `http://etudiant.localhost:5173`.
 - Les policies RLS limitent chaque étudiant à ses propres lignes.
 - Les fonctions métier sont `security definer` avec `search_path = public`,
   `execute` révoqué pour `public`/`anon` et accordé à `authenticated`.
-- Le mot de passe du docteur est généré aléatoirement et conservé dans
-  `.secrets/doctor-credentials.txt`, hors dépôt. Changez-le après la première
-  connexion, puis supprimez ce fichier.
+- Le mot de passe du docteur est conservé dans
+  `.secrets/doctor-credentials.txt`, hors dépôt. Le mot de passe actuel a été
+  choisi lors de la mise en service et doit être remplacé avant de partager
+  l'URL du portail docteur. Puis supprimez ce fichier.
 - Ne jamais coller de jeton, mot de passe ou clé `service_role` dans une
   conversation.

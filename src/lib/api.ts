@@ -1,5 +1,6 @@
 import type { Receipt, Subject, User } from '@/types'
 import { isSupabaseConfigured } from '@/lib/supabase'
+import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
 import * as remote from '@/lib/supabaseData'
 import { randomQuestionIds } from '@/lib/seed'
@@ -13,6 +14,15 @@ import type {
 
 export interface AuthResult {
   user: User
+}
+
+async function notify(payload: NotificationPayload): Promise<void> {
+  try {
+    await sendNotification(payload)
+  } catch (error) {
+    // L'action métier est déjà enregistrée : une panne email ne doit pas la annuler.
+    console.warn('[email]', error instanceof Error ? error.message : error)
+  }
 }
 
 /**
@@ -44,13 +54,18 @@ export const api = {
     password: string
     receipt: Receipt
   }): Promise<User> {
-    if (isSupabaseConfigured) return remote.registerStudent(input)
+    if (isSupabaseConfigured) {
+      const user = await remote.registerStudent(input)
+      await notify({ type: 'new_request' })
+      return user
+    }
     return demo.registerStudent(input)
   },
 
   async submitRenewal(userId: string, receipt: Receipt): Promise<void> {
     if (isSupabaseConfigured) {
       await remote.submitRenewal(receipt)
+      await notify({ type: 'new_request' })
       return
     }
     demo.submitRenewal(userId, receipt)
@@ -59,6 +74,7 @@ export const api = {
   async approveRequest(requestId: string): Promise<void> {
     if (isSupabaseConfigured) {
       await remote.approveRequest(requestId)
+      await notify({ type: 'access_activated', requestId })
       return
     }
     demo.approveRequest(requestId)
@@ -75,6 +91,7 @@ export const api = {
   async assignSubjectToStudent(subjectId: string, userId: string): Promise<void> {
     if (isSupabaseConfigured) {
       await remote.assignSubjectToStudent(subjectId, userId)
+      await notify({ type: 'access_activated', userId })
       return
     }
     demo.assignSubjectToStudent(subjectId, userId)
