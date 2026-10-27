@@ -28,13 +28,20 @@ Thumbs.db
 
 # Vercel
 .vercel
+.vercel-inspect.json
 
 # Shared local demo data
 server/data/
 
-# Demo screenshots / local artefacts
+# Local tooling / artefacts
 screenshots
 /*.png
 .playwright-mcp/
 .openchamber/
+.agents/
+skills-lock.json
+supabase/.temp/
 *.tsbuildinfo
+
+# Identifiants locaux générés (ne jamais committer)
+.secrets/

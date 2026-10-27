@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ArrowRight, Check, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { AuthShell } from '@/components/AuthShell'
 import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { ReceiptDropzone } from '@/components/ui/Receipt'
 import { useToast } from '@/components/ui/Toast'
-import { registerStudent } from '@/lib/db'
+import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import { makeDemoReceipt } from '@/lib/demoReceipt'
 import { usePageTitle } from '@/components/Layouts'
 import type { Receipt } from '@/types'
@@ -20,8 +22,8 @@ type Errors = Partial<
 
 export function SignupPage() {
   usePageTitle('Créer ma demande — MEDQCM L1')
-  const navigate = useNavigate()
   const { toast } = useToast()
+  const { refresh } = useAuth()
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -47,7 +49,7 @@ export function SignupPage() {
     return next
   }
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     const next = validate()
     setErrors(next)
@@ -55,15 +57,16 @@ export function SignupPage() {
 
     setSubmitting(true)
     try {
-      registerStudent({
+      await api.registerStudent({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
         password,
         receipt: receipt!,
       })
+      await refresh()
       toast('Votre demande a été transmise au docteur.')
-      navigate('/en-attente', { replace: true })
+      window.location.replace('/en-attente')
     } catch (error) {
       setErrors({
         form: error instanceof Error ? error.message : 'La demande n’a pas pu être enregistrée.',
@@ -195,13 +198,15 @@ export function SignupPage() {
                 {errors.receipt}
               </p>
             )}
-            <button
-              type="button"
-              onClick={useDemoReceipt}
-              className="mt-2 text-[11px] text-mute underline decoration-line underline-offset-4 transition hover:text-accent"
-            >
-              Utiliser un reçu de démonstration
-            </button>
+            {!isSupabaseConfigured && (
+              <button
+                type="button"
+                onClick={useDemoReceipt}
+                className="mt-2 text-[11px] text-mute underline decoration-line underline-offset-4 transition hover:text-accent"
+              >
+                Utiliser un reçu de démonstration
+              </button>
+            )}
           </section>
 
           <section className="border-t border-line pt-5">

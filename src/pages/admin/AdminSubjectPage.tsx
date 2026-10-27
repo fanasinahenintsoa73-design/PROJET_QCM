@@ -15,12 +15,10 @@ import {
   UserPlus,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { api } from '@/lib/api'
 import {
-  assignSubjectToStudent,
   getActiveAssignment,
   getPublishedSubjects,
-  publishSubject,
-  removeSubject,
 } from '@/lib/db'
 import {
   downloadAnswersTemplate,
@@ -43,7 +41,7 @@ const importAccept =
 export default function AdminSubjectPage() {
   usePageTitle('Sujets — Espace docteur')
   const navigate = useNavigate()
-  const { db } = useAuth()
+  const { db, refresh } = useAuth()
   const { toast } = useToast()
 
   const subjects = getPublishedSubjects(db)
@@ -182,16 +180,17 @@ export default function AdminSubjectPage() {
     setConfirming(true)
   }
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!ready || publishing) return
     setPublishing(true)
     try {
-      const subject = publishSubject({
+      const subject = await api.publishSubject({
         title: title.trim(),
         description: description.trim(),
         monthLabel: label.trim(),
         questions,
       })
+      await refresh()
       setConfirming(false)
       setPublished(subject)
       setQuestionsFile(null)
@@ -212,11 +211,12 @@ export default function AdminSubjectPage() {
     }
   }
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     if (!removeTarget || removing) return
     setRemoving(true)
     try {
-      removeSubject(removeTarget.id)
+      await api.removeSubject(removeTarget.id)
+      await refresh()
       toast('Sujet retiré de la file.', 'success')
       setRemoveTarget(null)
     } catch (caught) {
@@ -239,12 +239,13 @@ export default function AdminSubjectPage() {
     setAssignError('')
   }
 
-  const handleAssign = () => {
+  const handleAssign = async () => {
     if (!assignTarget || !selectedCandidate || selectedCandidate.disabled || assigning) return
     setAssigning(true)
     setAssignError('')
     try {
-      assignSubjectToStudent(assignTarget.id, selectedCandidate.student.id)
+      await api.assignSubjectToStudent(assignTarget.id, selectedCandidate.student.id)
+      await refresh()
       toast(
         `Sujet attribué à ${selectedCandidate.student.firstName} ${selectedCandidate.student.lastName}. Accès QCM ouvert pour 30 jours.`,
         'success',

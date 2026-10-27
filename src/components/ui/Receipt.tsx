@@ -143,7 +143,7 @@ export function ReceiptThumb({
       onClick={onClick}
       className="group flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2 text-left transition hover:border-accent"
     >
-      {isPdf ? (
+      {isPdf || !receipt.dataUrl ? (
         <FileText size={18} className="text-mute" strokeWidth={1.4} />
       ) : (
         <span className="h-11 w-9 overflow-hidden rounded bg-cloud">

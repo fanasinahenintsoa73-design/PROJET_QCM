@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { approveRequest, rejectRequest } from '@/lib/db'
+import { api } from '@/lib/api'
 import { Button, buttonClasses } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Field'
@@ -33,7 +33,7 @@ const filters: { value: Filter; label: string }[] = [
 
 export default function AdminRequestsPage() {
   usePageTitle('Demandes — Espace docteur')
-  const { db } = useAuth()
+  const { db, refresh } = useAuth()
   const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [filter, setFilter] = useState<Filter>('pending')
@@ -41,13 +41,33 @@ export default function AdminRequestsPage() {
   const [preview, setPreview] = useState<AccessRequest | null>(null)
   const [rejecting, setRejecting] = useState<AccessRequest | null>(null)
   const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const requestedId = searchParams.get('request')
+
+  async function openPreview(request: AccessRequest) {
+    setPreview(request)
+    if (request.receipt.dataUrl || !request.receipt.path) return
+    try {
+      const url = await api.resolveReceiptUrl(request.receipt.path)
+      if (!url) return
+      setPreview((current) =>
+        current && current.id === request.id
+          ? { ...current, receipt: { ...current.receipt, dataUrl: url } }
+          : current,
+      )
+    } catch (caught) {
+      toast(
+        caught instanceof Error ? caught.message : 'Le justificatif n’a pas pu être ouvert.',
+        'error',
+      )
+    }
+  }
 
   useEffect(() => {
     if (!requestedId) return
     const found = db.requests.find((request) => request.id === requestedId)
-    if (found) setPreview(found)
+    if (found) void openPreview(found)
     // Only react to the URL parameter, not to live database updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedId])
@@ -84,13 +104,18 @@ export default function AdminRequestsPage() {
     }
   }
 
-  const handleApprove = (request: AccessRequest) => {
+  const handleApprove = async (request: AccessRequest) => {
+    if (busy) return
+    setBusy(true)
     try {
-      approveRequest(request.id)
+      await api.approveRequest(request.id)
+      await refresh()
       closePreview()
       toast(`${request.userName} est activé pour 30 jours.`, 'success')
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : 'Activation impossible.', 'error')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -105,15 +130,19 @@ export default function AdminRequestsPage() {
     setRejecting(request)
   }
 
-  const handleReject = () => {
-    if (!rejecting) return
+  const handleReject = async () => {
+    if (!rejecting || busy) return
+    setBusy(true)
     try {
-      rejectRequest(rejecting.id, note)
+      await api.rejectRequest(rejecting.id, note)
+      await refresh()
       toast(`La demande de ${rejecting.userName} a été refusée.`, 'info')
       setRejecting(null)
       setNote('')
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : 'Refus impossible.', 'error')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -201,7 +230,7 @@ export default function AdminRequestsPage() {
                   <div className="mt-4">
                     <ReceiptThumb
                       receipt={request.receipt}
-                      onClick={() => setPreview(request)}
+                      onClick={() => void openPreview(request)}
                     />
                   </div>
                   {request.status === 'pending' ? (
@@ -294,7 +323,7 @@ export default function AdminRequestsPage() {
                       <td className="py-4 pr-4">
                         <ReceiptThumb
                           receipt={request.receipt}
-                          onClick={() => setPreview(request)}
+                          onClick={() => void openPreview(request)}
                         />
                       </td>
                       <td className="py-4 pr-4">

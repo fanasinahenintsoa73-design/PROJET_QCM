@@ -22,6 +22,8 @@ export interface Receipt {
   name: string
   mime: string
   size: number
+  /** Chemin dans le bucket Supabase (absent en mode démonstration). */
+  path?: string
 }
 
 export interface AccessRequest {

@@ -2,47 +2,65 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Clock3, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { getActiveAssignment, getSubjectQuestions, saveAttempt } from '@/lib/db'
-import { randomQuestionIds } from '@/lib/seed'
+import { api } from '@/lib/api'
+import type { QuizPayload } from '@/lib/supabaseData'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { usePageTitle } from '@/components/Layouts'
-import {
-  answerLetters,
-  cn,
-  isExpired,
-  sameAnswer,
-  timeLeft,
-  type AnswerLetter,
-} from '@/lib/utils'
-import type { Question } from '@/types'
+import { answerLetters, cn, isExpired, timeLeft, type AnswerLetter } from '@/lib/utils'
 
 export default function QuizPage() {
   usePageTitle('Série en cours — MEDQCM L1')
   const navigate = useNavigate()
-  const { user, db } = useAuth()
+  const { user } = useAuth()
 
-  const assignment = user ? getActiveAssignment(user.id, db) : undefined
-  const subject = assignment
-    ? db.subjects.find((candidate) => candidate.id === assignment.subjectId)
-    : undefined
-  const bank = subject ? getSubjectQuestions(subject.id, db) : []
-  const planned = Math.min(20, bank.length)
-  const [questions] = useState<Question[]>(() =>
-    randomQuestionIds(bank, 20)
-      .map((id) => bank.find((question) => question.id === id))
-      .filter((question): question is Question => Boolean(question)),
-  )
+  const [payload, setPayload] = useState<QuizPayload | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [blocked, setBlocked] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [submitError, setSubmitError] = useState('')
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
-  const [blocked, setBlocked] = useState(!assignment || !subject || isExpired(assignment.expiresAt))
   const [saving, setSaving] = useState(false)
   const finished = useRef(false)
 
+  const questions = payload?.questions ?? []
   const current = questions[index]
   const selected = current ? answers[current.id] ?? [] : []
   const answeredCount = questions.filter((question) => (answers[question.id] ?? []).length > 0).length
   const isLast = index === questions.length - 1
+  const expiresAt = payload?.assignmentExpiresAt
+
+  useEffect(() => {
+    if (!user) return
+    let active = true
+    setLoading(true)
+    setBlocked(false)
+    setLoadError('')
+
+    api
+      .startQuiz(user.id, 20)
+      .then((quiz) => {
+        if (!active) return
+        setPayload(quiz)
+        setIndex(0)
+        setAnswers({})
+        finished.current = false
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        const message = error instanceof Error ? error.message : 'La série n’a pas pu être chargée.'
+        if (/accès|attribué|terminé/i.test(message)) setBlocked(true)
+        else setLoadError(message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [user?.id])
 
   useEffect(() => {
     const check = () => {
@@ -50,7 +68,7 @@ export default function QuizPage() {
         navigate('/expiration', { replace: true })
         return
       }
-      if (!assignment || !subject || isExpired(assignment.expiresAt)) setBlocked(true)
+      if (payload && isExpired(expiresAt)) setBlocked(true)
     }
     check()
     const interval = window.setInterval(check, 15_000)
@@ -61,7 +79,7 @@ export default function QuizPage() {
       window.removeEventListener('focus', check)
       document.removeEventListener('visibilitychange', check)
     }
-  }, [assignment, navigate, subject, user?.expiresAt])
+  }, [expiresAt, navigate, payload, user?.expiresAt])
 
   function toggleAnswer(letter: AnswerLetter) {
     if (!current) return
@@ -75,39 +93,38 @@ export default function QuizPage() {
   }
 
   function canContinue() {
-    if (isExpired(user?.expiresAt)) {
-      setBlocked(true)
-      return false
-    }
-    if (!assignment || !subject) {
+    if (isExpired(user?.expiresAt) || !payload || isExpired(expiresAt)) {
       setBlocked(true)
       return false
     }
     return true
   }
 
-  function goNext() {
+  async function goNext() {
     if (!isLast) {
       if (!canContinue()) return
       setIndex((value) => Math.min(value + 1, questions.length - 1))
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-    if (!canContinue() || !user || !assignment || !subject || saving || finished.current) return
+    if (!canContinue() || !user || !payload || saving || finished.current) return
     setSaving(true)
+    setSubmitError('')
     finished.current = true
-    const score = questions.reduce(
-      (total, question) => total + (sameAnswer(answers[question.id] ?? [], question.correctAnswers) ? 1 : 0),
-      0,
-    )
-    const attempt = saveAttempt({
-      userId: user.id,
-      subjectId: subject.id,
-      questionIds: questions.map((question) => question.id),
-      answers,
-      score,
-    })
-    navigate(`/app/resultat/${attempt.id}`, { replace: true })
+    try {
+      const result = await api.saveAttempt({
+        userId: user.id,
+        questionIds: questions.map((question) => question.id),
+        answers,
+      })
+      navigate(`/app/resultat/${result.attemptId}`, { replace: true })
+    } catch (error) {
+      finished.current = false
+      setSaving(false)
+      setSubmitError(
+        error instanceof Error ? error.message : 'La série n’a pas pu être enregistrée.',
+      )
+    }
   }
 
   function quit() {
@@ -118,6 +135,22 @@ export default function QuizPage() {
       return
     }
     navigate('/app')
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
+        <div className="max-w-lg">
+          <p className="text-[12px] text-mute">Préparation de la série</p>
+          <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+            Vingt questions arrivent.
+          </h1>
+          <p className="mt-4 text-[14px] leading-relaxed text-mute">
+            Le sujet est chargé de façon sécurisée. La correction restera masquée jusqu’à l’envoi.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (blocked) {
@@ -140,16 +173,16 @@ export default function QuizPage() {
     )
   }
 
-  if (!current || questions.length === 0) {
+  if (loadError || !current) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
         <div className="max-w-lg">
-          <p className="text-[12px] text-mute">Banque vide</p>
+          <p className="text-[12px] text-mute">Série indisponible</p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
             Aucune question à afficher.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            Le sujet n’a pas encore de questions publiées. Contactez votre docteur.
+            {loadError || 'Le sujet n’a pas encore de questions publiées. Contactez votre docteur.'}
           </p>
           <ButtonLink to="/app" className="mt-6">
             Retour au tableau de bord
@@ -176,7 +209,7 @@ export default function QuizPage() {
               / {String(questions.length).padStart(2, '0')}
             </p>
             <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
-              <Clock3 size={13} /> {timeLeft(assignment?.expiresAt)}
+              <Clock3 size={13} /> {timeLeft(expiresAt)}
             </span>
           </div>
           <ProgressBar
@@ -193,7 +226,7 @@ export default function QuizPage() {
           <span className="h-1 w-1 rounded-full bg-line" />
           <span>Une seule réponse</span>
           <span className="ml-auto rounded-full bg-cloud px-2.5 py-1">
-            {planned} questions au total
+            {questions.length} questions au total
           </span>
         </div>
 
@@ -244,6 +277,12 @@ export default function QuizPage() {
             )
           })}
         </div>
+
+        {submitError && (
+          <p className="mt-5 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3 text-[13px] text-sale" role="alert">
+            {submitError}
+          </p>
+        )}
 
         <div className="mt-8 flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-2"><button type="button" onClick={quit} className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"><ArrowLeft size={14} /> Quitter la série</button>{index > 0 && <button type="button" onClick={() => setIndex((v) => Math.max(0, v - 1))} className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"><ArrowLeft size={14} /> Précédente</button>}</div>

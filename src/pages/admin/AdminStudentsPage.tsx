@@ -8,7 +8,8 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { getActiveAssignment, getLatestAssignment, revokeAccess } from '@/lib/db'
+import { api } from '@/lib/api'
+import { getActiveAssignment, getLatestAssignment } from '@/lib/db'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Field'
@@ -62,7 +63,7 @@ const filters: { value: StudentFilter; label: string }[] = [
 
 export default function AdminStudentsPage() {
   usePageTitle('Étudiants — Espace docteur')
-  const { db } = useAuth()
+  const { db, refresh } = useAuth()
   const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const filterParam = searchParams.get('statut')
@@ -136,10 +137,11 @@ export default function AdminStudentsPage() {
       })
   }, [filter, query, students])
 
-  const handleSuspend = () => {
+  const handleSuspend = async () => {
     if (!suspending) return
     try {
-      revokeAccess(suspending.id, reason.trim() || 'Accès suspendu par le docteur.')
+      await api.revokeAccess(suspending.id, reason.trim() || 'Accès suspendu par le docteur.')
+      await refresh()
       toast(`L’accès de ${suspending.firstName} a été suspendu.`, 'info')
       setSuspending(null)
       setSelected(null)

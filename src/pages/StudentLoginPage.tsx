@@ -1,12 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from 'lucide-react'
 import { AuthShell } from '@/components/AuthShell'
 import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
-import { getDB } from '@/lib/db'
-import { studentHomePath } from '@/lib/access'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
 
@@ -14,33 +12,26 @@ export function StudentLoginPage() {
   usePageTitle('Connexion étudiant — MEDQCM L1')
   const { login } = useAuth()
   const { toast } = useToast()
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     setError('')
+    setSubmitting(true)
 
-    const db = getDB()
-    const account = db.users.find(
-      (candidate) => candidate.email.toLowerCase() === email.trim().toLowerCase(),
-    )
-    if (!account || account.role !== 'student') {
-      setError('Email ou mot de passe incorrect.')
-      return
-    }
-
-    const result = login(email, password)
+    const result = await login(email, password, 'student')
     if (!result.ok) {
       setError(result.error)
+      setSubmitting(false)
       return
     }
 
-    toast(`Bonjour ${account.firstName}.`)
-    navigate(studentHomePath(account, getDB()), { replace: true })
+    toast(`Bonjour ${result.user.firstName}.`)
+    window.location.replace(result.homePath)
   }
 
   return (
@@ -98,7 +89,7 @@ export function StudentLoginPage() {
             </div>
           </Field>
 
-          <Button type="submit" size="lg" className="w-full">
+          <Button type="submit" size="lg" className="w-full" loading={submitting}>
             Se connecter <ArrowRight size={16} />
           </Button>
         </form>

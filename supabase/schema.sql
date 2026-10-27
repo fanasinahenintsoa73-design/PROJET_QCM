@@ -55,6 +55,7 @@ create table public.access_requests (
   receipt_path text not null check (char_length(receipt_path) > 0),
   receipt_name text not null,
   receipt_mime text not null,
+  receipt_size integer not null default 0 check (receipt_size >= 0 and receipt_size <= 3145728),
   status public.request_status not null default 'pending',
   created_at timestamptz not null default now(),
   reviewed_at timestamptz,
@@ -345,6 +346,7 @@ set search_path = public
 as $$
 declare
   v_subject public.subjects%rowtype;
+  v_subject_id uuid;
   v_assignment_id uuid;
   v_assignment_expires_at timestamptz;
   v_questions jsonb;
@@ -354,8 +356,8 @@ begin
     raise exception 'ACCESS_EXPIRED' using errcode = 'P0001';
   end if;
 
-  select a.id, a.expires_at, s.*
-  into v_assignment_id, v_assignment_expires_at, v_subject
+  select a.id, a.expires_at, a.subject_id
+  into v_assignment_id, v_assignment_expires_at, v_subject_id
   from public.subject_assignments a
   join public.subjects s on s.id = a.subject_id
   where a.user_id = auth.uid()
@@ -367,6 +369,8 @@ begin
   if not found then
     raise exception 'NO_ACTIVE_SUBJECT' using errcode = 'P0001';
   end if;
+
+  select s.* into v_subject from public.subjects s where s.id = v_subject_id;
 
   select jsonb_agg(
            jsonb_build_object(
@@ -837,6 +841,265 @@ $$;
 
 revoke all on function public.remove_subject(uuid) from public, anon;
 grant execute on function public.remove_subject(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 11 bis. RPC professeur : attribution manuelle, suspension, prolongation
+-- ---------------------------------------------------------------------------
+
+-- Attribue un sujet précis à un étudiant. Utilisé depuis la file de sujets.
+create or replace function public.assign_subject_to_student(
+  p_user_id uuid,
+  p_subject_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_started_at timestamptz := now();
+  v_expires_at timestamptz := now() + interval '30 days';
+  v_assignment_id uuid;
+  v_request_id uuid;
+  v_question_count integer;
+  v_archived boolean;
+begin
+  if not public.is_professor() then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  perform 1 from public.profiles where id = p_user_id and role = 'student' for update;
+  if not found then
+    raise exception 'STUDENT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  select question_count, archived
+  into v_question_count, v_archived
+  from public.subjects
+  where id = p_subject_id;
+
+  if not found or v_archived then
+    raise exception 'SUBJECT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+  if v_question_count = 0 then
+    raise exception 'EMPTY_SUBJECT' using errcode = 'P0001';
+  end if;
+
+  if exists (
+    select 1 from public.subject_assignments
+    where user_id = p_user_id and subject_id = p_subject_id
+  ) then
+    raise exception 'SUBJECT_ALREADY_ASSIGNED' using errcode = 'P0001';
+  end if;
+
+  if exists (
+    select 1 from public.subject_assignments
+    where user_id = p_user_id and expires_at > now()
+  ) then
+    raise exception 'ACTIVE_ASSIGNMENT_EXISTS' using errcode = 'P0001';
+  end if;
+
+  select id into v_request_id
+  from public.access_requests
+  where user_id = p_user_id and status = 'pending'
+  order by created_at desc
+  limit 1;
+
+  insert into public.subject_assignments (
+    user_id, subject_id, request_id, started_at, expires_at
+  )
+  values (p_user_id, p_subject_id, v_request_id, v_started_at, v_expires_at)
+  returning id into v_assignment_id;
+
+  update public.profiles
+  set status = 'active',
+      activated_at = v_started_at,
+      expires_at = v_expires_at,
+      rejection_reason = null
+  where id = p_user_id;
+
+  if v_request_id is not null then
+    update public.access_requests
+    set status = 'approved',
+        reviewed_at = now(),
+        reviewed_by = auth.uid()
+    where id = v_request_id;
+  end if;
+
+  update public.access_requests
+  set status = 'rejected',
+      reviewed_at = now(),
+      reviewed_by = auth.uid(),
+      note = coalesce(note, 'Remplacée par une attribution manuelle.')
+  where user_id = p_user_id
+    and status = 'pending'
+    and (v_request_id is null or id <> v_request_id);
+
+  return jsonb_build_object(
+    'assignmentId', v_assignment_id,
+    'userId', p_user_id,
+    'subjectId', p_subject_id,
+    'startedAt', v_started_at,
+    'expiresAt', v_expires_at
+  );
+end;
+$$;
+
+revoke all on function public.assign_subject_to_student(uuid, uuid) from public, anon;
+grant execute on function public.assign_subject_to_student(uuid, uuid) to authenticated;
+
+-- Suspend un accès immédiatement. Le cycle en cours est clos et les demandes
+-- en attente sont refusées ; l'étudiant peut déposer un nouveau justificatif.
+create or replace function public.revoke_access(
+  p_user_id uuid,
+  p_note text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_note text := coalesce(
+    nullif(btrim(coalesce(p_note, '')), ''),
+    'Accès suspendu par le docteur.'
+  );
+begin
+  if not public.is_professor() then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  perform 1 from public.profiles where id = p_user_id and role = 'student' for update;
+  if not found then
+    raise exception 'STUDENT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  update public.subject_assignments
+  set expires_at = now()
+  where user_id = p_user_id and expires_at > now();
+
+  update public.access_requests
+  set status = 'rejected',
+      reviewed_at = now(),
+      reviewed_by = auth.uid(),
+      note = coalesce(note, v_note)
+  where user_id = p_user_id and status = 'pending';
+
+  update public.profiles
+  set status = 'rejected',
+      expires_at = now(),
+      rejection_reason = v_note
+  where id = p_user_id;
+
+  return jsonb_build_object('userId', p_user_id, 'status', 'rejected');
+end;
+$$;
+
+revoke all on function public.revoke_access(uuid, text) from public, anon;
+grant execute on function public.revoke_access(uuid, text) to authenticated;
+
+-- Prolonge un cycle actif, ou ouvre le prochain sujet si le cycle est fini.
+create or replace function public.extend_access(
+  p_user_id uuid,
+  p_days integer default 30
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_assignment public.subject_assignments%rowtype;
+  v_subject_id uuid;
+  v_started_at timestamptz := now();
+  v_expires_at timestamptz;
+  v_request_id uuid;
+begin
+  if not public.is_professor() then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+  if p_days is null or p_days < 1 or p_days > 365 then
+    raise exception 'INVALID_DURATION' using errcode = 'P0001';
+  end if;
+
+  perform 1 from public.profiles where id = p_user_id and role = 'student' for update;
+  if not found then
+    raise exception 'STUDENT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  select * into v_assignment
+  from public.subject_assignments
+  where user_id = p_user_id and expires_at > now()
+  order by expires_at desc
+  limit 1
+  for update;
+
+  if found then
+    v_expires_at := v_assignment.expires_at + make_interval(days => p_days);
+    update public.subject_assignments
+    set expires_at = v_expires_at
+    where id = v_assignment.id;
+  else
+    select s.id into v_subject_id
+    from public.subjects s
+    where not s.archived
+      and s.question_count > 0
+      and not exists (
+        select 1 from public.subject_assignments a
+        where a.user_id = p_user_id and a.subject_id = s.id
+      )
+    order by s.published_at asc, s.id asc
+    limit 1;
+
+    if v_subject_id is null then
+      raise exception 'NO_SUBJECT_AVAILABLE' using errcode = 'P0001';
+    end if;
+
+    select id into v_request_id
+    from public.access_requests
+    where user_id = p_user_id and status = 'pending'
+    order by created_at desc
+    limit 1;
+
+    v_expires_at := v_started_at + make_interval(days => p_days);
+
+    insert into public.subject_assignments (
+      user_id, subject_id, request_id, started_at, expires_at
+    )
+    values (p_user_id, v_subject_id, v_request_id, v_started_at, v_expires_at)
+    returning * into v_assignment;
+
+    if v_request_id is not null then
+      update public.access_requests
+      set status = 'approved',
+          reviewed_at = now(),
+          reviewed_by = auth.uid()
+      where id = v_request_id;
+    end if;
+  end if;
+
+  update public.profiles
+  set status = 'active',
+      activated_at = coalesce(activated_at, v_started_at),
+      expires_at = v_expires_at,
+      rejection_reason = null
+  where id = p_user_id;
+
+  return jsonb_build_object(
+    'assignmentId', v_assignment.id,
+    'userId', p_user_id,
+    'subjectId', v_assignment.subject_id,
+    'expiresAt', v_expires_at
+  );
+end;
+$$;
+
+revoke all on function public.extend_access(uuid, integer) from public, anon;
+grant execute on function public.extend_access(uuid, integer) to authenticated;
+
+-- Migration idempotente pour un projet Supabase déjà initialisé.
+alter table public.access_requests
+  add column if not exists receipt_size integer not null default 0;
 
 -- ---------------------------------------------------------------------------
 -- 12. Stockage privé des justificatifs

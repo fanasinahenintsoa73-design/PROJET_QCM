@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { getAttempt } from '@/lib/db'
+import { api } from '@/lib/api'
+import type { AttemptReview } from '@/lib/supabaseData'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { answerLetters, cn, formatDateTime, isExpired, scoreTone } from '@/lib/utils'
@@ -13,14 +14,40 @@ export default function ResultPage() {
   const navigate = useNavigate()
   const { user, db } = useAuth()
 
-  const attempt = attemptId ? getAttempt(attemptId, db) : undefined
+  const [review, setReview] = useState<AttemptReview | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    if (!attemptId) {
+      setLoading(false)
+      return
+    }
+    let active = true
+    setLoading(true)
+    setLoadError('')
+    api
+      .getAttemptReview(attemptId)
+      .then((result) => {
+        if (active) setReview(result)
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : 'Ce résultat est introuvable.')
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [attemptId])
+
+  const attempt = review?.attempt
   const ownsAttempt = attempt && userIdMatches(attempt.userId, user?.id)
   const subject = attempt ? db.subjects.find((item) => item.id === attempt.subjectId) : undefined
-  const questions = attempt
-    ? attempt.questionIds
-        .map((id) => db.questions.find((question) => question.id === id))
-        .filter((question): question is NonNullable<typeof question> => Boolean(question))
-    : []
+  const questions = review?.questions ?? []
 
   useEffect(() => {
     const check = () => {
@@ -37,6 +64,20 @@ export default function ResultPage() {
     }
   }, [navigate, user?.expiresAt])
 
+  if (loading) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-content flex-col justify-center px-5 py-16 sm:px-8 lg:px-10">
+        <p className="text-[12px] text-mute">Correction en cours</p>
+        <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] text-ink">
+          Votre résultat se prépare.
+        </h1>
+        <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-mute">
+          Les réponses et les explications sont vérifiées côté serveur.
+        </p>
+      </div>
+    )
+  }
+
   if (!attempt || !ownsAttempt) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-content flex-col justify-center px-5 py-16 sm:px-8 lg:px-10">
@@ -44,7 +85,7 @@ export default function ResultPage() {
           Ce résultat n’est pas disponible.
         </h1>
         <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-mute">
-          La série demandée n’existe pas ou n’appartient pas à votre compte.
+          {loadError || 'La série demandée n’existe pas ou n’appartient pas à votre compte.'}
         </p>
         <ButtonLink to="/app/historique" className="mt-6">
           Voir mon historique

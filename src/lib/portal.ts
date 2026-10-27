@@ -12,6 +12,7 @@ export function getPortal(): Portal {
   if (typeof window === 'undefined') return 'student'
   const host = window.location.hostname.toLowerCase()
   if (host.startsWith('docteur.') || host.startsWith('docteur-')) return 'doctor'
+  if (host.startsWith('sun.') || host.startsWith('sun-')) return 'doctor'
   if (host.startsWith('prof.') || host.startsWith('admin.')) return 'doctor'
   return 'student'
 }

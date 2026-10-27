@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { ArrowRight, Check, LockKeyhole, ShieldCheck, TimerReset } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { getNextSubjectForUser, submitRenewal } from '@/lib/db'
+import { getNextSubjectForUser } from '@/lib/db'
+import { api } from '@/lib/api'
 import { makeDemoReceipt } from '@/lib/demoReceipt'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import { usePageTitle } from '@/components/Layouts'
 import { ReceiptDropzone } from '@/components/ui/Receipt'
 import { Button } from '@/components/ui/Button'
@@ -13,7 +15,7 @@ import { cn, formatDateLong } from '@/lib/utils'
 
 export function RenewalPage() {
   usePageTitle('Renouveler mon accès — MEDQCM L1')
-  const { user, access, latestRequest, db } = useAuth()
+  const { user, access, latestRequest, db, refresh } = useAuth()
   const { toast } = useToast()
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const [attestation, setAttestation] = useState(false)
@@ -25,7 +27,7 @@ export function RenewalPage() {
   const reason = user.rejectionReason || latestRequest?.note
   const nextSubject = getNextSubjectForUser(user.id, db)
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     const next: typeof errors = {}
     if (!receipt) next.receipt = 'Joignez votre nouveau reçu de paiement.'
@@ -34,7 +36,8 @@ export function RenewalPage() {
     if (Object.keys(next).length > 0 || !receipt) return
     setSubmitting(true)
     try {
-      submitRenewal(studentId, receipt)
+      await api.submitRenewal(studentId, receipt)
+      await refresh()
       toast('Votre demande de renouvellement a été transmise.')
       window.location.href = '/en-attente'
     } catch (caught) {
@@ -79,7 +82,9 @@ export function RenewalPage() {
                 <h2 className="text-[15px] font-medium text-ink">Votre nouveau justificatif</h2>
                 <p className="mt-2 text-[12px] leading-relaxed text-mute">Photo, capture ou PDF · 3 Mo maximum. Le reçu doit être lisible et complet.</p>
                 <ReceiptDropzone value={receipt} onChange={(next) => { setReceipt(next); setErrors((c) => ({ ...c, receipt: undefined })); }} compact />
-                <button type="button" onClick={() => setReceipt(makeDemoReceipt(`${user.firstName||'etudiant'}-${user.lastName||'demo'}`))} className="mt-2 text-[11px] text-mute underline decoration-line underline-offset-4 hover:text-accent">Utiliser un reçu de démonstration</button>
+                {!isSupabaseConfigured && (
+                  <button type="button" onClick={() => setReceipt(makeDemoReceipt(`${user.firstName||'etudiant'}-${user.lastName||'demo'}`))} className="mt-2 text-[11px] text-mute underline decoration-line underline-offset-4 hover:text-accent">Utiliser un reçu de démonstration</button>
+                )}
                 {errors.receipt && <p className="mt-2 text-[12px] text-sale" role="alert">{errors.receipt}</p>}
               </div>
 

@@ -6,7 +6,6 @@ import { isDoctorPortal } from '@/lib/portal'
 import { MinimalHeader } from '@/components/Headers'
 import { Footer, StudentFooter } from '@/components/Footer'
 import { PublicHeader, StudentHeader } from '@/components/Headers'
-import { clearSession } from '@/lib/db'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/Button'
 
@@ -97,6 +96,7 @@ export function StatusLayout() {
 }
 
 function PortalMismatch({ expected }: { expected: 'student' | 'doctor' }) {
+  const { logout } = useAuth()
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-5">
       <div className="w-full max-w-md">
@@ -112,8 +112,7 @@ function PortalMismatch({ expected }: { expected: 'student' | 'doctor' }) {
         <Button
           className="mt-7"
           onClick={() => {
-            clearSession()
-            window.location.href = '/'
+            void logout()
           }}
         >
           Fermer la session
