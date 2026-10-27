@@ -9,7 +9,7 @@ elle retombe sur le stockage local de démonstration.
 - Étudiants : <https://medicineqcm.vercel.app>
 - Docteur : <https://docteur-sun.vercel.app>
 - Projet Supabase : `ttoqcvlharxoyazvgcca`, région Paris (`cdg1`), plan gratuit.
-- Compte docteur : `prof@medqcm.fr` (mot de passe généré, voir
+- Compte docteur : `razafimandimby@gmail.com` (mot de passe dans
   `.secrets/doctor-credentials.txt`, jamais commité).
 - Sujet publié : « Sujet 1 — Fondamentaux & Cardiologie », 32 questions.
 
