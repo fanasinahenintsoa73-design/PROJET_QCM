@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Eye, EyeOff, LockKeyhole } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { AuthShell } from '@/components/AuthShell'
 import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -36,21 +36,15 @@ export function LoginPage() {
   return (
     <AuthShell accessLabel="Espace docteur">
       <div>
-        <div className="mb-9 flex items-center gap-3 rounded-xl border border-line bg-surface p-4">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft font-display text-lg text-accent">
-            SR
-          </span>
-          <div>
-            <p className="text-[15px] font-medium text-ink">Dr Sun RAZAFIMANDIMBY</p>
-            <p className="mt-0.5 text-[13px] text-mute">Docteur · Espace praticien</p>
-          </div>
-        </div>
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-mute">
+          Dr Sun RAZAFIMANDIMBY · Docteur
+        </p>
 
-        <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
+        <h1 className="mt-5 font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
           Accéder aux dossiers.
         </h1>
         <p className="mt-3 max-w-sm text-[14px] leading-relaxed text-mute">
-          Vérifiez les reçus, ouvrez les cycles et publiez les sujets du mois.
+          Reçus, cycles et sujets du mois.
         </p>
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
@@ -68,7 +62,7 @@ export function LoginPage() {
               id="login-email"
               type="email"
               autoComplete="username"
-              placeholder="prof@medqcm.fr"
+              placeholder="votre.email@exemple.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
@@ -103,9 +97,6 @@ export function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-7 flex items-center gap-2 border-t border-line pt-4 text-[12px] text-mute">
-          <LockKeyhole size={13} /> Le docteur valide chaque dossier indépendamment.
-        </div>
       </div>
     </AuthShell>
   )

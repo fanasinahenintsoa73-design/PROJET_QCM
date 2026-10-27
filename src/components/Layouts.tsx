@@ -1,10 +1,9 @@
 import { useEffect } from 'react'
-import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { History, Home } from 'lucide-react'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import { isDoctorPortal } from '@/lib/portal'
 import { MinimalHeader } from '@/components/Headers'
-import { Footer, StudentFooter } from '@/components/Footer'
+import { Footer } from '@/components/Footer'
 import { PublicHeader, StudentHeader } from '@/components/Headers'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/Button'
@@ -22,54 +21,13 @@ export function PublicLayout() {
 }
 
 export function StudentLayout() {
-  const location = useLocation()
-  const showBottomNav = !location.pathname.startsWith('/app/entrainement')
-
   return (
     <>
       <StudentHeader />
-      <main className="min-h-[calc(100vh-100px)] pb-16 lg:pb-0">
+      <main className="min-h-[calc(100vh-100px)]">
         <Outlet />
       </main>
-      <StudentFooter />
-      {showBottomNav && <StudentBottomNav />}
-      {showBottomNav && <div className="h-16 lg:hidden" aria-hidden="true" />}
     </>
-  )
-}
-
-function StudentBottomNav() {
-  const items = [
-    { to: '/app', label: 'Mon cycle', icon: Home, end: true },
-    { to: '/app/historique', label: 'Historique', icon: History, end: false },
-  ]
-
-  return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
-      aria-label="Navigation étudiant mobile"
-    >
-      <div className="mx-auto grid max-w-sm grid-cols-2">
-        {items.map((item) => {
-          const Icon = item.icon
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors ${
-                  isActive ? 'text-accent' : 'text-mute'
-                }`
-              }
-            >
-              <Icon size={18} strokeWidth={1.7} aria-hidden="true" />
-              {item.label}
-            </NavLink>
-          )
-        })}
-      </div>
-    </nav>
   )
 }
 

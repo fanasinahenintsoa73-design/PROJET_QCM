@@ -87,8 +87,8 @@ export default function ResultPage() {
         <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-mute">
           {loadError || 'La série demandée n’existe pas ou n’appartient pas à votre compte.'}
         </p>
-        <ButtonLink to="/app/historique" className="mt-6">
-          Voir mon historique
+        <ButtonLink to="/app" className="mt-6">
+          Retour à mon cycle
         </ButtonLink>
       </div>
     )
@@ -153,8 +153,8 @@ export default function ResultPage() {
             <ArrowLeft size={14} /> Mon cycle
           </Link>
           <span className="text-mute">Résultat de la série</span>
-          <Link to="/app/historique" className="text-mute transition hover:text-accent">
-            Historique
+          <Link to="/app#series" className="text-mute transition hover:text-accent">
+            Mes séries
           </Link>
         </div>
       </div>

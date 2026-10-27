@@ -10,6 +10,9 @@ export type Portal = 'student' | 'doctor'
  */
 export function getPortal(): Portal {
   if (typeof window === 'undefined') return 'student'
+  // Local fallback when the browser does not resolve *.localhost subdomains.
+  // Never active in a production build.
+  if (import.meta.env.DEV && import.meta.env.VITE_PORTAL === 'doctor') return 'doctor'
   const host = window.location.hostname.toLowerCase()
   if (host.startsWith('docteur.') || host.startsWith('docteur-')) return 'doctor'
   if (host.startsWith('sun.') || host.startsWith('sun-')) return 'doctor'

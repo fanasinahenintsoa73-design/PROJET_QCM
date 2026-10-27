@@ -25,7 +25,6 @@ import { RenewalPage } from '@/pages/RenewalPage'
 import DashboardPage from '@/pages/DashboardPage'
 import QuizPage from '@/pages/QuizPage'
 import ResultPage from '@/pages/ResultPage'
-import HistoryPage from '@/pages/HistoryPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminRequestsPage from '@/pages/admin/AdminRequestsPage'
 import AdminStudentsPage from '@/pages/admin/AdminStudentsPage'
@@ -79,11 +78,11 @@ function StudentRoutes() {
       </Route>
 
       <Route element={<RequireStudent />}>
+        <Route path="/app/historique" element={<Navigate to="/app" replace />} />
         <Route element={<StudentLayout />}>
           <Route path="/app" element={<DashboardPage />} />
           <Route path="/app/entrainement" element={<QuizPage />} />
           <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
-          <Route path="/app/historique" element={<HistoryPage />} />
         </Route>
       </Route>
 
