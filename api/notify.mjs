@@ -145,11 +145,11 @@ function createTransport() {
   })
 }
 
-async function sendMail({ to, subject, html, text, replyTo }) {
+async function sendMail({ to, subject, html, text, replyTo, fromName = FROM_NAME }) {
   const user = process.env.SMTP_USER?.trim()
   const transport = createTransport()
   const info = await transport.sendMail({
-    from: `"${FROM_NAME}" <${user}>`,
+    from: `"${fromName}" <${user}>`,
     to,
     subject,
     html,
@@ -285,35 +285,40 @@ async function notifyAccessActivated({ client, profile, requestId, userId }) {
     subject = data
   }
 
-  const studentName = oneLine(`${student.first_name} ${student.last_name}`)
   const subjectTitle = subject?.title || 'Sujet du mois'
   const period = `du ${formatDate(startsAt)} au ${formatDate(expiresAt)}`
   const loginUrl = `${STUDENT_APP_URL}/connexion`
 
-  const content = `
-    <p style="margin:0 0 16px;">Bonjour ${escapeHtml(student.first_name)},</p>
-    <p style="margin:0 0 18px;">Votre dossier a été validé. Votre accès au QCM est ouvert <strong>${escapeHtml(period)}</strong>.</p>
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin:0 0 22px;background:#e4f0ea;border-radius:14px;">
-      <tr>
-        <td style="padding:18px 20px;">
-          <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#0b6b4f;font-weight:700;">Votre sujet</div>
-          <div style="margin-top:6px;font-family:Georgia,'Times New Roman',serif;font-size:21px;line-height:1.3;color:#15201b;">${escapeHtml(subjectTitle)}</div>
-          <div style="margin-top:6px;font-size:13px;color:#657069;">20 questions · correction après envoi</div>
-        </td>
-      </tr>
-    </table>
-    <p style="margin:0 0 18px;">Connectez-vous avec votre adresse email et le mot de passe choisi lors de votre inscription.</p>
-    <p style="margin:0 0 22px;">${button(loginUrl, 'Accéder à mon espace')}</p>
-    <p style="margin:0;font-size:13px;line-height:1.6;color:#657069;">Votre identifiant : <strong style="color:#15201b;">${escapeHtml(student.email)}</strong></p>
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#15201b;">
+      <p style="margin:0 0 14px;">Bonjour ${escapeHtml(student.first_name)},</p>
+      <p style="margin:0 0 14px;">Votre dossier a été validé. Votre accès au QCM est ouvert <strong>${escapeHtml(period)}</strong>.</p>
+      <p style="margin:0 0 14px;"><strong>Sujet :</strong> ${escapeHtml(subjectTitle)}<br>
+      <strong>Votre identifiant :</strong> ${escapeHtml(student.email)}</p>
+      <p style="margin:0 0 14px;"><a href="${escapeHtml(loginUrl)}" style="color:#0b6b4f;font-weight:700;">Accéder à mon espace</a></p>
+      <p style="margin:0;">— Dr Sun RAZAFIMANDIMBY<br>MEDQCM L1</p>
+    </div>
   `
 
-  const text = `Bonjour ${student.first_name},\n\nVotre dossier a été validé. Votre accès au QCM est ouvert ${period}.\n\nSujet : ${subjectTitle}\nIdentifiant : ${student.email}\n\nAccéder à votre espace : ${loginUrl}`
+  const text = `Bonjour ${student.first_name},
+
+Votre dossier a été validé. Votre accès au QCM est ouvert ${period}.
+
+Sujet : ${subjectTitle}
+Votre identifiant : ${student.email}
+
+Accéder à mon espace : ${loginUrl}
+
+— Dr Sun RAZAFIMANDIMBY
+MEDQCM L1`
 
   await sendMail({
     to: student.email,
-    subject: '✅ Votre accès QCM Médecine L1 est activé',
-    html: layout({ title: 'Votre accès est ouvert.', preheader: `${studentName}, votre cycle QCM commence ${period}.`, content }),
+    subject: 'Votre accès au QCM est activé',
+    html,
     text,
+    replyTo: DOCTOR_EMAIL,
+    fromName: 'Dr Sun RAZAFIMANDIMBY',
   })
 
   return { status: 200, body: { ok: true } }
