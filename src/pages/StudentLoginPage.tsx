@@ -95,9 +95,9 @@ export function StudentLoginPage() {
         </form>
 
         <p className="mt-6 text-[13px] text-mute">
-          Pas encore de dossier ?{' '}
+          Pas encore de compte ?{' '}
           <Link to="/inscription" className="font-medium text-accent underline decoration-1 underline-offset-4">
-            Créer mon dossier
+            Créer compte
           </Link>
         </p>
 

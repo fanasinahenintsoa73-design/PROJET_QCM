@@ -21,7 +21,7 @@ type Errors = Partial<
 >
 
 export function SignupPage() {
-  usePageTitle('Créer ma demande — MEDQCM L1')
+  usePageTitle('Créer un compte — MEDQCM L1')
   const { toast } = useToast()
   const { refresh } = useAuth()
 
@@ -84,7 +84,7 @@ export function SignupPage() {
     <AuthShell>
       <div className="pb-4">
         <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
-          Ouvrir mon dossier.
+          Créer un compte.
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-mute">
           Votre demande est vérifiée par le docteur. Le QCM s’ouvrira après validation de votre
@@ -175,6 +175,10 @@ export function SignupPage() {
                 />
               </Field>
             </div>
+            <p className="mt-3 text-[12px] leading-relaxed text-mute">
+              Ce mot de passe est celui de votre compte MedicineQCM, pas celui de votre adresse
+              e-mail. Il vous servira uniquement à vous connecter à la plateforme.
+            </p>
           </section>
 
           <section className="border-t border-line pt-6">
@@ -243,7 +247,7 @@ export function SignupPage() {
         </div>
 
         <p className="mt-5 border-t border-line pt-4 text-[12px] text-mute">
-          Vous avez déjà un dossier ?{' '}
+          Vous avez déjà un compte ?{' '}
           <Link to="/connexion" className="font-medium text-accent underline decoration-1 underline-offset-4">
             Me connecter
           </Link>

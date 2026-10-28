@@ -6,7 +6,7 @@ import { getActiveAssignment } from '@/lib/db'
 import { ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { usePageTitle } from '@/components/Layouts'
-import { cn, daysLeft, formatDate, formatDateLong, monthLabel, averageScoreOnTen, scoreOnTen, SERIES_SIZE } from '@/lib/utils'
+import { cn, daysLeft, formatDate, formatDateLong, averageScoreOnTen, scoreOnTen, SERIES_SIZE } from '@/lib/utils'
 
 function formatTen(value: number) {
   const rounded = Math.round(value * 10) / 10
@@ -53,7 +53,9 @@ export default function DashboardPage() {
     <div className="bg-canvas">
       <section className="border-b border-line">
         <div className="mx-auto max-w-content px-5 py-10 sm:px-8 sm:py-14 lg:px-10">
-          <p className="text-[12px] text-mute">{monthLabel()} · votre cycle</p>
+          <p className="text-[12px] text-mute">
+            PACES (Première Année Commune des Études de Santé)
+          </p>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
             <h1 className="font-display text-[clamp(2.2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-ink">
               Bonjour, {user?.firstName}.

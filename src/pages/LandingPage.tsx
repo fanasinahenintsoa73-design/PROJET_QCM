@@ -4,7 +4,7 @@ import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { useAuth } from '@/lib/auth'
 import { getPublishedSubjects } from '@/lib/db'
-import { formatDateLong, monthLabel } from '@/lib/utils'
+import { formatDateLong } from '@/lib/utils'
 
 export function LandingPage() {
   usePageTitle('MEDQCM L1 — L\'entraînement mensuel des futurs médecins')
@@ -13,7 +13,6 @@ export function LandingPage() {
   const open = subjects.length > 0
   const studentUser = user?.role === 'student' ? user : null
   const startHref = studentUser ? homePath : '/inscription'
-  const sessionLabel = subjects[0]?.monthLabel ?? monthLabel()
   const subject = subjects[0]
 
   return (
@@ -22,7 +21,7 @@ export function LandingPage() {
         <div>
           <div className="flex items-center gap-2 text-[12px] font-medium text-mute">
             <span className={`h-2 w-2 rounded-full ${open ? 'bg-success-bright' : 'bg-stone'}`} />
-            QCM médecine L1 · {sessionLabel}
+            PACES (Première Année Commune des Études de Santé)
           </div>
           <h1 className="mt-6 max-w-2xl font-display text-[clamp(2.8rem,6vw,5rem)] leading-[0.98] tracking-[-0.03em] text-ink">
             Un sujet complet.
@@ -34,7 +33,7 @@ export function LandingPage() {
           </p>
           <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
             <ButtonLink to={startHref} size="lg" className="w-full sm:w-auto">
-              {studentUser ? 'Ouvrir mon espace' : 'Créer mon dossier'} <ArrowRight size={16} />
+              {studentUser ? 'Ouvrir mon espace' : 'Créer compte'} <ArrowRight size={16} />
             </ButtonLink>
             <Link
               to="/connexion"
