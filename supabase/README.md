@@ -6,7 +6,7 @@ L’application utilise désormais **Supabase Auth, Postgres et Storage** dès q
 `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont définies. Sans ces variables,
 elle retombe sur le stockage local de démonstration.
 
-- Étudiants : <https://medicineqcm.vercel.app>
+- Étudiants : <https://medecineqcm.vercel.app>
 - Docteur : <https://docteur-sun.vercel.app>
 - Projet Supabase : `ttoqcvlharxoyazvgcca`, région Paris (`cdg1`), plan gratuit.
 - Compte docteur : `razafimandimby222@gmail.com` (mot de passe dans
@@ -34,7 +34,7 @@ Pour les emails transactionnels, ajouter dans **les deux** projets, en
 SMTP_USER=razafimandimby222@gmail.com
 SMTP_PASS=<mot de passe d'application Google>
 DOCTOR_EMAIL=razafimandimby222@gmail.com
-STUDENT_APP_URL=https://medicineqcm.vercel.app
+STUDENT_APP_URL=https://medecineqcm.vercel.app
 DOCTOR_APP_URL=https://docteur-sun.vercel.app
 ```
 
@@ -128,8 +128,8 @@ Pour un nouveau projet Supabase, refaire ces réglages dans le dashboard :
 **Authentication → Sign In / Providers → Email** (désactiver Confirm email),
 puis **Authentication → URL Configuration** :
 
-- Site URL : `https://medicineqcm.vercel.app`
-- Redirect URLs : `https://medicineqcm.vercel.app/**` et
+- Site URL : `https://medecineqcm.vercel.app`
+- Redirect URLs : `https://medecineqcm.vercel.app/**` et
   `https://docteur-sun.vercel.app/**`
 
 Ces réglages ne sont pas modifiables avec la clé `anon` ni avec les clés du

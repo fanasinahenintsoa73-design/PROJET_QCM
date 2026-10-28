@@ -4,7 +4,7 @@ Application d'entraînement QCM pour la 1ʳᵉ année de médecine. Un sujet par
 des séries de 10 questions tirées au sort, correction après envoi, 30 jours d'accès. Le docteur
 valide les dossiers et publie les sujets.
 
-- **Étudiants** : <https://medicineqcm.vercel.app>
+- **Étudiants** : <https://medecineqcm.vercel.app>
 - **Docteur** : <https://docteur-sun.vercel.app>
 
 Les deux portails partagent la même base Supabase mais restent deux origines
@@ -77,7 +77,7 @@ avec un préfixe `VITE_` :
 SMTP_USER=...
 SMTP_PASS=...
 DOCTOR_EMAIL=...
-STUDENT_APP_URL=https://medicineqcm.vercel.app
+STUDENT_APP_URL=https://medecineqcm.vercel.app
 DOCTOR_APP_URL=https://docteur-sun.vercel.app
 ```
 

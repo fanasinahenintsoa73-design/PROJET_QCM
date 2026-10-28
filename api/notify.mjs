@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import nodemailer from 'nodemailer'
 
-const STUDENT_APP_URL = (process.env.STUDENT_APP_URL || 'https://medicineqcm.vercel.app').replace(/\/$/, '')
+const STUDENT_APP_URL = (process.env.STUDENT_APP_URL || 'https://medecineqcm.vercel.app').replace(/\/$/, '')
 const DOCTOR_APP_URL = (process.env.DOCTOR_APP_URL || 'https://docteur-sun.vercel.app').replace(/\/$/, '')
 const DOCTOR_EMAIL = process.env.DOCTOR_EMAIL || 'razafimandimby222@gmail.com'
 const FROM_NAME = 'MEDQCM L1'
