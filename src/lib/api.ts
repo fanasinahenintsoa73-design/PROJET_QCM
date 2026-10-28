@@ -73,11 +73,25 @@ export const api = {
 
   async approveRequest(requestId: string): Promise<void> {
     if (isSupabaseConfigured) {
-      await remote.approveRequest(requestId)
-      await notify({ type: 'access_activated', requestId })
+      const result = await remote.approveRequest(requestId)
+      if (!result.requiresChoice) {
+        await notify({ type: 'access_activated', requestId })
+      }
       return
     }
     demo.approveRequest(requestId)
+  },
+
+  async chooseRenewalSubject(
+    userId: string,
+    requestId: string,
+    subjectId: string,
+  ): Promise<void> {
+    if (isSupabaseConfigured) {
+      await remote.chooseRenewalSubject(requestId, subjectId)
+      return
+    }
+    demo.chooseRenewalSubject(userId, requestId, subjectId)
   },
 
   async rejectRequest(requestId: string, note?: string): Promise<void> {
@@ -147,7 +161,13 @@ export const api = {
       assignmentId: assignment.id,
       assignmentExpiresAt: assignment.expiresAt,
       subject,
-      questions,
+      // Le corrigé reste en base : il n'est jamais envoyé au navigateur
+      // avant la soumission, même en mode démonstration.
+      questions: questions.map((question) => ({
+        ...question,
+        correctAnswers: [],
+        explanation: '',
+      })),
     }
   },
 
@@ -192,9 +212,11 @@ export const api = {
     const db = demo.getDB()
     const attempt = demo.getAttempt(attemptId, db)
     if (!attempt) throw new Error('Ce résultat est introuvable.')
-    const questions = attempt.questionIds
-      .map((id) => db.questions.find((question) => question.id === id))
-      .filter((question): question is NonNullable<typeof question> => Boolean(question))
+    const questions = attempt.questionSnapshot?.length
+      ? attempt.questionSnapshot
+      : attempt.questionIds
+          .map((id) => db.questions.find((question) => question.id === id))
+          .filter((question): question is NonNullable<typeof question> => Boolean(question))
     return { attempt, questions }
   },
 

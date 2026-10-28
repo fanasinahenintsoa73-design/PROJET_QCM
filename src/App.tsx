@@ -22,6 +22,7 @@ import { SignupPage } from '@/pages/SignupPage'
 import { PendingPage } from '@/pages/PendingPage'
 import { ExpirationPage } from '@/pages/ExpirationPage'
 import { RenewalPage } from '@/pages/RenewalPage'
+import { SubjectChoicePage } from '@/pages/SubjectChoicePage'
 import DashboardPage from '@/pages/DashboardPage'
 import QuizPage from '@/pages/QuizPage'
 import ResultPage from '@/pages/ResultPage'
@@ -94,6 +95,9 @@ function StudentRoutes() {
         <Route element={<RequireBlocked />}>
           <Route path="/expiration" element={<ExpirationPage />} />
           <Route path="/reinscription" element={<RenewalPage />} />
+        </Route>
+        <Route element={<RequireStudentAccount />}>
+          <Route path="/choix-sujet" element={<SubjectChoicePage />} />
         </Route>
       </Route>
 

@@ -9,7 +9,9 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
+import { getPendingSubjectChoice } from '@/lib/access'
 import { getActiveAssignment, getLatestAssignment } from '@/lib/db'
+import { getSubjectNumber, getSubjectTitle } from '@/lib/subjects'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Field'
@@ -26,7 +28,7 @@ import {
   initials,
   isExpired,
 } from '@/lib/utils'
-import type { AccessRequest, Subject, User } from '@/types'
+import type { AccessRequest, User } from '@/types'
 
 type StudentFilter = 'all' | 'active' | 'expiring' | 'expired' | 'pending' | 'rejected'
 
@@ -51,23 +53,6 @@ function stateLabel(state: Exclude<StudentFilter, 'all'>) {
     case 'rejected':
       return { tone: 'error' as const, label: 'Suspendu' }
   }
-}
-
-function getSubjectNumber(subjectId: string, subjects: Subject[]) {
-  const ordered = [...subjects].sort((a, b) => {
-    const byDate = new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
-    return byDate !== 0 ? byDate : a.id.localeCompare(b.id)
-  })
-  const index = ordered.findIndex((subject) => subject.id === subjectId)
-  return index >= 0 ? index + 1 : undefined
-}
-
-function getSubjectTitle(subject: Subject, number?: number) {
-  if (!number) return subject.title
-  const match = subject.title.match(
-    new RegExp(`^Sujet\\s+${number}\\b\\s*(?:[.:—–-]\\s*)?(.*)$`, 'i'),
-  )
-  return match ? (match[1]?.trim() ?? '') : subject.title
 }
 
 function SubjectBadge({ number }: { number?: number }) {
@@ -120,6 +105,7 @@ export default function AdminStudentsPage() {
   const selectedSubjectNumber = selectedSubject
     ? getSubjectNumber(selectedSubject.id, db.subjects)
     : undefined
+  const selectedChoice = selected ? getPendingSubjectChoice(selected.id, db) : undefined
 
   const students = useMemo(
     () => db.users.filter((candidate) => candidate.role === 'student'),
@@ -248,7 +234,10 @@ export default function AdminStudentsPage() {
           <div className="mt-5 border-t border-hairline lg:hidden">
             {rows.map((student) => {
               const state = getStudentState(student)
-              const status = stateLabel(state)
+              const awaitingChoice = getPendingSubjectChoice(student.id, db)
+              const status = awaitingChoice
+                ? { tone: 'warning' as const, label: 'Choix du sujet' }
+                : stateLabel(state)
               const attempts = db.attempts.filter((attempt) => attempt.userId === student.id)
               const average = averageScoreOnTen(attempts)
               const pendingRequest = db.requests.find(
@@ -281,6 +270,11 @@ export default function AdminStudentsPage() {
                               : 'Première demande à traiter'}
                           </p>
                         )}
+                        {awaitingChoice && (
+                          <p className="mt-1 text-[9px] uppercase tracking-[0.08em] text-[#8a5300]">
+                            Choix du sujet en attente
+                          </p>
+                        )}
                       </div>
                     </div>
                     <StatusPill tone={status.tone}>{status.label}</StatusPill>
@@ -292,7 +286,14 @@ export default function AdminStudentsPage() {
                         Période d’accès
                       </dt>
                       <dd className="mt-1 text-[11px] text-charcoal">
-                        {student.activatedAt && student.expiresAt ? (
+                        {awaitingChoice ? (
+                          <>
+                            <span className="block text-[#8a5300]">Renouvellement validé</span>
+                            <span className="mt-0.5 block text-[10px] text-mute">
+                              En attente du choix du sujet
+                            </span>
+                          </>
+                        ) : student.activatedAt && student.expiresAt ? (
                           <>
                             {formatDate(student.activatedAt)} → {formatDate(student.expiresAt)}
                             <span
@@ -411,7 +412,10 @@ export default function AdminStudentsPage() {
               <tbody>
                 {rows.map((student) => {
                   const state = getStudentState(student)
-                  const status = stateLabel(state)
+                  const awaitingChoice = getPendingSubjectChoice(student.id, db)
+                  const status = awaitingChoice
+                    ? { tone: 'warning' as const, label: 'Choix du sujet' }
+                    : stateLabel(state)
                   const attempts = db.attempts.filter((attempt) => attempt.userId === student.id)
                   const average = averageScoreOnTen(attempts)
                   const pendingRequest = db.requests.find(
@@ -446,6 +450,11 @@ export default function AdminStudentsPage() {
                                   : 'Première demande à traiter'}
                               </p>
                             )}
+                            {awaitingChoice && (
+                              <p className="mt-0.5 text-[9px] uppercase tracking-[0.08em] text-[#8a5300]">
+                                Choix du sujet en attente
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -458,7 +467,14 @@ export default function AdminStudentsPage() {
                         {formatDate(student.createdAt)}
                       </td>
                       <td className="whitespace-nowrap py-4 pr-4">
-                        {student.activatedAt && student.expiresAt ? (
+                        {awaitingChoice ? (
+                          <>
+                            <p className="text-[11px] text-charcoal">Renouvellement validé</p>
+                            <p className="mt-0.5 text-[10px] text-mute">
+                              En attente du choix du sujet
+                            </p>
+                          </>
+                        ) : student.activatedAt && student.expiresAt ? (
                           <>
                             <p className="text-[11px] text-charcoal">
                               {formatDate(student.activatedAt)} → {formatDate(student.expiresAt)}
@@ -620,6 +636,7 @@ export default function AdminStudentsPage() {
                   request.userId === selected.id && request.status === 'pending',
               )?.id
             }
+            awaitingChoice={Boolean(selectedChoice)}
             requests={db.requests
               .filter((request) => request.userId === selected.id)
               .sort(
@@ -696,6 +713,7 @@ function StudentDetails({
   subjectNumber,
   attempts,
   pendingRequestId,
+  awaitingChoice,
   requests,
 }: {
   student: User
@@ -703,10 +721,13 @@ function StudentDetails({
   subjectNumber?: number
   attempts: number
   pendingRequestId?: string
+  awaitingChoice?: boolean
   requests: AccessRequest[]
 }) {
   const state = getStudentState(student)
-  const status = stateLabel(state)
+  const status = awaitingChoice
+    ? { tone: 'warning' as const, label: 'Choix du sujet' }
+    : stateLabel(state)
   const processedRequests = requests.filter((request) => request.status !== 'pending')
   return (
     <div className="space-y-5">
@@ -778,6 +799,18 @@ function StudentDetails({
           >
             Examiner
           </Link>
+        </div>
+      )}
+
+      {awaitingChoice && (
+        <div className="border-l-2 border-warning bg-[#fff8eb] px-3.5 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8a5300]">
+            Choix du sujet en attente
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-charcoal">
+            Renouvellement validé. L’étudiant doit choisir de reprendre son sujet ou de passer
+            au suivant avant d’accéder au QCM.
+          </p>
         </div>
       )}
 

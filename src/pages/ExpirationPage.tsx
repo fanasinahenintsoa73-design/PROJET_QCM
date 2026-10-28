@@ -1,6 +1,6 @@
 import { ArrowRight, CalendarX2, FileText, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { getNextSubjectForUser } from '@/lib/db'
+import { getLatestAssignment, getNextSubjectAfter } from '@/lib/db'
 import { usePageTitle } from '@/components/Layouts'
 import { ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
@@ -13,7 +13,13 @@ export function ExpirationPage() {
 
   const rejected = access === 'rejected'
   const reason = user.rejectionReason || latestRequest?.note
-  const nextSubject = getNextSubjectForUser(user.id, db)
+  const latestAssignment = getLatestAssignment(user.id, db)
+  const currentSubject = latestAssignment
+    ? db.subjects.find((subject) => subject.id === latestAssignment.subjectId)
+    : undefined
+  const nextSubject = currentSubject
+    ? getNextSubjectAfter(currentSubject.id, db)
+    : undefined
   const expiredDaysAgo = user.expiresAt
     ? Math.max(0, Math.floor((Date.now() - new Date(user.expiresAt).getTime()) / 86_400_000))
     : null
@@ -53,7 +59,7 @@ export function ExpirationPage() {
                 {rejected ? 'Déposer un nouveau reçu' : 'Renouveler mon accès'} <ArrowRight size={16} />
               </ButtonLink>
               <p className="text-[12px] leading-relaxed text-mute">
-                Le nouveau cycle démarre après validation du docteur.
+                Le nouveau cycle démarre après validation, au moment de votre choix du sujet.
               </p>
             </div>
 
@@ -76,7 +82,7 @@ export function ExpirationPage() {
                   {rejected ? 'Nouvelle demande' : 'Prochain cycle'}
                 </p>
                 <p className="text-[11px] text-mute">
-                  {rejected ? 'Un nouveau reçu suffit' : '30 jours après validation'}
+                  {rejected ? 'Un nouveau reçu suffit' : '30 jours après votre choix'}
                 </p>
               </div>
             </div>
@@ -95,9 +101,15 @@ export function ExpirationPage() {
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-5">
-                <dt className="text-mute">Prochain sujet</dt>
+                <dt className="text-mute">Votre sujet</dt>
                 <dd className="max-w-[60%] text-right font-medium text-ink">
-                  {nextSubject ? nextSubject.title : 'Attribué après validation'}
+                  {currentSubject ? currentSubject.title : '—'}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-5">
+                <dt className="text-mute">Sujet suivant</dt>
+                <dd className="max-w-[60%] text-right font-medium text-ink">
+                  {nextSubject ? nextSubject.title : 'Pas encore publié'}
                 </dd>
               </div>
             </dl>
@@ -108,7 +120,7 @@ export function ExpirationPage() {
                 <p className="text-[11px] leading-relaxed text-ash">
                   {rejected
                     ? 'Le docteur vérifie chaque nouveau justificatif. Vous conservez le même compte et le même mot de passe.'
-                    : 'Le sujet suivant de la file vous sera attribué automatiquement à l’ouverture du prochain cycle.'}
+                    : 'Après validation, vous choisirez de reprendre votre sujet ou de passer au sujet suivant. Les 30 jours démarrent à ce choix.'}
                 </p>
               </div>
             </div>

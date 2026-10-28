@@ -232,6 +232,17 @@ export function submitRenewal(userId: string, receipt: Receipt): AccessRequest {
   const user = db.users.find((candidate) => candidate.id === userId)
   if (!user) throw new Error('Compte introuvable.')
   if (!receipt?.dataUrl) throw new Error('Le nouveau reçu de paiement est obligatoire.')
+  const awaitingChoice = db.requests.some(
+    (request) =>
+      request.userId === userId &&
+      request.type === 'renewal' &&
+      request.status === 'approved' &&
+      Boolean(request.currentSubjectId) &&
+      !request.chosenSubjectId,
+  )
+  if (awaitingChoice) {
+    throw new Error('Choisissez d’abord votre sujet pour ouvrir votre nouveau cycle.')
+  }
   const existingPending = db.requests.find((request) => request.userId === userId && request.status === 'pending')
   if (existingPending) throw new Error('Une demande est déjà en attente de validation.')
 
@@ -298,6 +309,22 @@ export function getNextSubjectForUser(
     .sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime())[0]
 }
 
+/** Sujet publié qui suit `subjectId` dans la file (ordre de publication). */
+export function getNextSubjectAfter(
+  subjectId: string,
+  db: Database = getDB(),
+): Subject | undefined {
+  const queue = db.subjects
+    .filter((subject) => !subject.archived && subject.questionCount > 0)
+    .sort((a, b) => {
+      const byDate = new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
+      return byDate !== 0 ? byDate : a.id.localeCompare(b.id)
+    })
+  const index = queue.findIndex((subject) => subject.id === subjectId)
+  if (index < 0) return queue[0]
+  return queue[index + 1]
+}
+
 function createAssignment(
   userId: string,
   subjectId: string,
@@ -330,6 +357,58 @@ export function approveRequest(requestId: string): User {
     throw new Error('Cet étudiant dispose déjà d’un cycle actif. Attendez son expiration avant de valider un renouvellement.')
   }
 
+  const now = new Date()
+  const latestAssignment = getLatestAssignment(user.id, db)
+
+  // Un renouvellement n'attribue plus le sujet suivant : l'étudiant doit
+  // choisir entre reprendre son sujet et avancer. Le cycle de 30 jours
+  // démarrera seulement au moment de ce choix.
+  if (request.type === 'renewal' && latestAssignment) {
+    const currentSubject = db.subjects.find(
+      (subject) => subject.id === latestAssignment.subjectId,
+    )
+    if (!currentSubject || currentSubject.archived || currentSubject.questionCount === 0) {
+      throw new Error(
+        'Le sujet précédent n’est plus disponible. Attribuez un sujet manuellement à cet étudiant.',
+      )
+    }
+    const nextSubject = getNextSubjectAfter(currentSubject.id, db)
+    const waitingUser: User = {
+      ...user,
+      status: 'pending',
+      rejectionReason: undefined,
+    }
+    const requests = db.requests.map((item) => {
+      if (item.id === requestId) {
+        return {
+          ...item,
+          status: 'approved' as const,
+          reviewedAt: now.toISOString(),
+          currentSubjectId: currentSubject.id,
+          nextSubjectId: nextSubject?.id,
+        }
+      }
+      if (item.userId === user.id && item.status === 'pending') {
+        return {
+          ...item,
+          status: 'rejected' as const,
+          reviewedAt: now.toISOString(),
+          note: 'Demande remplacée par une validation plus récente.',
+        }
+      }
+      return item
+    })
+
+    commit({
+      ...db,
+      users: db.users.map((candidate) =>
+        candidate.id === user.id ? waitingUser : candidate,
+      ),
+      requests,
+    })
+    return waitingUser
+  }
+
   const subject = getNextSubjectForUser(user.id, db)
   if (!subject) {
     throw new Error(
@@ -337,7 +416,6 @@ export function approveRequest(requestId: string): User {
     )
   }
 
-  const now = new Date()
   const assignment = createAssignment(user.id, subject.id, request.id, now)
   const activatedUser: User = {
     ...user,
@@ -369,6 +447,75 @@ export function approveRequest(requestId: string): User {
     assignments: [assignment, ...db.assignments],
   })
   return activatedUser
+}
+
+/**
+ * Enregistre le choix obligatoire de l'étudiant après validation d'un
+ * renouvellement, puis ouvre le nouveau cycle de 30 jours.
+ */
+export function chooseRenewalSubject(
+  userId: string,
+  requestId: string,
+  subjectId: string,
+): SubjectAssignment {
+  const db = getDB()
+  const request = db.requests.find((item) => item.id === requestId)
+  if (!request || request.userId !== userId || request.type !== 'renewal') {
+    throw new Error('Renouvellement introuvable.')
+  }
+  if (
+    request.status !== 'approved' ||
+    !request.currentSubjectId ||
+    request.chosenSubjectId ||
+    db.assignments.some((assignment) => assignment.requestId === requestId)
+  ) {
+    throw new Error('Ce choix n’est plus disponible. Reconnectez-vous pour actualiser.')
+  }
+  if (getActiveAssignment(userId, db)) {
+    throw new Error('Un cycle est déjà actif. Attendez son expiration avant de choisir.')
+  }
+
+  const allowed = new Set(
+    [request.currentSubjectId, request.nextSubjectId].filter(Boolean) as string[],
+  )
+  if (!allowed.has(subjectId)) {
+    throw new Error('Ce sujet ne fait pas partie des choix proposés.')
+  }
+  const subject = db.subjects.find((candidate) => candidate.id === subjectId)
+  if (!subject || subject.archived || subject.questionCount === 0) {
+    throw new Error('Ce sujet n’est plus disponible.')
+  }
+
+  const user = db.users.find((candidate) => candidate.id === userId)
+  if (!user) throw new Error('Étudiant introuvable.')
+
+  const now = new Date()
+  const assignment = createAssignment(userId, subject.id, request.id, now)
+  const activatedUser: User = {
+    ...user,
+    status: 'active',
+    activatedAt: assignment.startedAt,
+    expiresAt: assignment.expiresAt,
+    rejectionReason: undefined,
+  }
+
+  commit({
+    ...db,
+    users: db.users.map((candidate) =>
+      candidate.id === userId ? activatedUser : candidate,
+    ),
+    requests: db.requests.map((item) =>
+      item.id === requestId
+        ? {
+            ...item,
+            chosenSubjectId: subject.id,
+            chosenAt: now.toISOString(),
+          }
+        : item,
+    ),
+    assignments: [assignment, ...db.assignments],
+  })
+  return assignment
 }
 
 export function assignSubjectToStudent(subjectId: string, userId: string): SubjectAssignment {
@@ -450,6 +597,18 @@ export function extendAccess(userId: string, days = 30) {
   const db = getDB()
   const user = db.users.find((candidate) => candidate.id === userId)
   if (!user) throw new Error('Étudiant introuvable.')
+  if (
+    db.requests.some(
+      (request) =>
+        request.userId === userId &&
+        request.type === 'renewal' &&
+        request.status === 'approved' &&
+        Boolean(request.currentSubjectId) &&
+        !request.chosenSubjectId,
+    )
+  ) {
+    throw new Error('Cet étudiant doit d’abord choisir son sujet de renouvellement.')
+  }
 
   const active = getActiveAssignment(userId, db)
   if (active) {
@@ -475,7 +634,16 @@ export function extendAccess(userId: string, days = 30) {
     return
   }
 
-  const subject = getNextSubjectForUser(userId, db)
+  const latest = getLatestAssignment(userId, db)
+  const previous = latest
+    ? db.subjects.find(
+        (candidate) =>
+          candidate.id === latest.subjectId &&
+          !candidate.archived &&
+          candidate.questionCount > 0,
+      )
+    : undefined
+  const subject = previous ?? getNextSubjectForUser(userId, db)
   if (!subject) {
     throw new Error('Aucun sujet disponible dans la file pour prolonger cet accès.')
   }
@@ -509,7 +677,11 @@ export function revokeAccess(userId: string, note = 'Accès suspendu par le doct
         : user,
     ),
     requests: db.requests.map((request) =>
-      request.userId === userId && request.status === 'pending'
+      request.userId === userId &&
+      (request.status === 'pending' ||
+        (request.status === 'approved' &&
+          Boolean(request.currentSubjectId) &&
+          !request.chosenSubjectId))
         ? { ...request, status: 'rejected', reviewedAt: now, note }
         : request,
     ),
@@ -539,6 +711,44 @@ export interface PublishSubjectInput {
 export function publishSubject(input: PublishSubjectInput): Subject {
   const db = getDB()
   if (!input.questions.length) throw new Error('Aucune question à ajouter à la file.')
+
+  const seenNumbers = new Set<number>()
+  for (const [index, question] of input.questions.entries()) {
+    const label = `Question ${question.number || index + 1}`
+    if (!Number.isInteger(question.number) || question.number < 1) {
+      throw new Error(`${label} : le numéro de question est invalide.`)
+    }
+    if (seenNumbers.has(question.number)) {
+      throw new Error(`${label} : ce numéro de question apparaît plusieurs fois.`)
+    }
+    seenNumbers.add(question.number)
+    if (!question.statement?.trim()) {
+      throw new Error(`${label} : l’énoncé est vide.`)
+    }
+    for (const letter of ['A', 'B', 'C', 'D'] as const) {
+      if (!question.options?.[letter]?.trim()) {
+        throw new Error(`${label} : l’option ${letter} est vide.`)
+      }
+    }
+    if (!Array.isArray(question.correctAnswers) || question.correctAnswers.length === 0) {
+      throw new Error(
+        `${label} : ajoutez au moins une bonne réponse (A, B, C ou D) avant d’enregistrer le sujet.`,
+      )
+    }
+    if (
+      question.correctAnswers.some(
+        (letter) => !['A', 'B', 'C', 'D'].includes(letter),
+      )
+    ) {
+      throw new Error(`${label} : la bonne réponse doit être une lettre entre A et D.`)
+    }
+    if (!question.explanation?.trim()) {
+      throw new Error(
+        `${label} : ajoutez l’explication médicale qui sert de référence à la correction.`,
+      )
+    }
+  }
+
   const now = new Date()
   const subject: Subject = {
     id: uid('subject'),
@@ -605,11 +815,24 @@ export function saveAttempt(input: {
   score: number
 }): Attempt {
   const db = getDB()
+  const questionSnapshot = input.questionIds.map((id) =>
+    db.questions.find((question) => question.id === id),
+  )
+  if (questionSnapshot.some((question) => !question)) {
+    throw new Error('Une question de la série est introuvable dans le sujet.')
+  }
   const attempt: Attempt = {
     ...input,
     id: uid('attempt'),
     total: input.questionIds.length,
     createdAt: new Date().toISOString(),
+    questionSnapshot: questionSnapshot
+      .filter((question): question is Question => Boolean(question))
+      .map((question) => ({
+        ...question,
+        options: { ...question.options },
+        correctAnswers: [...question.correctAnswers],
+      })),
   }
   commit({ ...db, attempts: [attempt, ...db.attempts] })
   return attempt

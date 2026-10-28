@@ -15,6 +15,7 @@ export function PendingPage() {
   const [receiptOpen, setReceiptOpen] = useState(false)
 
   if (!user) return null
+  if (access === 'choosing') return <Navigate to="/choix-sujet" replace />
   if (access === 'rejected' || access === 'expired') return <Navigate to="/expiration" replace />
 
   const request = pendingRequest ?? latestRequest

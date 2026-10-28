@@ -97,8 +97,9 @@ create index subjects_queue_idx
   where not archived;
 create index subjects_month_idx on public.subjects (month_label);
 
--- Un étudiant reçoit un seul sujet à la fois. Le couple (user, subject) est
--- unique : un sujet déjà consommé ne peut jamais être réattribué au même étudiant.
+-- Un étudiant reçoit un seul sujet à la fois. Un même sujet peut être
+-- réattribué lors d'un renouvellement (l'étudiant choisit de le reprendre) :
+-- chaque affectation ouvre un nouveau cycle de 30 jours.
 create table public.subject_assignments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles (id) on delete cascade,
@@ -107,8 +108,7 @@ create table public.subject_assignments (
   started_at timestamptz not null default now(),
   expires_at timestamptz not null,
   created_at timestamptz not null default now(),
-  constraint subject_assignments_window check (expires_at > started_at),
-  constraint subject_assignments_one_subject_per_cycle unique (user_id, subject_id)
+  constraint subject_assignments_window check (expires_at > started_at)
 );
 
 create index subject_assignments_user_expiry_idx
@@ -149,6 +149,8 @@ create table public.attempts (
   subject_id uuid not null references public.subjects (id) on delete restrict,
   question_ids uuid[] not null,
   answers jsonb not null default '{}'::jsonb,
+  -- Copie figée des questions et du corrigé au moment de la série.
+  question_snapshot jsonb,
   score integer not null check (score >= 0),
   total integer not null check (total > 0),
   created_at timestamptz not null default now(),
@@ -159,6 +161,11 @@ create table public.attempts (
 
 create index attempts_user_created_idx on public.attempts (user_id, created_at desc);
 create index attempts_subject_idx on public.attempts (subject_id);
+
+-- Migration idempotente : les projets existants n'ont pas encore cette
+-- colonne, alors que les fonctions ci-dessous la référencent.
+alter table public.attempts
+  add column if not exists question_snapshot jsonb;
 
 -- ---------------------------------------------------------------------------
 -- 3. Création automatique du profil après inscription Auth
@@ -430,6 +437,7 @@ declare
   v_score integer;
   v_attempt_id uuid;
   v_assignment_expires_at timestamptz;
+  v_question_snapshot jsonb;
 begin
   if not public.has_active_access() then
     raise exception 'ACCESS_EXPIRED' using errcode = 'P0001';
@@ -473,6 +481,24 @@ begin
     raise exception 'INVALID_QUESTION_SET' using errcode = 'P0001';
   end if;
 
+  -- Le corrigé est figé avec la tentative : une modification ultérieure du
+  -- sujet ne change ni le score ni la correction déjà affichée.
+  select jsonb_agg(
+           jsonb_build_object(
+             'id', q.id,
+             'number', q.number,
+             'matiere', q.matiere,
+             'statement', q.statement,
+             'options', q.options,
+             'correctAnswers', q.correct_answers,
+             'explanation', q.explanation
+           )
+           order by q.number
+         )
+  into v_question_snapshot
+  from public.questions q
+  where q.id = any (p_question_ids);
+
   -- Comparaison ensembliste : l'ordre des lettres et des réponses n'importe pas,
   -- mais une réponse partielle (A au lieu de A+C) est fausse.
   select count(*)
@@ -492,8 +518,13 @@ begin
       from unnest(q.correct_answers) as expected(correct_letter)
     );
 
-  insert into public.attempts (user_id, subject_id, question_ids, answers, score, total)
-  values (auth.uid(), v_subject_id, p_question_ids, p_answers, v_score, v_total)
+  insert into public.attempts (
+    user_id, subject_id, question_ids, answers, question_snapshot, score, total
+  )
+  values (
+    auth.uid(), v_subject_id, p_question_ids, p_answers,
+    coalesce(v_question_snapshot, '[]'::jsonb), v_score, v_total
+  )
   returning id into v_attempt_id;
 
   return jsonb_build_object(
@@ -531,26 +562,44 @@ begin
              'total', a.total,
              'createdAt', a.created_at
            ),
-           'questions', jsonb_agg(
-             jsonb_build_object(
-               'id', q.id,
-               'number', q.number,
-               'matiere', q.matiere,
-               'statement', q.statement,
-               'options', q.options,
-               'correctAnswers', q.correct_answers,
-               'explanation', q.explanation,
-               'selected', coalesce(a.answers -> q.id::text, '[]'::jsonb)
+           'questions', case
+             -- Les tentatives récentes utilisent la copie du corrigé faite
+             -- au moment du passage. Les anciennes retombent sur le sujet
+             -- actuel, faute de copie disponible.
+             when jsonb_typeof(a.question_snapshot) = 'array'
+                  and jsonb_array_length(a.question_snapshot) > 0 then (
+               select jsonb_agg(
+                        elem || jsonb_build_object(
+                          'selected',
+                          coalesce(a.answers -> (elem ->> 'id'), '[]'::jsonb)
+                        )
+                        order by (elem ->> 'number')::integer
+                      )
+               from jsonb_array_elements(a.question_snapshot) as snapshot(elem)
              )
-             order by q.number
-           )
+             else (
+               select jsonb_agg(
+                        jsonb_build_object(
+                          'id', q.id,
+                          'number', q.number,
+                          'matiere', q.matiere,
+                          'statement', q.statement,
+                          'options', q.options,
+                          'correctAnswers', q.correct_answers,
+                          'explanation', q.explanation,
+                          'selected', coalesce(a.answers -> q.id::text, '[]'::jsonb)
+                        )
+                        order by q.number
+                      )
+               from public.questions q
+               where q.id = any (a.question_ids)
+             )
+           end
          )
   into v_result
   from public.attempts a
-  join public.questions q on q.id = any (a.question_ids)
   where a.id = p_attempt_id
-    and (a.user_id = auth.uid() or public.is_professor())
-  group by a.id, a.user_id, a.subject_id, a.score, a.total, a.created_at;
+    and (a.user_id = auth.uid() or public.is_professor());
 
   if v_result is null then
     raise exception 'ATTEMPT_NOT_FOUND' using errcode = 'P0001';
@@ -579,6 +628,8 @@ declare
   v_expires_at timestamptz := now() + interval '30 days';
   v_subject_id uuid;
   v_assignment_id uuid;
+  v_current_subject_id uuid;
+  v_next_subject_id uuid;
 begin
   if not public.is_professor() then
     raise exception 'FORBIDDEN' using errcode = '42501';
@@ -609,7 +660,79 @@ begin
     raise exception 'ACTIVE_ASSIGNMENT_EXISTS' using errcode = 'P0001';
   end if;
 
-  -- Premier sujet de la file que cet étudiant n'a jamais consommé.
+  -- Renouvellement : on ne choisit plus le sujet à la place de l'étudiant.
+  -- Le dossier est validé, puis l'étudiant doit choisir entre le sujet qu'il
+  -- vient de travailler et le sujet publié suivant. Le cycle de 30 jours ne
+  -- démarre qu'au moment de ce choix.
+  if v_request.type = 'renewal' then
+    -- Le sujet de départ est toujours la dernière affectation, même si elle a
+    -- été archivée entre-temps : dans ce cas le docteur doit intervenir.
+    select a.subject_id
+    into v_current_subject_id
+    from public.subject_assignments a
+    where a.user_id = v_request.user_id
+    order by a.started_at desc
+    limit 1;
+
+    if v_current_subject_id is not null then
+      if not exists (
+        select 1
+        from public.subjects s
+        where s.id = v_current_subject_id
+          and not s.archived
+          and s.question_count > 0
+      ) then
+        raise exception 'PREVIOUS_SUBJECT_UNAVAILABLE' using errcode = 'P0001';
+      end if;
+
+      select s.id
+      into v_next_subject_id
+      from public.subjects s
+      join public.subjects current_subject
+        on current_subject.id = v_current_subject_id
+      where not s.archived
+        and s.question_count > 0
+        and (s.published_at, s.id) > (current_subject.published_at, current_subject.id)
+      order by s.published_at asc, s.id asc
+      limit 1;
+
+      -- Un seul dossier vivant : les autres demandes en attente sont remplacées.
+      update public.access_requests
+      set status = 'rejected',
+          reviewed_at = now(),
+          reviewed_by = auth.uid(),
+          note = coalesce(note, 'Remplacée par une demande approuvée.')
+      where user_id = v_request.user_id
+        and status = 'pending'
+        and id <> v_request.id;
+
+      update public.access_requests
+      set status = 'approved',
+          reviewed_at = now(),
+          reviewed_by = auth.uid(),
+          current_subject_id = v_current_subject_id,
+          next_subject_id = v_next_subject_id,
+          chosen_subject_id = null,
+          chosen_at = null
+      where id = v_request.id;
+
+      update public.profiles
+      set status = 'pending',
+          rejection_reason = null
+      where id = v_request.user_id;
+
+      return jsonb_build_object(
+        'requestId', v_request.id,
+        'userId', v_request.user_id,
+        'requiresChoice', true,
+        'currentSubjectId', v_current_subject_id,
+        'nextSubjectId', v_next_subject_id
+      );
+    end if;
+  end if;
+
+  -- Première demande (ou renouvellement sans cycle précédent) : premier sujet
+  -- de la file que cet étudiant n'a jamais consommé.
   select s.id
   into v_subject_id
   from public.subjects s
@@ -670,6 +793,7 @@ begin
   return jsonb_build_object(
     'requestId', v_request.id,
     'userId', v_request.user_id,
+    'requiresChoice', false,
     'subjectId', v_subject_id,
     'assignmentId', v_assignment_id,
     'startedAt', v_started_at,
@@ -680,6 +804,127 @@ $$;
 
 revoke all on function public.approve_access_request(uuid) from public, anon;
 grant execute on function public.approve_access_request(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 10 bis. RPC étudiant : choisir son sujet après un renouvellement validé
+-- ---------------------------------------------------------------------------
+
+create or replace function public.choose_renewal_subject(
+  p_request_id uuid,
+  p_subject_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_request public.access_requests%rowtype;
+  v_started_at timestamptz := now();
+  v_expires_at timestamptz := now() + interval '30 days';
+  v_assignment_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  select *
+  into v_request
+  from public.access_requests
+  where id = p_request_id
+    and user_id = auth.uid()
+  for update;
+
+  if not found
+    or v_request.type <> 'renewal'
+    or v_request.status <> 'approved'
+    or v_request.current_subject_id is null
+    or v_request.chosen_subject_id is not null then
+    raise exception 'REQUEST_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  -- Seuls le sujet en cours et le sujet suivant proposé sont acceptés.
+  if p_subject_id is null
+    or (
+      p_subject_id <> v_request.current_subject_id
+      and p_subject_id is distinct from v_request.next_subject_id
+    ) then
+    raise exception 'INVALID_SUBJECT_CHOICE' using errcode = 'P0001';
+  end if;
+
+  if not exists (
+    select 1
+    from public.subjects
+    where id = p_subject_id
+      and not archived
+      and question_count > 0
+  ) then
+    raise exception 'INVALID_SUBJECT_CHOICE' using errcode = 'P0001';
+  end if;
+
+  if exists (
+    select 1
+    from public.subject_assignments
+    where request_id = v_request.id
+  ) then
+    raise exception 'REQUEST_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  if exists (
+    select 1
+    from public.subject_assignments
+    where user_id = auth.uid()
+      and expires_at > now()
+  ) then
+    raise exception 'ACTIVE_ASSIGNMENT_EXISTS' using errcode = 'P0001';
+  end if;
+
+  perform 1
+  from public.profiles
+  where id = auth.uid()
+  for update;
+
+  insert into public.subject_assignments (
+    user_id,
+    subject_id,
+    request_id,
+    started_at,
+    expires_at
+  )
+  values (
+    auth.uid(),
+    p_subject_id,
+    v_request.id,
+    v_started_at,
+    v_expires_at
+  )
+  returning id into v_assignment_id;
+
+  update public.access_requests
+  set chosen_subject_id = p_subject_id,
+      chosen_at = v_started_at
+  where id = v_request.id;
+
+  update public.profiles
+  set status = 'active',
+      activated_at = v_started_at,
+      expires_at = v_expires_at,
+      rejection_reason = null
+  where id = auth.uid();
+
+  return jsonb_build_object(
+    'requestId', v_request.id,
+    'assignmentId', v_assignment_id,
+    'userId', auth.uid(),
+    'subjectId', p_subject_id,
+    'startedAt', v_started_at,
+    'expiresAt', v_expires_at
+  );
+end;
+$$;
+
+revoke all on function public.choose_renewal_subject(uuid, uuid) from public, anon;
+grant execute on function public.choose_renewal_subject(uuid, uuid) to authenticated;
 
 create or replace function public.reject_access_request(
   p_request_id uuid,
@@ -762,6 +1007,25 @@ begin
   end if;
 
   v_count := jsonb_array_length(p_questions);
+
+  -- Le corrigé fait partie du sujet : aucune question ne peut être
+  -- enregistrée sans bonne réponse ni sans explication de référence.
+  if exists (
+    select 1
+    from jsonb_array_elements(p_questions) as question(item)
+    where case
+      when coalesce(jsonb_typeof(question.item -> 'correctAnswers'), '') <> 'array' then true
+      when jsonb_array_length(question.item -> 'correctAnswers') = 0 then true
+      when btrim(coalesce(question.item ->> 'explanation', '')) = '' then true
+      else exists (
+        select 1
+        from jsonb_array_elements_text(question.item -> 'correctAnswers') as answer(letter)
+        where answer.letter not in ('A', 'B', 'C', 'D')
+      )
+    end
+  ) then
+    raise exception 'INVALID_CORRECTION' using errcode = 'P0001';
+  end if;
 
   insert into public.subjects (
     title,
@@ -984,7 +1248,15 @@ begin
       reviewed_at = now(),
       reviewed_by = auth.uid(),
       note = coalesce(note, v_note)
-  where user_id = p_user_id and status = 'pending';
+  where user_id = p_user_id
+    and (
+      status = 'pending'
+      or (
+        status = 'approved'
+        and current_subject_id is not null
+        and chosen_subject_id is null
+      )
+    );
 
   update public.profiles
   set status = 'rejected',
@@ -1028,6 +1300,18 @@ begin
     raise exception 'STUDENT_NOT_FOUND' using errcode = 'P0001';
   end if;
 
+  if exists (
+    select 1
+    from public.access_requests
+    where user_id = p_user_id
+      and type = 'renewal'
+      and status = 'approved'
+      and current_subject_id is not null
+      and chosen_subject_id is null
+  ) then
+    raise exception 'SUBJECT_CHOICE_REQUIRED' using errcode = 'P0001';
+  end if;
+
   select * into v_assignment
   from public.subject_assignments
   where user_id = p_user_id and expires_at > now()
@@ -1041,16 +1325,25 @@ begin
     set expires_at = v_expires_at
     where id = v_assignment.id;
   else
-    select s.id into v_subject_id
-    from public.subjects s
-    where not s.archived
+    -- Reprendre le dernier sujet travaillé : la progression n'est plus
+    -- automatique. À défaut d'historique, prendre le premier sujet publié.
+    select a.subject_id into v_subject_id
+    from public.subject_assignments a
+    join public.subjects s on s.id = a.subject_id
+    where a.user_id = p_user_id
+      and not s.archived
       and s.question_count > 0
-      and not exists (
-        select 1 from public.subject_assignments a
-        where a.user_id = p_user_id and a.subject_id = s.id
-      )
-    order by s.published_at asc, s.id asc
+    order by a.started_at desc
     limit 1;
+
+    if v_subject_id is null then
+      select s.id into v_subject_id
+      from public.subjects s
+      where not s.archived
+        and s.question_count > 0
+      order by s.published_at asc, s.id asc
+      limit 1;
+    end if;
 
     if v_subject_id is null then
       raise exception 'NO_SUBJECT_AVAILABLE' using errcode = 'P0001';
@@ -1101,6 +1394,58 @@ grant execute on function public.extend_access(uuid, integer) to authenticated;
 -- Migration idempotente pour un projet Supabase déjà initialisé.
 alter table public.access_requests
   add column if not exists receipt_size integer not null default 0;
+
+-- Choix du sujet au renouvellement : le docteur valide le paiement, puis
+-- l'étudiant choisit. Les colonnes restent nulles pour les premières demandes.
+alter table public.access_requests
+  add column if not exists current_subject_id uuid references public.subjects (id),
+  add column if not exists next_subject_id uuid references public.subjects (id),
+  add column if not exists chosen_subject_id uuid references public.subjects (id),
+  add column if not exists chosen_at timestamptz;
+
+create index if not exists access_requests_pending_choice_idx
+  on public.access_requests (user_id)
+  where status = 'approved'
+    and current_subject_id is not null
+    and chosen_subject_id is null;
+
+-- Un sujet peut désormais être repris lors d'un renouvellement : chaque
+-- affectation ouvre un nouveau cycle, l'historique des tentatives est conservé.
+alter table public.subject_assignments
+  drop constraint if exists subject_assignments_one_subject_per_cycle;
+
+-- Le sujet suivant n'est pas encore affecté au moment du choix : la policy
+-- subjects_assigned_or_professor ne le rendrait donc pas visible. Cette
+-- fonction expose uniquement les deux sujets proposés dans une demande de
+-- renouvellement approuvée et pas encore tranchée.
+create or replace function public.has_subject_offer(p_subject_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.access_requests r
+    where r.user_id = auth.uid()
+      and r.type = 'renewal'
+      and r.status = 'approved'
+      and r.chosen_subject_id is null
+      and (
+        r.current_subject_id = p_subject_id
+        or r.next_subject_id = p_subject_id
+      )
+  );
+$$;
+
+revoke all on function public.has_subject_offer(uuid) from public;
+grant execute on function public.has_subject_offer(uuid) to authenticated;
+
+create policy "subjects_offered_for_choice"
+  on public.subjects for select
+  to authenticated
+  using (public.has_subject_offer(id));
 
 -- ---------------------------------------------------------------------------
 -- 12. Stockage privé des justificatifs

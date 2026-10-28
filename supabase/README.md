@@ -56,21 +56,38 @@ les politiques RLS et les fonctions RPC.
 
 ## Base de données
 
-Le schéma complet est dans [`schema.sql`](./schema.sql). Il a été appliqué au
-projet Supabase. Pour un nouveau projet, exécuter le fichier entier dans le SQL
-Editor. Il crée :
+Le schéma complet est dans [`schema.sql`](./schema.sql). Pour un nouveau projet,
+exécuter le fichier entier dans le SQL Editor. Sur le projet existant, les
+sections ajoutées pour le choix du sujet (colonnes de `access_requests`, RPC
+`choose_renewal_subject`, policy `subjects_offered_for_choice`) et pour le
+corrigé figé (colonne `attempts.question_snapshot`, RPC `submit_attempt` et
+`get_attempt_review` mises à jour, validation de `publish_subject`) doivent être
+appliquées avant de déployer le frontend. Sur le projet de production, ces
+sections ont été appliquées le 28 octobre 2026. Il crée :
 
 - `profiles`, `access_requests`, `subjects`, `subject_assignments`,
   `questions`, `attempts` ;
 - les policies RLS ;
 - le bucket privé `receipts` (3 Mo) ;
 - les RPC `start_quiz`, `submit_attempt`, `get_attempt_review`,
-  `approve_access_request`, `reject_access_request`, `publish_subject`,
-  `remove_subject`, `assign_subject_to_student`, `revoke_access`,
-  `extend_access`.
+  `approve_access_request`, `choose_renewal_subject`, `reject_access_request`,
+  `publish_subject`, `remove_subject`, `assign_subject_to_student`,
+  `revoke_access`, `extend_access`.
+
+Lors d’un renouvellement, `approve_access_request` ne crée plus d’affectation :
+il enregistre le sujet en cours et le sujet suivant dans `access_requests`, puis
+l’étudiant doit appeler `choose_renewal_subject` pour ouvrir son cycle de 30
+jours. Le même sujet peut être réaffecté ; l’historique des tentatives est
+conservé.
 
 Les corrigés ne sont jamais envoyés avant la soumission : `start_quiz` renvoie
 les énoncés sans `correct_answers`, et le score est calculé côté Postgres.
+
+Chaque question est enregistrée avec sa bonne réponse et son explication.
+`publish_subject` refuse un sujet si une question n’a pas de corrigé complet.
+Au moment de la soumission, `submit_attempt` fige une copie des questions et du
+corrigé dans `attempts.question_snapshot` : modifier le sujet plus tard ne change
+donc ni les anciens scores ni la correction déjà consultée.
 
 ## Emails transactionnels
 

@@ -167,7 +167,12 @@ export default function AdminSubjectPage() {
   }
 
   const openConfirm = () => {
-    if (!ready) return
+    if (!ready) {
+      setUploadError(
+        'Importez les deux fichiers et vérifiez que chaque question possède une bonne réponse et une explication avant l’enregistrement.',
+      )
+      return
+    }
     if (!title.trim()) {
       setTitleError('Donnez un titre au sujet avant de l’enregistrer.')
       return
@@ -271,7 +276,8 @@ export default function AdminSubjectPage() {
               <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-mute">
                 Préparez plusieurs sujets à l’avance. Chaque étudiant reçoit un seul sujet à la
                 fois, pour 30 jours à partir de l’acceptation de sa demande. Au renouvellement,
-                le premier sujet qu’il n’a pas encore fait lui est attribué automatiquement.
+                l’étudiant choisit entre reprendre son sujet actuel et passer au suivant dans la
+                file.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -316,8 +322,8 @@ export default function AdminSubjectPage() {
                 Sujets en file
               </h2>
               <p className="mt-1 text-[11px] text-mute">
-                Le premier sujet non encore fait est attribué automatiquement à l’acceptation
-                d’une demande. Vous pouvez aussi l’attribuer manuellement à un étudiant.
+                Au renouvellement, l’étudiant choisit le sujet suivant dans cet ordre. Vous pouvez
+                aussi attribuer un sujet manuellement à un étudiant.
               </p>
             </div>
             <p className="text-[10px] uppercase tracking-[0.12em] text-mute">
@@ -407,8 +413,9 @@ export default function AdminSubjectPage() {
             <h2 className="text-[18px] font-medium tracking-[-0.01em]">Importer les fichiers</h2>
             <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-mute">
               Utilisez le bouton noir ci-dessous pour ouvrir l’explorateur de fichiers. Choisissez
-              le fichier des questions puis celui des corrigés, au format Excel ou PDF. Un modèle
-              vierge reste téléchargeable en bas de chaque bloc.
+              le fichier des questions puis celui des corrigés, au format Excel ou PDF. Le corrigé
+              est obligatoire : chaque question doit avoir une réponse exacte et une explication.
+              Un modèle vierge reste téléchargeable en bas de chaque bloc.
             </p>
           </div>
 
@@ -499,8 +506,7 @@ export default function AdminSubjectPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-success">
                 <CheckCircle2 className="size-3.5" aria-hidden="true" />
                 <span>
-                  {questions.length} questions appariées.
-                  enregistrés ensemble.
+                  {questions.length} questions appariées. Le corrigé est enregistré avec le sujet.
                 </span>
               </div>
             )}
@@ -554,7 +560,7 @@ export default function AdminSubjectPage() {
           className="mt-9 scroll-mt-[130px] border-t border-hairline pt-7"
         >
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" onClick={() => setConfirming(true)} className="gap-2">
+            <Button type="button" onClick={openConfirm} className="gap-2">
               <Save className="size-3.5" aria-hidden="true" />
               Enregistrer le sujet
             </Button>
@@ -604,6 +610,7 @@ export default function AdminSubjectPage() {
               size="sm"
               onClick={handlePublish}
               loading={publishing}
+              disabled={!ready}
               className="gap-2"
             >
               <Save className="size-3.5" aria-hidden="true" />

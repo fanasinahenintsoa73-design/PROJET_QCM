@@ -44,6 +44,10 @@ interface AccessRequestRow {
   created_at: string
   reviewed_at: string | null
   note: string | null
+  current_subject_id: string | null
+  next_subject_id: string | null
+  chosen_subject_id: string | null
+  chosen_at: string | null
 }
 
 interface SubjectRow {
@@ -170,6 +174,10 @@ function mapRequest(
     createdAt: row.created_at,
     reviewedAt: optional(row.reviewed_at),
     note: optional(row.note),
+    currentSubjectId: optional(row.current_subject_id),
+    nextSubjectId: optional(row.next_subject_id),
+    chosenSubjectId: optional(row.chosen_subject_id),
+    chosenAt: optional(row.chosen_at),
   }
 }
 
@@ -185,6 +193,10 @@ const errorMessages: Record<string, string> = {
   DUPLICATE_QUESTIONS: 'La série contient des questions en double.',
   FORBIDDEN: 'Cette action est réservée au docteur.',
   REQUEST_NOT_FOUND: 'Cette demande est introuvable ou a déjà été traitée.',
+  INVALID_SUBJECT_CHOICE: 'Ce sujet ne fait pas partie des choix proposés.',
+  SUBJECT_CHOICE_REQUIRED: 'Cet étudiant doit d’abord choisir son sujet de renouvellement.',
+  PREVIOUS_SUBJECT_UNAVAILABLE:
+    'Le sujet précédent n’est plus disponible. Attribuez un sujet manuellement à cet étudiant.',
   ACTIVE_ASSIGNMENT_EXISTS: 'Cet étudiant dispose déjà d’un cycle actif.',
   NO_SUBJECT_AVAILABLE:
     'Aucun sujet disponible dans la file. Ajoutez d’abord un sujet avant de valider cette demande.',
@@ -192,6 +204,8 @@ const errorMessages: Record<string, string> = {
     'Ce sujet a déjà été attribué ou possède un historique : il ne peut plus être retiré.',
   SUBJECT_NOT_FOUND: 'Ce sujet est introuvable.',
   EMPTY_SUBJECT: 'Aucune question à ajouter à la file.',
+  INVALID_CORRECTION:
+    'Chaque question doit avoir au moins une bonne réponse (A, B, C ou D) et une explication avant l’enregistrement du sujet.',
   ATTEMPT_NOT_FOUND: 'Ce résultat est introuvable.',
 }
 
@@ -458,9 +472,30 @@ export async function submitRenewal(receipt: Receipt): Promise<void> {
 /* Actions docteur                                                     */
 /* ------------------------------------------------------------------ */
 
-export async function approveRequest(requestId: string): Promise<void> {
+export async function approveRequest(
+  requestId: string,
+): Promise<{ requiresChoice: boolean }> {
   const client = requireSupabase()
-  const { error } = await client.rpc('approve_access_request', { p_request_id: requestId })
+  const { data, error } = await client.rpc('approve_access_request', {
+    p_request_id: requestId,
+  })
+  if (error) throw asFrenchError(error)
+  return { requiresChoice: Boolean((data as { requiresChoice?: boolean } | null)?.requiresChoice) }
+}
+
+/**
+ * Choix obligatoire de l'étudiant après validation d'un renouvellement.
+ * Ouvre l'affectation de 30 jours sur le sujet retenu.
+ */
+export async function chooseRenewalSubject(
+  requestId: string,
+  subjectId: string,
+): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('choose_renewal_subject', {
+    p_request_id: requestId,
+    p_subject_id: subjectId,
+  })
   if (error) throw asFrenchError(error)
 }
 

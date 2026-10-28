@@ -37,6 +37,13 @@ export interface AccessRequest {
   createdAt: string
   reviewedAt?: string
   note?: string
+  /** Sujet suivi avant le renouvellement (choix obligatoire après validation). */
+  currentSubjectId?: string
+  /** Sujet publié suivant proposé au choix, si disponible. */
+  nextSubjectId?: string
+  /** Sujet retenu par l'étudiant pour le nouveau cycle. */
+  chosenSubjectId?: string
+  chosenAt?: string
 }
 
 export interface Subject {
@@ -85,6 +92,12 @@ export interface Attempt {
   score: number
   total: number
   createdAt: string
+  /**
+   * Copie figée des questions et du corrigé au moment du passage.
+   * Elle garantit que les anciens résultats ne changent pas si le sujet est
+   * corrigé ou modifié plus tard.
+   */
+  questionSnapshot?: Question[]
 }
 
 export interface Database {

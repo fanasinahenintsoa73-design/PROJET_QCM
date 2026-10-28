@@ -103,6 +103,7 @@ export function RequireStudent() {
   const { user, access } = useAuth()
   if (!user) return <Navigate to="/connexion" replace />
   if (user.role !== 'student') return <PortalMismatch expected="student" />
+  if (access === 'choosing') return <Navigate to="/choix-sujet" replace />
   if (access === 'pending') return <Navigate to="/en-attente" replace />
   if (access === 'expired' || access === 'rejected') return <Navigate to="/expiration" replace />
   return <Outlet />
@@ -112,6 +113,7 @@ export function RequireBlocked() {
   const { user, access } = useAuth()
   if (!user) return <Navigate to="/connexion" replace />
   if (user.role !== 'student') return <PortalMismatch expected="student" />
+  if (access === 'choosing') return <Navigate to="/choix-sujet" replace />
   if (access === 'active') return <Navigate to="/app" replace />
   if (access === 'pending') return <Navigate to="/en-attente" replace />
   return <Outlet />

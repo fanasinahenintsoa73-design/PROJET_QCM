@@ -20,6 +20,7 @@ import {
 import {
   getLatestRequest,
   getPendingRequest,
+  getPendingSubjectChoice,
   getStudentAccess,
   studentHomePath,
 } from '@/lib/access'
@@ -40,6 +41,7 @@ interface AuthContextValue {
   logout: () => Promise<void>
   refresh: () => Promise<void>
   pendingRequest?: ReturnType<typeof getPendingRequest>
+  pendingChoice?: ReturnType<typeof getPendingSubjectChoice>
   latestRequest?: ReturnType<typeof getLatestRequest>
   access: ReturnType<typeof getStudentAccess> | null
   homePath: string
@@ -183,6 +185,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => (user?.role === 'student' ? getPendingRequest(user.id, db) : undefined),
     [db, user],
   )
+  const pendingChoice = useMemo(
+    () => (user?.role === 'student' ? getPendingSubjectChoice(user.id, db) : undefined),
+    [db, user],
+  )
   const latestRequest = useMemo(
     () => (user?.role === 'student' ? getLatestRequest(user.id, db) : undefined),
     [db, user],
@@ -279,6 +285,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refresh,
       pendingRequest,
+      pendingChoice,
       latestRequest,
       access,
       homePath,
@@ -291,6 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refresh,
       pendingRequest,
+      pendingChoice,
       latestRequest,
       access,
       homePath,

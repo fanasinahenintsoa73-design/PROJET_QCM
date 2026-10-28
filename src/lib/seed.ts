@@ -458,7 +458,7 @@ export function createSeedDatabase(): Database {
     id: queueSubject2Id,
     title: 'Sujet 2 — Consolidation clinique',
     description:
-      'Deuxième sujet de la file. Il sera attribué automatiquement au prochain renouvellement.',
+      'Deuxième sujet de la file. Il peut être choisi par l’étudiant au prochain renouvellement.',
     monthLabel: currentMonth,
     publishedAt: addDays(now, -11).toISOString(),
     archived: false,

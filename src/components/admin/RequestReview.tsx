@@ -70,8 +70,9 @@ export function RequestReview({
 
   const status = requestStatus(current.status)
   const isPending = current.status === 'pending'
+  const isRenewal = current.type === 'renewal'
   const userName = current.userName
-  const typeLabel = current.type === 'renewal' ? 'Renouvellement' : 'Première demande'
+  const typeLabel = isRenewal ? 'Renouvellement' : 'Première demande'
 
   const handleApprove = async () => {
     if (busy || !isPending) return
@@ -79,10 +80,18 @@ export function RequestReview({
     try {
       await api.approveRequest(current.id)
       await refresh()
-      toast(`${userName} est activé pour 30 jours.`, 'success')
+      toast(
+        isRenewal
+          ? `${userName} doit maintenant choisir son sujet.`
+          : `${userName} est activé pour 30 jours.`,
+        'success',
+      )
       onClose()
     } catch (caught) {
-      toast(caught instanceof Error ? caught.message : 'Activation impossible.', 'error')
+      toast(
+        caught instanceof Error ? caught.message : 'Validation impossible.',
+        'error',
+      )
       setBusy(false)
     }
   }
@@ -124,7 +133,7 @@ export function RequestReview({
               </Button>
               <Button type="button" size="sm" onClick={handleApprove} loading={busy} className="gap-2">
                 <Check className="size-3.5" strokeWidth={2.2} />
-                Accepter pour 1 mois
+                {isRenewal ? 'Valider le renouvellement' : 'Accepter pour 1 mois'}
               </Button>
             </div>
           ) : (
@@ -213,7 +222,9 @@ export function RequestReview({
             {current.status === 'approved' && (
               <p className="mt-4 flex items-start gap-2 bg-[#e9f5ee] px-3 py-2.5 text-[10px] leading-relaxed text-success">
                 <CheckCheck className="mt-0.5 size-3.5 shrink-0" />
-                Demande validée. L’accès court sur 30 jours.
+                {isRenewal
+                  ? 'Renouvellement validé. L’étudiant doit choisir son sujet pour ouvrir son cycle.'
+                  : 'Demande validée. L’accès court sur 30 jours.'}
               </p>
             )}
             {current.status === 'rejected' && (
@@ -225,6 +236,13 @@ export function RequestReview({
             <p className="mt-4 text-[10px] leading-relaxed text-mute">
               Vérifiez le montant, la date et l’identité du bénéficiaire avant validation.
             </p>
+
+            {isPending && isRenewal && (
+              <p className="mt-3 bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-charcoal">
+                Après validation, l’étudiant choisira de reprendre son sujet ou de passer au
+                suivant. Son accès ne s’ouvrira qu’après ce choix.
+              </p>
+            )}
           </div>
         </div>
       </Modal>
