@@ -11,6 +11,7 @@ import {
   RequireStudent,
   RequireStudentAccount,
   RequireBlocked,
+  RequireRenewal,
   RequireAdmin,
   ScrollToTop,
 } from '@/components/Layouts'
@@ -22,7 +23,6 @@ import { SignupPage } from '@/pages/SignupPage'
 import { PendingPage } from '@/pages/PendingPage'
 import { ExpirationPage } from '@/pages/ExpirationPage'
 import { RenewalPage } from '@/pages/RenewalPage'
-import { SubjectChoicePage } from '@/pages/SubjectChoicePage'
 import DashboardPage from '@/pages/DashboardPage'
 import QuizPage from '@/pages/QuizPage'
 import ResultPage from '@/pages/ResultPage'
@@ -94,10 +94,9 @@ function StudentRoutes() {
       <Route element={<StatusLayout />}>
         <Route element={<RequireBlocked />}>
           <Route path="/expiration" element={<ExpirationPage />} />
-          <Route path="/reinscription" element={<RenewalPage />} />
         </Route>
-        <Route element={<RequireStudentAccount />}>
-          <Route path="/choix-sujet" element={<SubjectChoicePage />} />
+        <Route element={<RequireRenewal />}>
+          <Route path="/reinscription" element={<RenewalPage />} />
         </Route>
       </Route>
 
@@ -123,13 +122,14 @@ function DoctorRoutes() {
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/demandes" element={<DemandesRedirect />} />
           <Route
-            path="/admin/sujet"
+            path="/admin/themes"
             element={
               <Suspense fallback={<RouteFallback />}>
                 <AdminSubjectPage />
               </Suspense>
             }
           />
+          <Route path="/admin/sujet" element={<Navigate to="/admin/themes" replace />} />
           <Route path="/admin/etudiants" element={<AdminStudentsPage />} />
         </Route>
       </Route>

@@ -1,10 +1,10 @@
 import { ArrowRight, CalendarX2, FileText, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { getLatestAssignment, getNextSubjectAfter } from '@/lib/db'
+import { getSeriesUsage } from '@/lib/db'
 import { usePageTitle } from '@/components/Layouts'
 import { ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
-import { formatDateLong } from '@/lib/utils'
+import { formatDateLong, SERIES_LIMIT } from '@/lib/utils'
 
 export function ExpirationPage() {
   usePageTitle('Accès terminé — MEDQCM L1')
@@ -13,13 +13,7 @@ export function ExpirationPage() {
 
   const rejected = access === 'rejected'
   const reason = user.rejectionReason || latestRequest?.note
-  const latestAssignment = getLatestAssignment(user.id, db)
-  const currentSubject = latestAssignment
-    ? db.subjects.find((subject) => subject.id === latestAssignment.subjectId)
-    : undefined
-  const nextSubject = currentSubject
-    ? getNextSubjectAfter(currentSubject.id, db)
-    : undefined
+  const usage = getSeriesUsage(user.id, db)
   const expiredDaysAgo = user.expiresAt
     ? Math.max(0, Math.floor((Date.now() - new Date(user.expiresAt).getTime()) / 86_400_000))
     : null
@@ -44,7 +38,7 @@ export function ExpirationPage() {
                     expiredDaysAgo && expiredDaysAgo > 0
                       ? `, il y a ${expiredDaysAgo} jour${expiredDaysAgo > 1 ? 's' : ''}`
                       : ''
-                  }. Vos résultats restent consultables, mais le QCM est fermé jusqu’au renouvellement.`}
+                  }. Les neuf thèmes et vos ${SERIES_LIMIT} séries reviennent dès le renouvellement validé.`}
             </p>
 
             {rejected && reason ? (
@@ -59,15 +53,15 @@ export function ExpirationPage() {
                 {rejected ? 'Déposer un nouveau reçu' : 'Renouveler mon accès'} <ArrowRight size={16} />
               </ButtonLink>
               <p className="text-[12px] leading-relaxed text-mute">
-                Le nouveau cycle démarre après validation, au moment de votre choix du sujet.
+                Le nouveau cycle démarre dès la validation, pour 30 jours.
               </p>
             </div>
 
             <div className="mt-10 flex items-start gap-3 border-t border-line pt-6">
               <FileText size={16} className="mt-0.5 shrink-0 text-mute" />
               <p className="max-w-md text-[12px] leading-relaxed text-mute">
-                Votre historique de séries et vos corrections restent accessibles depuis votre
-                espace. Aucun résultat n’est supprimé.
+                L’historique du cycle précédent est archivé et n’est plus affiché dans votre
+                espace étudiant. Vos résultats restent enregistrés côté docteur.
               </p>
             </div>
           </div>
@@ -82,7 +76,7 @@ export function ExpirationPage() {
                   {rejected ? 'Nouvelle demande' : 'Prochain cycle'}
                 </p>
                 <p className="text-[11px] text-mute">
-                  {rejected ? 'Un nouveau reçu suffit' : '30 jours après votre choix'}
+                  {rejected ? 'Un nouveau reçu suffit' : 'Ouverture immédiate après validation'}
                 </p>
               </div>
             </div>
@@ -101,16 +95,18 @@ export function ExpirationPage() {
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-5">
-                <dt className="text-mute">Votre sujet</dt>
-                <dd className="max-w-[60%] text-right font-medium text-ink">
-                  {currentSubject ? currentSubject.title : '—'}
+                <dt className="text-mute">Séries du cycle</dt>
+                <dd className="text-right font-medium text-ink">
+                  {usage.used} / {SERIES_LIMIT}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-5">
-                <dt className="text-mute">Sujet suivant</dt>
-                <dd className="max-w-[60%] text-right font-medium text-ink">
-                  {nextSubject ? nextSubject.title : 'Pas encore publié'}
-                </dd>
+                <dt className="text-mute">Thèmes</dt>
+                <dd className="text-right font-medium text-ink">Les 9 thèmes PACES</dd>
+              </div>
+              <div className="flex items-start justify-between gap-5">
+                <dt className="text-mute">Séries incluses</dt>
+                <dd className="text-right font-medium text-ink">{SERIES_LIMIT} séries de 10 questions</dd>
               </div>
             </dl>
 
@@ -120,7 +116,7 @@ export function ExpirationPage() {
                 <p className="text-[11px] leading-relaxed text-ash">
                   {rejected
                     ? 'Le docteur vérifie chaque nouveau justificatif. Vous conservez le même compte et le même mot de passe.'
-                    : 'Après validation, vous choisirez de reprendre votre sujet ou de passer au sujet suivant. Les 30 jours démarrent à ce choix.'}
+                    : 'Après validation, votre compteur repart à zéro et les neuf thèmes sont immédiatement accessibles. Les résultats du cycle précédent restent archivés.'}
                 </p>
               </div>
             </div>

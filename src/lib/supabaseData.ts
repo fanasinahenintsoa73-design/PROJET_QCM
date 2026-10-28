@@ -13,7 +13,8 @@ import type {
   UserStatus,
 } from '@/types'
 import { requireSupabase } from '@/lib/supabase'
-import { SERIES_SIZE } from '@/lib/utils'
+import { AppError, SERIES_LIMIT_MESSAGE, SERIES_SIZE } from '@/lib/utils'
+import type { ThemePackInput } from '@/lib/themes'
 
 /* ------------------------------------------------------------------ */
 /* Lignes Supabase                                                     */
@@ -63,7 +64,7 @@ interface SubjectRow {
 interface AssignmentRow {
   id: string
   user_id: string
-  subject_id: string
+  subject_id: string | null
   request_id: string | null
   started_at: string
   expires_at: string
@@ -187,34 +188,40 @@ function mapRequest(
 
 const errorMessages: Record<string, string> = {
   ACCESS_EXPIRED: 'Votre accès a expiré. Renouvelez votre cycle pour continuer.',
-  NO_ACTIVE_SUBJECT: 'Aucun sujet actif ne vous est attribué pour le moment.',
-  INVALID_QUESTION_SET: 'La série envoyée ne correspond pas au sujet en cours.',
+  SERIES_LIMIT_REACHED: SERIES_LIMIT_MESSAGE,
+  THEME_NOT_FOUND: 'Ce thème est introuvable dans le catalogue.',
+  THEME_UNAVAILABLE:
+    'Ce thème sera bientôt disponible : le docteur prépare encore ses questions.',
+  INVALID_THEME_PACK: 'Le pack des neuf thèmes est incomplet ou invalide.',
+  INVALID_QUESTION_SET: 'La série envoyée ne correspond pas au thème sélectionné.',
   INVALID_ANSWERS: 'Les réponses envoyées sont invalides.',
   DUPLICATE_QUESTIONS: 'La série contient des questions en double.',
   FORBIDDEN: 'Cette action est réservée au docteur.',
   REQUEST_NOT_FOUND: 'Cette demande est introuvable ou a déjà été traitée.',
-  INVALID_SUBJECT_CHOICE: 'Ce sujet ne fait pas partie des choix proposés.',
-  SUBJECT_CHOICE_REQUIRED: 'Cet étudiant doit d’abord choisir son sujet de renouvellement.',
-  PREVIOUS_SUBJECT_UNAVAILABLE:
-    'Le sujet précédent n’est plus disponible. Attribuez un sujet manuellement à cet étudiant.',
   ACTIVE_ASSIGNMENT_EXISTS: 'Cet étudiant dispose déjà d’un cycle actif.',
-  NO_SUBJECT_AVAILABLE:
-    'Aucun sujet disponible dans la file. Ajoutez d’abord un sujet avant de valider cette demande.',
   SUBJECT_ALREADY_ASSIGNED:
-    'Ce sujet a déjà été attribué ou possède un historique : il ne peut plus être retiré.',
-  SUBJECT_NOT_FOUND: 'Ce sujet est introuvable.',
-  EMPTY_SUBJECT: 'Aucune question à ajouter à la file.',
+    'Ce thème est lié à un historique : il ne peut plus être retiré du catalogue.',
+  SUBJECT_NOT_FOUND: 'Ce thème est introuvable.',
+  EMPTY_SUBJECT: 'Aucune question à ajouter au catalogue.',
   INVALID_CORRECTION:
-    'Chaque question doit avoir au moins une bonne réponse (A, B, C ou D) et une explication avant l’enregistrement du sujet.',
+    'Chaque question doit avoir une seule bonne réponse (A, B, C ou D) et une explication avant l’enregistrement.',
   ATTEMPT_NOT_FOUND: 'Ce résultat est introuvable.',
+  ATTEMPT_OUT_OF_CYCLE:
+    'Ce résultat appartient à un cycle précédent et n’est plus accessible.',
+  STUDENT_NOT_FOUND: 'Étudiant introuvable.',
+  INVALID_DURATION: 'La durée demandée est invalide.',
+}
+
+function rawError(error: unknown): { message?: string; code?: string; details?: string } {
+  return (error ?? {}) as { message?: string; code?: string; details?: string }
 }
 
 function messageFrom(error: unknown): string {
-  const value = error as { message?: string; code?: string; details?: string } | null
-  const raw = value?.message?.trim() || value?.details?.trim() || 'Une erreur est survenue.'
+  const value = rawError(error)
+  const raw = value.message?.trim() || value.details?.trim() || 'Une erreur est survenue.'
   if (errorMessages[raw]) return errorMessages[raw]
-  if (errorMessages[value?.code ?? '']) return errorMessages[value!.code!]
-  if (value?.code === '23505') {
+  if (errorMessages[value.code ?? '']) return errorMessages[value.code!]
+  if (value.code === '23505') {
     return 'Cette opération existe déjà. Vérifiez la demande ou l’attribution en cours.'
   }
   if (/invalid login credentials/i.test(raw)) return 'Email ou mot de passe incorrect.'
@@ -231,7 +238,12 @@ function messageFrom(error: unknown): string {
 }
 
 export function asFrenchError(error: unknown): Error {
-  return new Error(messageFrom(error))
+  const value = rawError(error)
+  const raw = value.message?.trim() ?? ''
+  const knownCode =
+    (errorMessages[raw] && raw) ||
+    (value.code && errorMessages[value.code] ? value.code : undefined)
+  return new AppError(knownCode ?? value.code ?? 'UNEXPECTED_ERROR', messageFrom(error))
 }
 
 /* ------------------------------------------------------------------ */
@@ -275,7 +287,7 @@ async function signReceiptUrls(paths: string[]): Promise<Map<string, string>> {
 
 export function emptyDatabase(): Database {
   return {
-    version: 2,
+    version: 3,
     users: [],
     requests: [],
     subjects: [],
@@ -359,13 +371,32 @@ export async function fetchDatabase(currentProfile?: User): Promise<Database> {
     .map((row) => row.receipt_path)
   const signedUrls = await signReceiptUrls(paths)
 
+  const assignments = ((assignmentsResult.data ?? []) as AssignmentRow[]).map(mapAssignment)
+  const allAttempts = ((attemptsResult.data ?? []) as AttemptRow[]).map(mapAttempt)
+  // L'étudiant ne voit que les séries de son cycle courant. Les lignes restent
+  // en base pour l'audit et le docteur, mais l'historique est remis à zéro à
+  // chaque renouvellement.
+  const currentAssignment = assignments
+    .slice()
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]
+  let attempts: Attempt[] = []
+  if (professor) {
+    attempts = allAttempts
+  } else if (currentAssignment) {
+    attempts = allAttempts.filter(
+      (attempt) =>
+        new Date(attempt.createdAt).getTime() >=
+        new Date(currentAssignment.startedAt).getTime(),
+    )
+  }
+
   return {
-    version: 2,
+    version: 3,
     users: profiles.map(mapProfile),
     requests: requestRows.map((row) => mapRequest(row, profileMap, signedUrls)),
     subjects: ((subjectsResult.data ?? []) as SubjectRow[]).map(mapSubject),
-    assignments: ((assignmentsResult.data ?? []) as AssignmentRow[]).map(mapAssignment),
-    attempts: ((attemptsResult.data ?? []) as AttemptRow[]).map(mapAttempt),
+    assignments,
+    attempts,
     questions: [],
   }
 }
@@ -472,29 +503,10 @@ export async function submitRenewal(receipt: Receipt): Promise<void> {
 /* Actions docteur                                                     */
 /* ------------------------------------------------------------------ */
 
-export async function approveRequest(
-  requestId: string,
-): Promise<{ requiresChoice: boolean }> {
+export async function approveRequest(requestId: string): Promise<void> {
   const client = requireSupabase()
-  const { data, error } = await client.rpc('approve_access_request', {
+  const { error } = await client.rpc('approve_access_request', {
     p_request_id: requestId,
-  })
-  if (error) throw asFrenchError(error)
-  return { requiresChoice: Boolean((data as { requiresChoice?: boolean } | null)?.requiresChoice) }
-}
-
-/**
- * Choix obligatoire de l'étudiant après validation d'un renouvellement.
- * Ouvre l'affectation de 30 jours sur le sujet retenu.
- */
-export async function chooseRenewalSubject(
-  requestId: string,
-  subjectId: string,
-): Promise<void> {
-  const client = requireSupabase()
-  const { error } = await client.rpc('choose_renewal_subject', {
-    p_request_id: requestId,
-    p_subject_id: subjectId,
   })
   if (error) throw asFrenchError(error)
 }
@@ -554,6 +566,12 @@ export interface PublishSubjectInput {
   questions: SubjectQuestionInput[]
 }
 
+export async function publishThemePack(input: ThemePackInput): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('publish_theme_pack', { p_pack: input })
+  if (error) throw asFrenchError(error)
+}
+
 export async function publishSubject(input: PublishSubjectInput): Promise<Subject> {
   const client = requireSupabase()
   const { data, error } = await client.rpc('publish_subject', {
@@ -591,10 +609,15 @@ export interface QuizPayload {
   questions: Question[]
 }
 
-export async function startQuiz(userId: string, count = SERIES_SIZE): Promise<QuizPayload> {
-  void userId
+export async function startQuiz(
+  subjectId: string,
+  count = SERIES_SIZE,
+): Promise<QuizPayload> {
   const client = requireSupabase()
-  const { data, error } = await client.rpc('start_quiz', { p_count: count })
+  const { data, error } = await client.rpc('start_quiz', {
+    p_subject_id: subjectId,
+    p_count: count,
+  })
   if (error) throw asFrenchError(error)
   const payload = data as {
     assignmentId: string
@@ -643,12 +666,13 @@ export interface SubmitAttemptResult {
 }
 
 export async function saveAttempt(input: {
-  userId?: string
+  subjectId: string
   questionIds: string[]
   answers: Record<string, string[]>
 }): Promise<SubmitAttemptResult> {
   const client = requireSupabase()
   const { data, error } = await client.rpc('submit_attempt', {
+    p_subject_id: input.subjectId,
     p_question_ids: input.questionIds,
     p_answers: input.answers,
   })

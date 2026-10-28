@@ -1,7 +1,8 @@
 import type { AccessRequest, Database, User } from '@/types'
+import { getSeriesUsage } from '@/lib/db'
 import { isExpired } from '@/lib/utils'
 
-export type StudentAccess = 'pending' | 'choosing' | 'rejected' | 'expired' | 'active'
+export type StudentAccess = 'pending' | 'rejected' | 'expired' | 'active'
 
 export function getPendingRequest(userId: string, db: Database): AccessRequest | undefined {
   return db.requests
@@ -16,46 +17,34 @@ export function getLatestRequest(userId: string, db: Database): AccessRequest | 
 }
 
 /**
- * Renouvellement validé par le docteur, en attente du choix obligatoire de
- * l'étudiant. Le cycle de 30 jours ne démarre qu'à ce choix.
+ * Compatibilité avec l'ancienne fiche docteur : le parcours par thèmes ne
+ * demande plus de choix de sujet après validation d'un renouvellement.
  */
 export function getPendingSubjectChoice(
-  userId: string,
-  db: Database,
+  _userId: string,
+  _db: Database,
 ): AccessRequest | undefined {
-  // Un cycle déjà ouvert (choix effectué ou attribution manuelle) prime.
-  if (db.assignments.some((assignment) => assignment.userId === userId && !isExpired(assignment.expiresAt))) {
-    return undefined
-  }
-  const assignedRequests = new Set(
-    db.assignments.map((assignment) => assignment.requestId).filter(Boolean),
-  )
-  return db.requests
-    .filter(
-      (request) =>
-        request.userId === userId &&
-        request.type === 'renewal' &&
-        request.status === 'approved' &&
-        Boolean(request.currentSubjectId) &&
-        !request.chosenSubjectId &&
-        !assignedRequests.has(request.id),
-    )
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+  return undefined
 }
 
 export function getStudentAccess(user: User, db: Database): StudentAccess {
   if (user.status === 'rejected') return 'rejected'
-  if (getPendingSubjectChoice(user.id, db)) return 'choosing'
   if (getPendingRequest(user.id, db)) return 'pending'
   if (user.status === 'pending') return 'pending'
   if (isExpired(user.expiresAt)) return 'expired'
   return 'active'
 }
 
+/** Un étudiant actif ne peut renouveler qu'une fois ses 30 séries terminées. */
+export function canRequestRenewal(user: User, db: Database): boolean {
+  const access = getStudentAccess(user, db)
+  if (access === 'expired' || access === 'rejected') return true
+  if (access !== 'active') return false
+  return getSeriesUsage(user.id, db).reached
+}
+
 export function studentHomePath(user: User, db: Database): string {
   switch (getStudentAccess(user, db)) {
-    case 'choosing':
-      return '/choix-sujet'
     case 'pending':
       return '/en-attente'
     case 'rejected':

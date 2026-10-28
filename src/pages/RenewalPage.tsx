@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, Check, LockKeyhole, ShieldCheck, TimerReset } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { getLatestAssignment, getNextSubjectAfter } from '@/lib/db'
+import { getSeriesUsage } from '@/lib/db'
 import { api } from '@/lib/api'
 import { makeDemoReceipt } from '@/lib/demoReceipt'
 import { isSupabaseConfigured } from '@/lib/supabase'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
 import type { Receipt } from '@/types'
-import { cn, formatDateLong, SERIES_SIZE } from '@/lib/utils'
+import { formatDateLong, SERIES_LIMIT, SERIES_SIZE } from '@/lib/utils'
 
 export function RenewalPage() {
   usePageTitle('Renouveler mon accès — MEDQCM L1')
@@ -25,13 +25,8 @@ export function RenewalPage() {
   const studentId = user.id
   const rejected = access === 'rejected'
   const reason = user.rejectionReason || latestRequest?.note
-  const latestAssignment = getLatestAssignment(user.id, db)
-  const currentSubject = latestAssignment
-    ? db.subjects.find((subject) => subject.id === latestAssignment.subjectId)
-    : undefined
-  const nextSubject = currentSubject
-    ? getNextSubjectAfter(currentSubject.id, db)
-    : undefined
+  const usage = getSeriesUsage(user.id, db)
+  const quotaReached = usage.reached
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -57,11 +52,11 @@ export function RenewalPage() {
       <div className="mx-auto max-w-content px-5 py-10 sm:px-8 lg:px-10 lg:py-16">
         <div className="flex flex-col justify-between gap-3 border-b border-line pb-5 sm:flex-row sm:items-center">
           <div>
-            <p className="text-[11px] font-medium text-accent uppercase tracking-[0.14em]">Renouvellement · Accès mensuel</p>
-            <h1 className="mt-1 font-display text-[2.2rem] leading-[1.05] tracking-[-0.03em] text-ink">Un nouveau mois commence.</h1>
+            <p className="text-[11px] font-medium text-accent uppercase tracking-[0.14em]">Renouvellement · Cycle de 30 jours</p>
+            <h1 className="mt-1 font-display text-[2.2rem] leading-[1.05] tracking-[-0.03em] text-ink">Un nouveau cycle commence.</h1>
           </div>
           <StatusPill tone={rejected ? 'error' : 'warning'}>
-            {rejected ? 'Nouveau justificatif requis' : 'Accès à renouveler'}
+            {rejected ? 'Nouveau justificatif requis' : quotaReached ? 'Quota atteint' : 'Accès à renouveler'}
           </StatusPill>
         </div>
 
@@ -70,7 +65,9 @@ export function RenewalPage() {
             <p className="text-[14px] leading-relaxed text-ash">
               {rejected
                 ? 'Le justificatif précédent n’a pas été accepté. Vous pouvez déposer un nouveau reçu pour faire valoir un renouvellement. Le docteur vérifiera votre demande sous 24 heures.'
-                : `Votre cycle s’est achevé le ${formatDateLong(user.expiresAt)}. Après validation du docteur, vous choisirez de reprendre votre sujet ou de passer au sujet suivant. Vos 30 jours démarrent au moment de ce choix.`}
+                : quotaReached
+                  ? `Vous avez utilisé vos ${SERIES_LIMIT} séries. Après validation du docteur, un nouveau cycle de 30 jours s’ouvre immédiatement : le compteur repart à zéro et vous retrouvez les neuf thèmes.`
+                  : `Votre cycle s’est achevé le ${formatDateLong(user.expiresAt)}. Après validation du docteur, un nouveau cycle de 30 jours s’ouvre immédiatement : les neuf thèmes et ${SERIES_LIMIT} nouvelles séries vous attendent.`}
             </p>
             {rejected && reason ? (
               <div className="mt-5 rounded-xl border border-sale/20 bg-danger-soft p-4">
@@ -116,25 +113,25 @@ export function RenewalPage() {
               <span className="grid h-9 w-9 place-items-center rounded-full bg-accent text-white"><TimerReset size={16} /></span>
               <div>
                 <p className="text-[13px] font-medium text-ink">Votre prochain cycle</p>
-                <p className="text-[11px] text-mute">30 jours après votre choix</p>
+                <p className="text-[11px] text-mute">Ouverture immédiate après validation</p>
               </div>
             </div>
             <div className="mt-5 space-y-3">
               <div className="flex items-baseline justify-between gap-4">
-                <span className="text-[11px] text-mute">Votre sujet</span>
-                <span className="max-w-[62%] text-right text-[13px] font-medium text-ink">{currentSubject ? currentSubject.title : '—'}</span>
+                <span className="text-[11px] text-mute">Thèmes accessibles</span>
+                <span className="max-w-[62%] text-right text-[13px] font-medium text-ink">Les 9 thèmes PACES</span>
               </div>
               <div className="flex items-baseline justify-between gap-4">
-                <span className="text-[11px] text-mute">Sujet suivant</span>
-                <span className="max-w-[62%] text-right text-[13px] font-medium text-ink">{nextSubject ? nextSubject.title : 'Pas encore publié'}</span>
+                <span className="text-[11px] text-mute">Séries incluses</span>
+                <span className="max-w-[62%] text-right text-[13px] font-medium text-ink">{SERIES_LIMIT} séries</span>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] text-mute">Questions par série</span>
+                <span className="text-[14px] font-medium text-ink">{SERIES_SIZE}</span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-[11px] text-mute">Durée</span>
                 <span className="text-[14px] font-medium text-ink">30 jours</span>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <span className="text-[11px] text-mute">Questions</span>
-                <span className="text-[14px] font-medium text-ink">{SERIES_SIZE}</span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-[11px] text-mute">Corrections</span>
@@ -144,9 +141,15 @@ export function RenewalPage() {
             <div className="mt-6 rounded-xl bg-white p-4 shadow-sm">
               <div className="flex items-start gap-2.5">
                 <ShieldCheck size={14} className="mt-0.5 shrink-0 text-accent" />
-                <p className="text-[11px] leading-relaxed text-ash">Le renouvellement ne crée pas de nouveau compte. Vous conservez vos résultats et votre historique. Après validation, vous choisirez vous-même entre reprendre votre sujet et passer au suivant.</p>
+                <p className="text-[11px] leading-relaxed text-ash">Le renouvellement ne crée pas de nouveau compte. Dès la validation, votre compteur repart à zéro et l’historique du cycle précédent est archivé. Aucun résultat n’est supprimé.</p>
               </div>
             </div>
+            {quotaReached && (
+              <p className="mt-4 flex items-start gap-2 text-[11px] leading-relaxed text-ash">
+                <Check size={13} className="mt-0.5 shrink-0 text-accent" />
+                Séries faites sur ce cycle : {usage.used} / {SERIES_LIMIT}.
+              </p>
+            )}
           </aside>
         </div>
       </div>

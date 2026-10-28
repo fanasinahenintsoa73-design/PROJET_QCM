@@ -97,6 +97,31 @@ export function scoreTone(score: number, total: number) {
 /** Nombre de questions tirées dans la banque à chaque série. */
 export const SERIES_SIZE = 10
 
+/** Nombre maximal de séries soumises par cycle d'abonnement. */
+export const SERIES_LIMIT = 30
+
+export const SERIES_LIMIT_MESSAGE =
+  'Vos 30 séries sont terminées. Renouvelez votre abonnement pour continuer.'
+
+/** Erreur métier avec un code stable, compris par l'interface. */
+export class AppError extends Error {
+  readonly code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = 'AppError'
+    this.code = code
+  }
+}
+
+export function errorCode(error: unknown): string | undefined {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = (error as { code?: unknown }).code
+    return typeof code === 'string' ? code : undefined
+  }
+  return undefined
+}
+
 /** Ramène une note sur 10, y compris les anciennes séries notées sur 20. */
 export function scoreOnTen(score: number, total: number) {
   return total > 0 ? (score / total) * 10 : 0

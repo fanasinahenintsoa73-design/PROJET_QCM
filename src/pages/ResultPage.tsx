@@ -113,7 +113,7 @@ export default function ResultPage() {
     const rows: string[][] = [
       ['MEDQCM — résultat de série'],
       ['Étudiant', user ? `${user.firstName} ${user.lastName}` : ''],
-      ['Sujet', subject?.title ?? 'Sujet de QCM'],
+      ['Thème', subject?.title ?? 'Thème de QCM'],
       ['Date', new Date(attempt.createdAt).toLocaleString('fr-FR')],
       ['Score', `${score} / ${total}`, `${percent} %`],
       ['Correctes', String(score), 'Incorrectes', String(incorrect), 'Sans réponse', String(unanswered)],
@@ -164,7 +164,7 @@ export default function ResultPage() {
           <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_260px] lg:items-end lg:p-10">
             <div>
               <p className="text-[12px] text-mute">
-                {subject?.monthLabel ?? 'Sujet de QCM'} · {formatDateTime(attempt.createdAt)}
+                {subject?.monthLabel ?? 'Thème de QCM'} · {formatDateTime(attempt.createdAt)}
               </p>
               <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.8rem)] leading-[1.02] tracking-[-0.03em] text-ink">
                 {verdict}.
@@ -198,7 +198,7 @@ export default function ResultPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
-          <ButtonLink to="/app/entrainement" size="lg">
+          <ButtonLink to={`/app/entrainement?theme=${encodeURIComponent(attempt.subjectId)}`} size="lg">
             <RotateCcw size={15} /> Refaire une série
           </ButtonLink>
           <Link to="/app" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:text-accent-deep">
@@ -218,7 +218,7 @@ export default function ResultPage() {
         <div className="border-b border-line pb-4">
           <h2 className="text-[18px] font-medium text-ink">Corrigé détaillé</h2>
           <p className="mt-1 text-[12px] text-mute">
-            {subject?.title ?? 'Sujet de QCM'} · {total} questions · chaque question compte un point.
+            {subject?.title ?? 'Thème de QCM'} · {total} questions · chaque question compte un point.
           </p>
         </div>
 

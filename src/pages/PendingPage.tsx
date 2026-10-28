@@ -15,7 +15,6 @@ export function PendingPage() {
   const [receiptOpen, setReceiptOpen] = useState(false)
 
   if (!user) return null
-  if (access === 'choosing') return <Navigate to="/choix-sujet" replace />
   if (access === 'rejected' || access === 'expired') return <Navigate to="/expiration" replace />
 
   const request = pendingRequest ?? latestRequest
@@ -34,8 +33,8 @@ export function PendingPage() {
                 Votre inscription est validée.
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-mute">
-                Votre dossier a été accepté par le docteur. Votre cycle de 30 jours est ouvert et
-                votre sujet vous attend dans votre espace.
+                Votre dossier a été accepté par le docteur. Votre cycle de 30 jours est ouvert :
+                les neuf thèmes PACES et vos 30 séries vous attendent dans votre espace.
               </p>
 
               <div className="mt-7 flex items-start gap-3 rounded-xl bg-accent-soft p-4">
@@ -45,8 +44,8 @@ export function PendingPage() {
                 <div>
                   <p className="text-[13px] font-medium text-ink">Accès activé</p>
                   <p className="mt-1 text-[12px] leading-relaxed text-ash">
-                    Votre compte est actif. Vous pouvez commencer votre première série dès
-                    maintenant.
+                    Votre compte est actif. Choisissez librement un thème et lancez votre
+                    première série de dix questions.
                   </p>
                 </div>
               </div>
@@ -73,7 +72,7 @@ export function PendingPage() {
                   <LockKeyhole size={16} className="mt-0.5 shrink-0 text-mute" />
                   <p className="text-[12px] leading-relaxed text-ash">
                     Le QCM reste fermé jusqu’à la validation. Cette vérification est manuelle et
-                    garantit que seuls les dossiers réglés accèdent au sujet.
+                    garantit que seuls les dossiers réglés accèdent aux neuf thèmes.
                   </p>
                 </div>
 

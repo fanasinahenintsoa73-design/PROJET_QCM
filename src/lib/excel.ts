@@ -1,6 +1,13 @@
 import * as XLSX from 'xlsx'
 import type { QuestionOptions } from '@/types'
-import { answerLetters } from '@/lib/utils'
+import { answerLetters, monthLabel } from '@/lib/utils'
+import {
+  PACE_THEMES,
+  findPaceTheme,
+  type PaceThemeDefinition,
+  type ThemePackThemeInput,
+  type ThemeQuestionInput,
+} from '@/lib/themes'
 
 export interface ParsedQuestionRow {
   number: number
@@ -326,3 +333,271 @@ export function downloadAnswersTemplate() {
     'MEDQCM-modele-corriges.xlsx',
   )
 }
+
+/* ------------------------------------------------------------------ */
+/* Pack des neuf thèmes PACES                                          */
+/* ------------------------------------------------------------------ */
+
+export interface ThemeSheetResult {
+  themeId: string
+  themeTitle: string
+  sheetName: string
+  questionCount: number
+  questions: ThemeQuestionInput[]
+  errors: string[]
+}
+
+export interface ThemePackParseResult {
+  themes: ThemePackThemeInput[]
+  sheets: ThemeSheetResult[]
+  errors: string[]
+  warnings: string[]
+}
+
+const themePackColumns = [
+  'N° Question',
+  'Énoncé',
+  'Option A',
+  'Option B',
+  'Option C',
+  'Option D',
+  'Réponse exacte',
+  'Explication médicale',
+] as const
+
+function sheetToRows(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
+  return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    defval: '',
+    raw: false,
+  })
+}
+
+function parseThemeSheet(
+  theme: PaceThemeDefinition,
+  sheetName: string,
+  rows: Record<string, unknown>[],
+): ThemeSheetResult {
+  const errors: string[] = []
+  const questions: ThemeQuestionInput[] = []
+
+  if (!rows.length) {
+    return {
+      themeId: theme.id,
+      themeTitle: theme.title,
+      sheetName,
+      questionCount: 0,
+      questions,
+      errors: [`« ${sheetName} » : la feuille est vide.`],
+    }
+  }
+
+  const first = rows[0]
+  const requiredHeaders = [
+    ['number', questionAliases.number, 'N° Question'],
+    ['statement', questionAliases.statement, 'Énoncé'],
+    ['A', questionAliases.A, 'Option A'],
+    ['B', questionAliases.B, 'Option B'],
+    ['C', questionAliases.C, 'Option C'],
+    ['D', questionAliases.D, 'Option D'],
+    ['correct', answerAliases.correct, 'Réponse exacte'],
+    ['explanation', answerAliases.explanation, 'Explication médicale'],
+  ] as const
+
+  const missingHeaders = requiredHeaders
+    .filter(([, aliases]) => !findKey(first, [...aliases]))
+    .map(([, , label]) => label)
+  if (missingHeaders.length) {
+    errors.push(
+      `« ${sheetName} » : colonne(s) manquante(s) — ${missingHeaders.join(', ')}.`,
+    )
+  }
+
+  const seen = new Set<number>()
+  rows.forEach((row, index) => {
+    const line = index + 2
+    const prefix = `« ${sheetName} », ligne ${line}`
+    const number = Number(pick(row, questionAliases.number))
+    const statement = pick(row, questionAliases.statement)
+    const options: QuestionOptions = {
+      A: pick(row, questionAliases.A),
+      B: pick(row, questionAliases.B),
+      C: pick(row, questionAliases.C),
+      D: pick(row, questionAliases.D),
+    }
+    const rawAnswer = pick(row, answerAliases.correct)
+    const correctAnswers = parseAnswerLetters(rawAnswer)
+    const explanation = pick(row, answerAliases.explanation)
+
+    let rowValid = true
+    if (!Number.isInteger(number) || number < 1) {
+      errors.push(`${prefix} : numéro de question manquant ou invalide.`)
+      rowValid = false
+    } else if (seen.has(number)) {
+      errors.push(`${prefix} : le numéro ${number} apparaît plusieurs fois.`)
+      rowValid = false
+    }
+    if (!statement) {
+      errors.push(`${prefix} : énoncé vide.`)
+      rowValid = false
+    }
+    const missingOptions = answerLetters.filter((letter) => !options[letter]?.trim())
+    if (missingOptions.length) {
+      errors.push(`${prefix} : option(s) ${missingOptions.join(', ')} vide(s).`)
+      rowValid = false
+    }
+    if (correctAnswers.length !== 1) {
+      errors.push(
+        `${prefix} : réponse « ${rawAnswer || '—'} » invalide (une seule lettre A, B, C ou D attendue).`,
+      )
+      rowValid = false
+    }
+    if (!explanation) {
+      errors.push(`${prefix} : explication médicale manquante.`)
+      rowValid = false
+    }
+
+    if (!rowValid) return
+    seen.add(number)
+    questions.push({
+      number,
+      matiere: theme.title,
+      statement,
+      options,
+      correctAnswers,
+      explanation,
+    })
+  })
+
+  if (questions.length < 10) {
+    errors.push(
+      `« ${sheetName} » : au moins 10 questions valides sont nécessaires (${questions.length} trouvée(s)).`,
+    )
+  }
+
+  return {
+    themeId: theme.id,
+    themeTitle: theme.title,
+    sheetName,
+    questionCount: questions.length,
+    questions: questions.sort((left, right) => left.number - right.number),
+    errors,
+  }
+}
+
+/**
+ * Lit un classeur unique contenant une feuille par thème. Chaque feuille porte
+ * à la fois l'énoncé et son corrigé. Le pack reste en mémoire : rien n'est
+ * publié tant que les neuf feuilles ne sont pas valides.
+ */
+export async function parseThemePackFile(file: File): Promise<ThemePackParseResult> {
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+  const errors: string[] = []
+  const warnings: string[] = []
+  const matched = new Map<string, string>()
+
+  workbook.SheetNames.forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName]
+    const rows = sheet ? sheetToRows(sheet) : []
+    const theme = findPaceTheme(sheetName)
+    if (!theme) {
+      if (rows.length > 0) {
+        errors.push(
+          `Feuille « ${sheetName} » : aucun thème PACES reconnu. Utilisez le modèle pour nommer les feuilles.`,
+        )
+      } else {
+        warnings.push(`Feuille vide « ${sheetName} » ignorée.`)
+      }
+      return
+    }
+    const existing = matched.get(theme.id)
+    if (existing) {
+      errors.push(
+        `« ${theme.title} » apparaît sur deux feuilles (« ${existing} » et « ${sheetName} »).`,
+      )
+      return
+    }
+    matched.set(theme.id, sheetName)
+  })
+
+  const month = monthLabel()
+  const sheets = PACE_THEMES.map<ThemeSheetResult>((theme) => {
+    const sheetName = matched.get(theme.id)
+    if (!sheetName) {
+      return {
+        themeId: theme.id,
+        themeTitle: theme.title,
+        sheetName: '',
+        questionCount: 0,
+        questions: [],
+        errors: [
+          `Feuille manquante pour « ${theme.title} ». Téléchargez le modèle à neuf feuilles.`,
+        ],
+      }
+    }
+    const rows = sheetToRows(workbook.Sheets[sheetName]!)
+    return parseThemeSheet(theme, sheetName, rows)
+  })
+
+  const themes: ThemePackThemeInput[] = sheets.map((sheet, index) => ({
+    title: PACE_THEMES[index].title,
+    description: PACE_THEMES[index].description,
+    monthLabel: month,
+    questions: sheet.questions,
+  }))
+
+  return {
+    themes,
+    sheets,
+    errors: [...errors, ...sheets.flatMap((sheet) => sheet.errors)],
+    warnings,
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Modèle à neuf feuilles                                              */
+/* ------------------------------------------------------------------ */
+
+const templateSheetNames = [
+  'Biologie cellulaire',
+  'Étude des tissus',
+  'Biomolécules',
+  'Physiologie',
+  'Anatomie viscérale',
+  'Biomathématiques',
+  'Médicaments',
+  'Français médical',
+  'UE spécifiques',
+]
+
+export function downloadThemePackTemplate() {
+  const book = XLSX.utils.book_new()
+  PACE_THEMES.forEach((theme, index) => {
+    const rows: (string | number)[][] = [
+      [...themePackColumns],
+      [
+        1,
+        `Remplacer par l’énoncé de la question 1 — ${theme.title}`,
+        'Proposition A',
+        'Proposition B',
+        'Proposition C',
+        'Proposition D',
+        'A',
+        'Remplacer par l’explication médicale et le raisonnement du corrigé.',
+      ],
+    ]
+    const sheet = XLSX.utils.aoa_to_sheet(rows)
+    sheet['!cols'] = [
+      { wch: 12 },
+      { wch: 70 },
+      { wch: 28 },
+      { wch: 28 },
+      { wch: 28 },
+      { wch: 28 },
+      { wch: 15 },
+      { wch: 70 },
+    ]
+    XLSX.utils.book_append_sheet(book, sheet, templateSheetNames[index])
+  })
+  XLSX.writeFile(book, 'MEDQCM-modele-9-themes.xlsx')
+}
+

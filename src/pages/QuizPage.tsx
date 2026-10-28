@@ -1,22 +1,42 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Clock3, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
+import { getSeriesUsage } from '@/lib/db'
 import type { QuizPayload } from '@/lib/supabaseData'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { usePageTitle } from '@/components/Layouts'
-import { answerLetters, cn, isExpired, timeLeft, SERIES_SIZE, type AnswerLetter } from '@/lib/utils'
+import { findPaceTheme } from '@/lib/themes'
+import {
+  answerLetters,
+  cn,
+  errorCode,
+  isExpired,
+  SERIES_LIMIT,
+  SERIES_LIMIT_MESSAGE,
+  SERIES_SIZE,
+  timeLeft,
+  type AnswerLetter,
+} from '@/lib/utils'
+
+type BlockReason = 'limit' | 'access' | null
 
 export default function QuizPage() {
   usePageTitle('Série en cours — MEDQCM L1')
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const [searchParams] = useSearchParams()
+  const { user, db } = useAuth()
+  const themeParam = searchParams.get('theme') ?? ''
+  const theme = findPaceTheme(themeParam)
+  const usage = user ? getSeriesUsage(user.id, db) : undefined
+  const seriesNumber = Math.min(SERIES_LIMIT, (usage?.used ?? 0) + 1)
 
   const [payload, setPayload] = useState<QuizPayload | null>(null)
   const [loading, setLoading] = useState(true)
-  const [blocked, setBlocked] = useState(false)
+  const [blocked, setBlocked] = useState<BlockReason>(null)
+  const [unavailable, setUnavailable] = useState('')
   const [loadError, setLoadError] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [index, setIndex] = useState(0)
@@ -32,14 +52,30 @@ export default function QuizPage() {
   const expiresAt = payload?.assignmentExpiresAt
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !themeParam) {
+      setLoading(false)
+      return
+    }
     let active = true
     setLoading(true)
-    setBlocked(false)
+    setBlocked(null)
+    setUnavailable('')
     setLoadError('')
+    setPayload(null)
+
+    const selectedTheme = findPaceTheme(themeParam)
+    const subject =
+      (selectedTheme
+        ? db.subjects.find(
+            (candidate) =>
+              candidate.id === selectedTheme.id ||
+              findPaceTheme(candidate.title)?.id === selectedTheme.id,
+          )
+        : undefined) ?? db.subjects.find((candidate) => candidate.id === themeParam)
+    const subjectId = subject?.id ?? themeParam
 
     api
-      .startQuiz(user.id, SERIES_SIZE)
+      .startQuiz(user.id, subjectId, SERIES_SIZE)
       .then((quiz) => {
         if (!active) return
         setPayload(quiz)
@@ -49,8 +85,23 @@ export default function QuizPage() {
       })
       .catch((error: unknown) => {
         if (!active) return
-        const message = error instanceof Error ? error.message : 'La série n’a pas pu être chargée.'
-        if (/accès|attribué|terminé/i.test(message)) setBlocked(true)
+        const message =
+          error instanceof Error ? error.message : 'La série n’a pas pu être chargée.'
+        switch (errorCode(error)) {
+          case 'SERIES_LIMIT_REACHED':
+            setBlocked('limit')
+            return
+          case 'ACCESS_EXPIRED':
+            setBlocked('access')
+            return
+          case 'THEME_UNAVAILABLE':
+          case 'THEME_NOT_FOUND':
+            setUnavailable(message)
+            return
+          default:
+            break
+        }
+        if (/accès|attribué|terminé/i.test(message)) setBlocked('access')
         else setLoadError(message)
       })
       .finally(() => {
@@ -60,7 +111,7 @@ export default function QuizPage() {
     return () => {
       active = false
     }
-  }, [user?.id])
+  }, [db.subjects, themeParam, user?.id])
 
   useEffect(() => {
     const check = () => {
@@ -68,7 +119,7 @@ export default function QuizPage() {
         navigate('/expiration', { replace: true })
         return
       }
-      if (payload && isExpired(expiresAt)) setBlocked(true)
+      if (payload && isExpired(expiresAt)) setBlocked('access')
     }
     check()
     const interval = window.setInterval(check, 15_000)
@@ -94,7 +145,7 @@ export default function QuizPage() {
 
   function canContinue() {
     if (isExpired(user?.expiresAt) || !payload || isExpired(expiresAt)) {
-      setBlocked(true)
+      setBlocked('access')
       return false
     }
     return true
@@ -114,6 +165,7 @@ export default function QuizPage() {
     try {
       const result = await api.saveAttempt({
         userId: user.id,
+        subjectId: payload.subject.id,
         questionIds: questions.map((question) => question.id),
         answers,
       })
@@ -121,6 +173,10 @@ export default function QuizPage() {
     } catch (error) {
       finished.current = false
       setSaving(false)
+      if (errorCode(error) === 'SERIES_LIMIT_REACHED') {
+        setBlocked('limit')
+        return
+      }
       setSubmitError(
         error instanceof Error ? error.message : 'La série n’a pas pu être enregistrée.',
       )
@@ -141,19 +197,63 @@ export default function QuizPage() {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
         <div className="max-w-lg">
-          <p className="text-[12px] text-mute">Préparation de la série</p>
+          <p className="text-[12px] text-mute">
+            {theme ? theme.title : 'Préparation de la série'}
+          </p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
             Dix questions arrivent.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            Le sujet est chargé de façon sécurisée. La correction restera masquée jusqu’à l’envoi.
+            Le thème est chargé de façon sécurisée. La correction restera masquée jusqu’à l’envoi.
           </p>
         </div>
       </div>
     )
   }
 
-  if (blocked) {
+  if (!themeParam) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
+        <div className="max-w-lg">
+          <p className="text-[12px] text-mute">Aucun thème sélectionné</p>
+          <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+            Choisissez un thème.
+          </h1>
+          <p className="mt-4 text-[14px] leading-relaxed text-mute">
+            Les neuf thèmes PACES sont accessibles depuis votre tableau de bord. Chaque série
+            contient dix questions.
+          </p>
+          <ButtonLink to="/app" className="mt-6">
+            Voir les neuf thèmes
+          </ButtonLink>
+        </div>
+      </div>
+    )
+  }
+
+  if (blocked === 'limit') {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
+        <div className="max-w-lg">
+          <p className="text-[12px] text-mute">Quota du cycle</p>
+          <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+            Vos 30 séries sont terminées.
+          </h1>
+          <p className="mt-4 text-[14px] leading-relaxed text-mute">
+            {SERIES_LIMIT_MESSAGE}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <ButtonLink to="/reinscription">Renouveler mon accès</ButtonLink>
+            <ButtonLink to="/app" variant="ghost">
+              Retour au tableau de bord
+            </ButtonLink>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (blocked === 'access') {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
         <div className="max-w-lg">
@@ -162,18 +262,38 @@ export default function QuizPage() {
             Le cycle est terminé.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            Votre accès n’est plus actif. Vos anciens résultats restent consultables dans
-            l’historique.
+            Votre accès n’est plus actif. Renouvelez votre abonnement pour retrouver les neuf
+            thèmes et vos 30 séries.
           </p>
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <ButtonLink to="/reinscription">Renouveler mon accès</ButtonLink>
+            <ButtonLink to="/app" variant="ghost">
+              Retour au tableau de bord
+            </ButtonLink>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
+        <div className="max-w-lg">
+          <p className="text-[12px] text-mute">Thème en préparation</p>
+          <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+            Bientôt disponible.
+          </h1>
+          <p className="mt-4 text-[14px] leading-relaxed text-mute">{unavailable}</p>
           <ButtonLink to="/app" className="mt-6">
-            Retour au tableau de bord
+            Choisir un autre thème
           </ButtonLink>
         </div>
       </div>
     )
   }
 
-  if (loadError || !current) {
+  if (loadError || !payload || !current) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
         <div className="max-w-lg">
@@ -182,7 +302,7 @@ export default function QuizPage() {
             Aucune question à afficher.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            {loadError || 'Le sujet n’a pas encore de questions publiées. Contactez votre docteur.'}
+            {loadError || 'Ce thème n’a pas encore ses dix questions. Contactez votre docteur.'}
           </p>
           <ButtonLink to="/app" className="mt-6">
             Retour au tableau de bord
@@ -205,8 +325,7 @@ export default function QuizPage() {
               <ArrowLeft size={14} /> Quitter
             </button>
             <p className="text-[12px] tabular-nums text-mute">
-              Question <span className="font-medium text-ink">{String(index + 1).padStart(2, '0')}</span>{' '}
-              / {String(questions.length).padStart(2, '0')}
+              Série <span className="font-medium text-ink">{seriesNumber}</span> sur {SERIES_LIMIT}
             </p>
             <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
               <Clock3 size={13} /> {timeLeft(expiresAt)}
@@ -222,11 +341,11 @@ export default function QuizPage() {
 
       <div className="mx-auto max-w-[900px] px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
         <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-mute">
-          <span className="font-medium text-ink">{current.matiere}</span>
+          <span className="font-medium text-ink">{payload.subject.title}</span>
           <span className="h-1 w-1 rounded-full bg-line" />
           <span>Une seule réponse</span>
           <span className="ml-auto rounded-full bg-cloud px-2.5 py-1">
-            {questions.length} questions au total
+            Question {String(index + 1).padStart(2, '0')} / {String(questions.length).padStart(2, '0')}
           </span>
         </div>
 
@@ -285,7 +404,24 @@ export default function QuizPage() {
         )}
 
         <div className="mt-8 flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-2"><button type="button" onClick={quit} className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"><ArrowLeft size={14} /> Quitter la série</button>{index > 0 && <button type="button" onClick={() => setIndex((v) => Math.max(0, v - 1))} className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"><ArrowLeft size={14} /> Précédente</button>}</div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={quit}
+              className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"
+            >
+              <ArrowLeft size={14} /> Quitter la série
+            </button>
+            {index > 0 && (
+              <button
+                type="button"
+                onClick={() => setIndex((value) => Math.max(0, value - 1))}
+                className="inline-flex h-10 items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"
+              >
+                <ArrowLeft size={14} /> Précédente
+              </button>
+            )}
+          </div>
 
           <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center">
             <span className="text-center text-[11px] text-mute sm:text-right">

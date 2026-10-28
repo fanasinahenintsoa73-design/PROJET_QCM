@@ -2,7 +2,7 @@
 
 ## État actuel
 
-L’application utilise désormais **Supabase Auth, Postgres et Storage** dès que
+L’application utilise **Supabase Auth, Postgres et Storage** dès que
 `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` sont définies. Sans ces variables,
 elle retombe sur le stockage local de démonstration.
 
@@ -11,7 +11,12 @@ elle retombe sur le stockage local de démonstration.
 - Projet Supabase : `ttoqcvlharxoyazvgcca`, région Paris (`cdg1`), plan gratuit.
 - Compte docteur : `razafimandimby222@gmail.com` (mot de passe dans
   `.secrets/doctor-credentials.txt`, jamais commité).
-- Sujet publié : « Sujet 1 — Fondamentaux & Cardiologie », 32 questions.
+- Catalogue : **neuf thèmes PACES**, publiés ensemble par le docteur. Chaque
+  thème contient au moins 10 questions à une seule bonne réponse.
+
+> Le modèle à neuf thèmes n’a pas encore été appliqué au projet de production.
+> Le fichier [`schema.sql`](./schema.sql) doit être exécuté avant de déployer le
+> frontend correspondant. Aucune migration SQL n’est lancée automatiquement.
 
 Les deux domaines Vercel sont reliés au même dépôt GitHub et se redéploient à
 chaque push sur `main`. Le domaine étudiant est l’origine par défaut ; tout
@@ -57,37 +62,122 @@ les politiques RLS et les fonctions RPC.
 ## Base de données
 
 Le schéma complet est dans [`schema.sql`](./schema.sql). Pour un nouveau projet,
-exécuter le fichier entier dans le SQL Editor. Sur le projet existant, les
-sections ajoutées pour le choix du sujet (colonnes de `access_requests`, RPC
-`choose_renewal_subject`, policy `subjects_offered_for_choice`) et pour le
-corrigé figé (colonne `attempts.question_snapshot`, RPC `submit_attempt` et
-`get_attempt_review` mises à jour, validation de `publish_subject`) doivent être
-appliquées avant de déployer le frontend. Sur le projet de production, ces
-sections ont été appliquées le 28 octobre 2026. Il crée :
+exécuter le fichier entier dans le SQL Editor. Sur le projet existant, le fichier
+est idempotent pour les sections ajoutées : colonne `subject_assignments.subject_id`
+nullable, colonnes historiques de `access_requests`, colonne
+`attempts.question_snapshot`, RPC `publish_theme_pack`, nouvelles signatures de
+`start_quiz`/`submit_attempt`, quota de 30 séries, RLS et corrigé limités au
+cycle courant. Il crée :
 
 - `profiles`, `access_requests`, `subjects`, `subject_assignments`,
   `questions`, `attempts` ;
 - les policies RLS ;
 - le bucket privé `receipts` (3 Mo) ;
 - les RPC `start_quiz`, `submit_attempt`, `get_attempt_review`,
-  `approve_access_request`, `choose_renewal_subject`, `reject_access_request`,
-  `publish_subject`, `remove_subject`, `assign_subject_to_student`,
-  `revoke_access`, `extend_access`.
+  `approve_access_request`, `reject_access_request`, `publish_theme_pack`,
+  `revoke_access`, `extend_access` ;
+- les RPC historiques `publish_subject`, `remove_subject` et
+  `assign_subject_to_student`, conservées pour compatibilité mais absentes de
+  l’interface docteur.
 
-Lors d’un renouvellement, `approve_access_request` ne crée plus d’affectation :
-il enregistre le sujet en cours et le sujet suivant dans `access_requests`, puis
-l’étudiant doit appeler `choose_renewal_subject` pour ouvrir son cycle de 30
-jours. Le même sujet peut être réaffecté ; l’historique des tentatives est
-conservé.
+### Cycles, thèmes et quota
 
-Les corrigés ne sont jamais envoyés avant la soumission : `start_quiz` renvoie
-les énoncés sans `correct_answers`, et le score est calculé côté Postgres.
+Un cycle est une ligne de `subject_assignments` :
 
-Chaque question est enregistrée avec sa bonne réponse et son explication.
-`publish_subject` refuse un sujet si une question n’a pas de corrigé complet.
-Au moment de la soumission, `submit_attempt` fige une copie des questions et du
-corrigé dans `attempts.question_snapshot` : modifier le sujet plus tard ne change
-donc ni les anciens scores ni la correction déjà consultée.
+- `subject_id` est **nul** pour les nouveaux cycles : aucun thème n’est imposé,
+  l’étudiant choisit librement parmi les neuf thèmes publiés ;
+- `started_at` ouvre le cycle, `expires_at` le ferme après 30 jours ;
+- le docteur peut prolonger un cycle actif avec `extend_access` : la date de fin
+  recule et le compteur de séries **n’est pas** remis à zéro ;
+- sans cycle actif, `extend_access` ouvre un nouveau cycle complet, sans thème.
+
+À la validation d’une demande initiale ou d’un renouvellement,
+`approve_access_request` crée immédiatement un cycle sans thème et remet le
+compteur à zéro. Un renouvellement peut clore un cycle encore actif uniquement
+lorsque l’étudiant a déjà soumis ses 30 séries ; sinon la validation est refusée.
+
+Le quota est de **30 séries soumises par cycle**, à 10 questions chacune :
+
+- une série abandonnée avant soumission ne compte pas ;
+- `start_quiz` et `submit_attempt` refusent le 31e envoi avec le code
+  `SERIES_LIMIT_REACHED` ;
+- l’échéance des 30 jours reste une contrainte indépendante ;
+- `submit_attempt` verrouille la ligne du profil pour sérialiser deux envois
+  concurrents et ne jamais dépasser 30.
+
+L’historique étudiant est limité au cycle courant. Les tentatives des cycles
+précédents restent en base pour l’audit et la consultation par le docteur : la
+policy `attempts_select_own_current_cycle_or_professor` et
+`get_attempt_review` les refusent à l’étudiant (`ATTEMPT_OUT_OF_CYCLE`).
+
+### RPC étudiant
+
+```sql
+-- Lancer une série de 10 questions d’un thème choisi.
+select public.start_quiz('<subject_id>'::uuid, 10);
+
+-- Soumettre les réponses ; le score est calculé côté Postgres.
+select public.submit_attempt(
+  '<subject_id>'::uuid,
+  array['<question_id>'::uuid, ...],
+  '{"<question_id>": ["A"], ...}'::jsonb
+);
+
+-- Relire le corrigé d’une tentative du cycle courant.
+select public.get_attempt_review('<attempt_id>'::uuid);
+```
+
+`start_quiz` renvoie les énoncés **sans** `correct_answers` ni explication. Il
+refuse un thème inconnu (`THEME_NOT_FOUND`) ou contenant moins de 10 questions à
+une seule bonne réponse (`THEME_UNAVAILABLE`). `submit_attempt` exige exactement
+10 questions distinctes du thème, une seule lettre A-D par réponse, et fige le
+corrigé dans `attempts.question_snapshot` : modifier le pack plus tard ne change
+ni les scores ni les corrections déjà consultées.
+
+### Publication du pack des neuf thèmes
+
+L’interface docteur n’accepte plus qu’**un seul classeur `.xlsx`** contenant une
+feuille par thème. Le modèle téléchargeable (`MEDQCM-modele-9-themes.xlsx`) et
+l’import utilisent les colonnes suivantes, dans chaque feuille :
+
+| Colonne | Contenu |
+| --- | --- |
+| `N° Question` | entier unique dans la feuille, à partir de 1 |
+| `Énoncé` | texte non vide |
+| `Option A` … `Option D` | quatre propositions non vides |
+| `Réponse exacte` | une seule lettre `A`, `B`, `C` ou `D` |
+| `Explication médicale` | texte non vide |
+
+Les feuilles sont reconnues de façon souple : titre complet, nom abrégé du
+modèle (limité à 31 caractères par Excel), accents et ponctuation ignorés,
+préfixe `Thème 1 —` toléré. Chaque thème doit être présent **exactement une
+fois**, avec **au moins 10 questions valides**. Un seul problème bloque tout le
+pack : rien n’est écrit, aucun thème n’est partiellement remplacé.
+
+La publication appelle `publish_theme_pack(p_pack jsonb)`. Le tableau doit
+contenir exactement les neuf titres officiels :
+
+1. Biologie cellulaire S1 et S2
+2. Étude des tissus S1 et S2
+3. Structure et fonction des biomolécules
+4. Physiologie S1 et S2
+5. Anatomie viscérale
+6. Biomathématiques, Biophysique, Statistiques
+7. Initiation à la connaissance des médicaments
+8. Français médical
+9. Unités d’enseignements spécifiques
+
+Chaque entrée porte `title`, `description`, `monthLabel` et `questions`
+(`number`, `matiere`, `statement`, `options`, `correctAnswers`, `explanation`).
+La fonction valide tout le pack, puis, dans une seule transaction :
+
+- crée le sujet du thème s’il n’existe pas, sinon le met à jour ;
+- remplace les questions du thème et met à jour `question_count` ;
+- archive les anciens sujets hors pack au lieu de les supprimer, afin de
+  préserver l’historique des tentatives ;
+- renvoie les identifiants publiés et la date de publication.
+
+Un pack invalide lève `INVALID_THEME_PACK` et la transaction est annulée.
 
 ## Emails transactionnels
 
@@ -96,9 +186,9 @@ La fonction [`api/notify.mjs`](../api/notify.mjs) envoie deux emails :
 1. **Nouvelle demande** — après le dépôt du reçu, le docteur reçoit un email
    avec le nom, l'email, la date et un lien signé vers le reçu (7 jours). Le
    bouton ouvre directement le dossier dans l'espace docteur.
-2. **Accès activé** — après validation (ou attribution manuelle d'un sujet),
-   l'étudiant reçoit ses dates de cycle, le titre du sujet et le lien de
-   connexion.
+2. **Accès activé** — après validation (ou attribution manuelle), l'étudiant
+   reçoit ses dates de cycle, le rappel des neuf thèmes et des 30 séries, et le
+   lien de connexion.
 
 La fonction vérifie le jeton Supabase de l'appelant, son rôle et l'appartenance
 de la demande. Elle utilise Gmail SMTP (`smtp.gmail.com:465`). Les envois sont
@@ -120,9 +210,9 @@ récupérables localement :
    d’inscription dépose le reçu immédiatement après `signUp` ; sans session, ce
    dépôt serait impossible.
 2. Le bucket `receipts` est privé.
-3. Le parcours complet a été testé sur le projet : inscription, dépôt du reçu,
-   validation docteur, démarrage du QCM, soumission et correction. Le compte et
-   le reçu de test ont été supprimés.
+3. Le parcours complet a été testé sur l’ancien modèle : inscription, dépôt du
+   reçu, validation docteur, démarrage du QCM, soumission et correction. Le
+   parcours neuf thèmes doit être revalidé après application du schéma.
 
 Pour un nouveau projet Supabase, refaire ces réglages dans le dashboard :
 **Authentication → Sign In / Providers → Email** (désactiver Confirm email),
@@ -163,10 +253,17 @@ npm run server     # API JSON de démonstration (inutile avec Supabase)
 Pour tester le portail docteur en local : `http://docteur.localhost:5173`.
 Pour le portail étudiant : `http://etudiant.localhost:5173`.
 
+La démo locale utilise `localStorage` (`medqcm.db.v3`) et non Supabase. Elle est
+préremplie avec les neuf thèmes, 90 questions et un étudiant au quota atteint
+pour vérifier le blocage et le renouvellement.
+
 ## Sécurité
 
 - Les reçus sont dans un bucket privé et lus via des URL signées.
-- Les policies RLS limitent chaque étudiant à ses propres lignes.
+- Les policies RLS limitent chaque étudiant à ses propres lignes et à son cycle
+  courant ; le professeur voit tout.
+- Les questions ne sont jamais lisibles directement par un étudiant : les
+  corrigés passent uniquement par `start_quiz` et `get_attempt_review`.
 - Les fonctions métier sont `security definer` avec `search_path = public`,
   `execute` révoqué pour `public`/`anon` et accordé à `authenticated`.
 - Le mot de passe du docteur est conservé dans

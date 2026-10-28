@@ -37,11 +37,11 @@ export interface AccessRequest {
   createdAt: string
   reviewedAt?: string
   note?: string
-  /** Sujet suivi avant le renouvellement (choix obligatoire après validation). */
+  /** Ancien sujet suivi avant le renouvellement (legacy, non utilisé). */
   currentSubjectId?: string
-  /** Sujet publié suivant proposé au choix, si disponible. */
+  /** Ancien sujet suivant proposé au choix (legacy, non utilisé). */
   nextSubjectId?: string
-  /** Sujet retenu par l'étudiant pour le nouveau cycle. */
+  /** Ancien sujet retenu par l'étudiant (legacy, non utilisé). */
   chosenSubjectId?: string
   chosenAt?: string
 }
@@ -59,7 +59,8 @@ export interface Subject {
 export interface SubjectAssignment {
   id: string
   userId: string
-  subjectId: string
+  /** Le cycle est indépendant d'un thème : null pour les nouveaux abonnements. */
+  subjectId: string | null
   requestId?: string
   startedAt: string
   expiresAt: string

@@ -4,16 +4,20 @@ import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { useAuth } from '@/lib/auth'
 import { getPublishedSubjects } from '@/lib/db'
-import { formatDateLong } from '@/lib/utils'
+import { PACE_THEMES } from '@/lib/themes'
+import { formatDateLong, SERIES_LIMIT, SERIES_SIZE } from '@/lib/utils'
 
 export function LandingPage() {
-  usePageTitle('MEDQCM L1 — L\'entraînement mensuel des futurs médecins')
+  usePageTitle('MEDQCM L1 — Les neuf thèmes PACES')
   const { db, user, homePath } = useAuth()
   const subjects = getPublishedSubjects(db)
   const open = subjects.length > 0
   const studentUser = user?.role === 'student' ? user : null
   const startHref = studentUser ? homePath : '/inscription'
-  const subject = subjects[0]
+  const lastPublished = subjects.reduce(
+    (latest, subject) => (subject.publishedAt > latest ? subject.publishedAt : latest),
+    '',
+  )
 
   return (
     <section className="border-b border-line bg-surface">
@@ -24,12 +28,13 @@ export function LandingPage() {
             PACES (Première Année Commune des Études de Santé)
           </div>
           <h1 className="mt-6 max-w-2xl font-display text-[clamp(2.8rem,6vw,5rem)] leading-[0.98] tracking-[-0.03em] text-ink">
-            Un sujet complet.
+            Neuf thèmes PACES.
             <br />
-            Trente jours pour le maîtriser.
+            Trente séries pour progresser.
           </h1>
           <p className="mt-6 max-w-[32rem] text-[16px] leading-[1.65] text-mute">
-            Le docteur publie un sujet. Vous le travaillez à votre rythme, puis vous lisez la correction.
+            Neuf thèmes PACES. Des séries de dix questions, à votre rythme. Trente séries par
+            cycle de 30 jours, avec la correction détaillée après chaque envoi.
           </p>
           <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
             <ButtonLink to={startHref} size="lg" className="w-full sm:w-auto">
@@ -47,16 +52,21 @@ export function LandingPage() {
         <aside id="cycle" className="scroll-mt-24 border-t border-line pt-8 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
           <p className="eyebrow">Le cycle</p>
           <p className="mt-4 font-display text-[clamp(1.5rem,2.5vw,2rem)] leading-[1.15] tracking-[-0.02em] text-ink">
-            {subject?.title ?? 'Le prochain sujet est en préparation.'}
+            {PACE_THEMES.length} thèmes. {SERIES_LIMIT} séries.
           </p>
           <p className="mt-2 text-[12px] text-mute">
-            {subject ? `Publié le ${formatDateLong(subject.publishedAt)}` : 'Le docteur le publiera dès qu’il sera prêt.'}
+            {lastPublished
+              ? `Catalogue publié le ${formatDateLong(lastPublished)}`
+              : 'Le catalogue sera publié dès que le docteur l’aura validé.'}
           </p>
           <ol className="mt-8 border-t border-line">
             {[
               ['Déposez votre dossier', 'Identité, reçu de paiement, puis validation par le docteur.'],
-              ['Recevez votre sujet', 'L’accès s’ouvre après validation, pour un seul sujet à la fois.'],
-              ['Travaillez et corrigez', 'Des séries de dix questions, correction après envoi.'],
+              ['Choisissez vos thèmes', 'Les neuf thèmes PACES sont ouverts dès l’activation du cycle.'],
+              [
+                'Travaillez et corrigez',
+                `${SERIES_LIMIT} séries de ${SERIES_SIZE} questions, correction après envoi.`,
+              ],
             ].map(([title, text]) => (
               <li key={title} className="border-b border-line py-4">
                 <p className="text-[13px] font-medium text-ink">{title}</p>

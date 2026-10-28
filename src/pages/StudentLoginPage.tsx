@@ -41,7 +41,7 @@ export function StudentLoginPage() {
           Reprendre ma préparation.
         </h1>
         <p className="mt-3 max-w-sm text-[14px] leading-relaxed text-mute">
-          Retrouvez votre sujet du mois, vos séries et les corrections détaillées.
+          Retrouvez les neuf thèmes PACES, vos séries et les corrections détaillées.
         </p>
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>

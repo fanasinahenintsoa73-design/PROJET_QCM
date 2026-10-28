@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
+import { canRequestRenewal } from '@/lib/access'
 import { isDoctorPortal } from '@/lib/portal'
 import { MinimalHeader } from '@/components/Headers'
 import { Footer } from '@/components/Footer'
@@ -103,7 +104,6 @@ export function RequireStudent() {
   const { user, access } = useAuth()
   if (!user) return <Navigate to="/connexion" replace />
   if (user.role !== 'student') return <PortalMismatch expected="student" />
-  if (access === 'choosing') return <Navigate to="/choix-sujet" replace />
   if (access === 'pending') return <Navigate to="/en-attente" replace />
   if (access === 'expired' || access === 'rejected') return <Navigate to="/expiration" replace />
   return <Outlet />
@@ -113,9 +113,23 @@ export function RequireBlocked() {
   const { user, access } = useAuth()
   if (!user) return <Navigate to="/connexion" replace />
   if (user.role !== 'student') return <PortalMismatch expected="student" />
-  if (access === 'choosing') return <Navigate to="/choix-sujet" replace />
   if (access === 'active') return <Navigate to="/app" replace />
   if (access === 'pending') return <Navigate to="/en-attente" replace />
+  return <Outlet />
+}
+
+/**
+ * Le renouvellement est ouvert aux cycles expirés, aux dossiers refusés et aux
+ * étudiants actifs ayant épuisé leurs 30 séries.
+ */
+export function RequireRenewal() {
+  const { user, access, db } = useAuth()
+  if (!user) return <Navigate to="/connexion" replace />
+  if (user.role !== 'student') return <PortalMismatch expected="student" />
+  if (access === 'pending') return <Navigate to="/en-attente" replace />
+  if (access === 'active' && !canRequestRenewal(user, db)) {
+    return <Navigate to="/app" replace />
+  }
   return <Outlet />
 }
 

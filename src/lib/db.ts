@@ -8,10 +8,27 @@ import type {
   SubjectAssignment,
   User,
 } from '@/types'
-import { createSeedDatabase, PROFESSOR_FIRST_NAME, PROFESSOR_LAST_NAME } from '@/lib/seed'
-import { addDays, isExpired, uid } from '@/lib/utils'
+import { createSeedDatabase, PROFESSOR_FIRST_NAME, PROFESSOR_LAST_NAME, randomQuestionIds } from '@/lib/seed'
+import {
+  PACE_THEMES,
+  canonicalizeThemePack,
+  findPaceTheme,
+  sortThemes,
+  validateThemePackInput,
+  type ThemePackInput,
+} from '@/lib/themes'
+import {
+  addDays,
+  AppError,
+  isExpired,
+  SERIES_LIMIT,
+  SERIES_LIMIT_MESSAGE,
+  SERIES_SIZE,
+  sameAnswer,
+  uid,
+} from '@/lib/utils'
 
-const DB_KEY = 'medqcm.db.v2'
+const DB_KEY = 'medqcm.db.v3'
 const SESSION_KEY = 'medqcm.session.v1'
 const CHANGE_EVENT = 'medqcm:change'
 
@@ -232,19 +249,18 @@ export function submitRenewal(userId: string, receipt: Receipt): AccessRequest {
   const user = db.users.find((candidate) => candidate.id === userId)
   if (!user) throw new Error('Compte introuvable.')
   if (!receipt?.dataUrl) throw new Error('Le nouveau reçu de paiement est obligatoire.')
-  const awaitingChoice = db.requests.some(
-    (request) =>
-      request.userId === userId &&
-      request.type === 'renewal' &&
-      request.status === 'approved' &&
-      Boolean(request.currentSubjectId) &&
-      !request.chosenSubjectId,
+
+  const existingPending = db.requests.find(
+    (request) => request.userId === userId && request.status === 'pending',
   )
-  if (awaitingChoice) {
-    throw new Error('Choisissez d’abord votre sujet pour ouvrir votre nouveau cycle.')
-  }
-  const existingPending = db.requests.find((request) => request.userId === userId && request.status === 'pending')
   if (existingPending) throw new Error('Une demande est déjà en attente de validation.')
+
+  const active = getActiveAssignment(userId, db)
+  if (active && !getSeriesUsage(userId, db).reached) {
+    throw new Error(
+      'Votre cycle est encore actif. Vous pourrez renouveler dès que vos 30 séries seront terminées.',
+    )
+  }
 
   const now = new Date().toISOString()
   const request: AccessRequest = {
@@ -271,7 +287,7 @@ export function submitRenewal(userId: string, receipt: Receipt): AccessRequest {
 }
 
 /* ------------------------------------------------------------------ */
-/* Subject assignments                                                 */
+/* Cycles & quota                                                      */
 /* ------------------------------------------------------------------ */
 
 export function getActiveAssignment(
@@ -292,49 +308,63 @@ export function getLatestAssignment(
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]
 }
 
-export function getNextSubjectForUser(
+/**
+ * Cycle de référence pour l'affichage : le cycle actif s'il existe, sinon le
+ * dernier cycle connu (étudiant expiré). Les tentatives antérieures à son
+ * ouverture ne sont jamais visibles.
+ */
+export function getCurrentAssignment(
   userId: string,
   db: Database = getDB(),
-): Subject | undefined {
-  const used = new Set(
-    db.assignments
-      .filter((assignment) => assignment.userId === userId)
-      .map((assignment) => assignment.subjectId),
-  )
-  return db.subjects
-    .filter(
-      (subject) =>
-        !subject.archived && subject.questionCount > 0 && !used.has(subject.id),
-    )
-    .sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime())[0]
+): SubjectAssignment | undefined {
+  return getActiveAssignment(userId, db) ?? getLatestAssignment(userId, db)
 }
 
-/** Sujet publié qui suit `subjectId` dans la file (ordre de publication). */
-export function getNextSubjectAfter(
-  subjectId: string,
+export function getCurrentCycleAttempts(
+  userId: string,
   db: Database = getDB(),
-): Subject | undefined {
-  const queue = db.subjects
-    .filter((subject) => !subject.archived && subject.questionCount > 0)
-    .sort((a, b) => {
-      const byDate = new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
-      return byDate !== 0 ? byDate : a.id.localeCompare(b.id)
-    })
-  const index = queue.findIndex((subject) => subject.id === subjectId)
-  if (index < 0) return queue[0]
-  return queue[index + 1]
+  assignment: SubjectAssignment | undefined = getCurrentAssignment(userId, db),
+): Attempt[] {
+  if (!assignment) return []
+  const startedAt = new Date(assignment.startedAt).getTime()
+  return db.attempts
+    .filter(
+      (attempt) =>
+        attempt.userId === userId && new Date(attempt.createdAt).getTime() >= startedAt,
+    )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
+
+export interface SeriesUsage {
+  assignment?: SubjectAssignment
+  used: number
+  limit: number
+  remaining: number
+  reached: boolean
+}
+
+/** Nombre de séries soumises dans le cycle courant, au regard de la limite. */
+export function getSeriesUsage(userId: string, db: Database = getDB()): SeriesUsage {
+  const assignment = getCurrentAssignment(userId, db)
+  const used = getCurrentCycleAttempts(userId, db, assignment).length
+  return {
+    assignment,
+    used,
+    limit: SERIES_LIMIT,
+    remaining: Math.max(0, SERIES_LIMIT - used),
+    reached: used >= SERIES_LIMIT,
+  }
 }
 
 function createAssignment(
   userId: string,
-  subjectId: string,
   requestId: string | undefined,
   now: Date,
 ): SubjectAssignment {
   return {
     id: uid('assign'),
     userId,
-    subjectId,
+    subjectId: null,
     requestId,
     startedAt: now.toISOString(),
     expiresAt: addDays(now, 30).toISOString(),
@@ -353,70 +383,27 @@ export function approveRequest(requestId: string): User {
   const user = db.users.find((candidate) => candidate.id === request.userId)
   if (!user) throw new Error('Étudiant introuvable.')
 
-  if (getActiveAssignment(user.id, db)) {
-    throw new Error('Cet étudiant dispose déjà d’un cycle actif. Attendez son expiration avant de valider un renouvellement.')
-  }
-
   const now = new Date()
-  const latestAssignment = getLatestAssignment(user.id, db)
+  const active = getActiveAssignment(user.id, db)
+  let assignments = db.assignments
 
-  // Un renouvellement n'attribue plus le sujet suivant : l'étudiant doit
-  // choisir entre reprendre son sujet et avancer. Le cycle de 30 jours
-  // démarrera seulement au moment de ce choix.
-  if (request.type === 'renewal' && latestAssignment) {
-    const currentSubject = db.subjects.find(
-      (subject) => subject.id === latestAssignment.subjectId,
-    )
-    if (!currentSubject || currentSubject.archived || currentSubject.questionCount === 0) {
+  if (active) {
+    const usage = getSeriesUsage(user.id, db)
+    if (request.type !== 'renewal' || !usage.reached) {
       throw new Error(
-        'Le sujet précédent n’est plus disponible. Attribuez un sujet manuellement à cet étudiant.',
+        'Cet étudiant dispose déjà d’un cycle actif. Attendez la fin de ses 30 séries ou de son échéance avant de valider un renouvellement.',
       )
     }
-    const nextSubject = getNextSubjectAfter(currentSubject.id, db)
-    const waitingUser: User = {
-      ...user,
-      status: 'pending',
-      rejectionReason: undefined,
-    }
-    const requests = db.requests.map((item) => {
-      if (item.id === requestId) {
-        return {
-          ...item,
-          status: 'approved' as const,
-          reviewedAt: now.toISOString(),
-          currentSubjectId: currentSubject.id,
-          nextSubjectId: nextSubject?.id,
-        }
-      }
-      if (item.userId === user.id && item.status === 'pending') {
-        return {
-          ...item,
-          status: 'rejected' as const,
-          reviewedAt: now.toISOString(),
-          note: 'Demande remplacée par une validation plus récente.',
-        }
-      }
-      return item
-    })
-
-    commit({
-      ...db,
-      users: db.users.map((candidate) =>
-        candidate.id === user.id ? waitingUser : candidate,
-      ),
-      requests,
-    })
-    return waitingUser
-  }
-
-  const subject = getNextSubjectForUser(user.id, db)
-  if (!subject) {
-    throw new Error(
-      'Aucun sujet disponible dans la file. Ajoutez d’abord un sujet avant d’accepter cette demande.',
+    // Le renouvellement est autorisé avant l'échéance dès que le quota de
+    // séries est atteint : l'ancien cycle est clos à cet instant.
+    assignments = db.assignments.map((assignment) =>
+      assignment.id === active.id
+        ? { ...assignment, expiresAt: now.toISOString() }
+        : assignment,
     )
   }
 
-  const assignment = createAssignment(user.id, subject.id, request.id, now)
+  const assignment = createAssignment(user.id, request.id, now)
   const activatedUser: User = {
     ...user,
     status: 'active',
@@ -444,97 +431,28 @@ export function approveRequest(requestId: string): User {
     ...db,
     users: db.users.map((candidate) => (candidate.id === user.id ? activatedUser : candidate)),
     requests,
-    assignments: [assignment, ...db.assignments],
+    assignments: [assignment, ...assignments],
   })
   return activatedUser
 }
 
 /**
- * Enregistre le choix obligatoire de l'étudiant après validation d'un
- * renouvellement, puis ouvre le nouveau cycle de 30 jours.
+ * Attribution manuelle historique. Le cycle reste indépendant d'un thème :
+ * le sujet transmis sert uniquement de contrôle de disponibilité.
  */
-export function chooseRenewalSubject(
-  userId: string,
-  requestId: string,
-  subjectId: string,
-): SubjectAssignment {
-  const db = getDB()
-  const request = db.requests.find((item) => item.id === requestId)
-  if (!request || request.userId !== userId || request.type !== 'renewal') {
-    throw new Error('Renouvellement introuvable.')
-  }
-  if (
-    request.status !== 'approved' ||
-    !request.currentSubjectId ||
-    request.chosenSubjectId ||
-    db.assignments.some((assignment) => assignment.requestId === requestId)
-  ) {
-    throw new Error('Ce choix n’est plus disponible. Reconnectez-vous pour actualiser.')
-  }
-  if (getActiveAssignment(userId, db)) {
-    throw new Error('Un cycle est déjà actif. Attendez son expiration avant de choisir.')
-  }
-
-  const allowed = new Set(
-    [request.currentSubjectId, request.nextSubjectId].filter(Boolean) as string[],
-  )
-  if (!allowed.has(subjectId)) {
-    throw new Error('Ce sujet ne fait pas partie des choix proposés.')
-  }
-  const subject = db.subjects.find((candidate) => candidate.id === subjectId)
-  if (!subject || subject.archived || subject.questionCount === 0) {
-    throw new Error('Ce sujet n’est plus disponible.')
-  }
-
-  const user = db.users.find((candidate) => candidate.id === userId)
-  if (!user) throw new Error('Étudiant introuvable.')
-
-  const now = new Date()
-  const assignment = createAssignment(userId, subject.id, request.id, now)
-  const activatedUser: User = {
-    ...user,
-    status: 'active',
-    activatedAt: assignment.startedAt,
-    expiresAt: assignment.expiresAt,
-    rejectionReason: undefined,
-  }
-
-  commit({
-    ...db,
-    users: db.users.map((candidate) =>
-      candidate.id === userId ? activatedUser : candidate,
-    ),
-    requests: db.requests.map((item) =>
-      item.id === requestId
-        ? {
-            ...item,
-            chosenSubjectId: subject.id,
-            chosenAt: now.toISOString(),
-          }
-        : item,
-    ),
-    assignments: [assignment, ...db.assignments],
-  })
-  return assignment
-}
-
 export function assignSubjectToStudent(subjectId: string, userId: string): SubjectAssignment {
   const db = getDB()
   const subject = db.subjects.find((candidate) => candidate.id === subjectId)
-  if (!subject || subject.archived) throw new Error('Sujet introuvable dans la file.')
-  if (subject.questionCount === 0) throw new Error('Ce sujet ne contient aucune question.')
+  if (!subject || subject.archived) throw new Error('Thème introuvable dans le catalogue.')
+  if (subject.questionCount === 0) throw new Error('Ce thème ne contient aucune question.')
 
   const student = db.users.find((candidate) => candidate.id === userId)
   if (!student || student.role !== 'student') throw new Error('Étudiant introuvable.')
-  if (db.assignments.some((assignment) => assignment.userId === userId && assignment.subjectId === subjectId)) {
-    throw new Error('Cet étudiant a déjà reçu ce sujet.')
-  }
 
   const active = getActiveAssignment(userId, db)
   if (active) {
-    const activeSubject = db.subjects.find((candidate) => candidate.id === active.subjectId)
     throw new Error(
-      `Cet étudiant a déjà un cycle actif${activeSubject ? ` sur « ${activeSubject.title} »` : ''}. Attendez son expiration avant de lui attribuer un autre sujet.`,
+      'Cet étudiant a déjà un cycle actif. Attendez son expiration avant de lui attribuer un nouveau cycle.',
     )
   }
 
@@ -542,7 +460,7 @@ export function assignSubjectToStudent(subjectId: string, userId: string): Subje
     .filter((request) => request.userId === userId && request.status === 'pending')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
   const now = new Date()
-  const assignment = createAssignment(userId, subjectId, pending?.id, now)
+  const assignment = createAssignment(userId, pending?.id, now)
   const activatedUser: User = {
     ...student,
     status: 'active',
@@ -597,18 +515,6 @@ export function extendAccess(userId: string, days = 30) {
   const db = getDB()
   const user = db.users.find((candidate) => candidate.id === userId)
   if (!user) throw new Error('Étudiant introuvable.')
-  if (
-    db.requests.some(
-      (request) =>
-        request.userId === userId &&
-        request.type === 'renewal' &&
-        request.status === 'approved' &&
-        Boolean(request.currentSubjectId) &&
-        !request.chosenSubjectId,
-    )
-  ) {
-    throw new Error('Cet étudiant doit d’abord choisir son sujet de renouvellement.')
-  }
 
   const active = getActiveAssignment(userId, db)
   if (active) {
@@ -634,21 +540,8 @@ export function extendAccess(userId: string, days = 30) {
     return
   }
 
-  const latest = getLatestAssignment(userId, db)
-  const previous = latest
-    ? db.subjects.find(
-        (candidate) =>
-          candidate.id === latest.subjectId &&
-          !candidate.archived &&
-          candidate.questionCount > 0,
-      )
-    : undefined
-  const subject = previous ?? getNextSubjectForUser(userId, db)
-  if (!subject) {
-    throw new Error('Aucun sujet disponible dans la file pour prolonger cet accès.')
-  }
   const now = new Date()
-  const assignment = createAssignment(userId, subject.id, undefined, now)
+  const assignment = createAssignment(userId, undefined, now)
   commit({
     ...db,
     users: db.users.map((candidate) =>
@@ -676,12 +569,13 @@ export function revokeAccess(userId: string, note = 'Accès suspendu par le doct
         ? { ...user, status: 'rejected', expiresAt: now, rejectionReason: note }
         : user,
     ),
+    assignments: db.assignments.map((assignment) =>
+      assignment.userId === userId && !isExpired(assignment.expiresAt)
+        ? { ...assignment, expiresAt: now }
+        : assignment,
+    ),
     requests: db.requests.map((request) =>
-      request.userId === userId &&
-      (request.status === 'pending' ||
-        (request.status === 'approved' &&
-          Boolean(request.currentSubjectId) &&
-          !request.chosenSubjectId))
+      request.userId === userId && request.status === 'pending'
         ? { ...request, status: 'rejected', reviewedAt: now, note }
         : request,
     ),
@@ -689,7 +583,7 @@ export function revokeAccess(userId: string, note = 'Accès suspendu par le doct
 }
 
 /* ------------------------------------------------------------------ */
-/* Subjects & questions                                                */
+/* Themes & questions                                                  */
 /* ------------------------------------------------------------------ */
 
 export interface SubjectQuestionInput {
@@ -708,46 +602,113 @@ export interface PublishSubjectInput {
   questions: SubjectQuestionInput[]
 }
 
-export function publishSubject(input: PublishSubjectInput): Subject {
-  const db = getDB()
-  if (!input.questions.length) throw new Error('Aucune question à ajouter à la file.')
-
-  const seenNumbers = new Set<number>()
-  for (const [index, question] of input.questions.entries()) {
-    const label = `Question ${question.number || index + 1}`
-    if (!Number.isInteger(question.number) || question.number < 1) {
-      throw new Error(`${label} : le numéro de question est invalide.`)
-    }
-    if (seenNumbers.has(question.number)) {
-      throw new Error(`${label} : ce numéro de question apparaît plusieurs fois.`)
-    }
-    seenNumbers.add(question.number)
-    if (!question.statement?.trim()) {
-      throw new Error(`${label} : l’énoncé est vide.`)
-    }
-    for (const letter of ['A', 'B', 'C', 'D'] as const) {
-      if (!question.options?.[letter]?.trim()) {
-        throw new Error(`${label} : l’option ${letter} est vide.`)
-      }
-    }
-    if (!Array.isArray(question.correctAnswers) || question.correctAnswers.length === 0) {
-      throw new Error(
-        `${label} : ajoutez au moins une bonne réponse (A, B, C ou D) avant d’enregistrer le sujet.`,
-      )
-    }
-    if (
-      question.correctAnswers.some(
-        (letter) => !['A', 'B', 'C', 'D'].includes(letter),
-      )
-    ) {
-      throw new Error(`${label} : la bonne réponse doit être une lettre entre A et D.`)
-    }
-    if (!question.explanation?.trim()) {
-      throw new Error(
-        `${label} : ajoutez l’explication médicale qui sert de référence à la correction.`,
-      )
+function validateQuestion(
+  question: SubjectQuestionInput,
+  label: string,
+  singleAnswer: boolean,
+) {
+  if (!Number.isInteger(question.number) || question.number < 1) {
+    throw new Error(`${label} : le numéro de question est invalide.`)
+  }
+  if (!question.statement?.trim()) {
+    throw new Error(`${label} : l’énoncé est vide.`)
+  }
+  for (const letter of ['A', 'B', 'C', 'D'] as const) {
+    if (!question.options?.[letter]?.trim()) {
+      throw new Error(`${label} : l’option ${letter} est vide.`)
     }
   }
+  if (!Array.isArray(question.correctAnswers) || question.correctAnswers.length === 0) {
+    throw new Error(
+      `${label} : ajoutez au moins une bonne réponse (A, B, C ou D) avant d’enregistrer le thème.`,
+    )
+  }
+  if (singleAnswer && question.correctAnswers.length !== 1) {
+    throw new Error(`${label} : une seule bonne réponse (A, B, C ou D) est attendue.`)
+  }
+  if (question.correctAnswers.some((letter) => !['A', 'B', 'C', 'D'].includes(letter))) {
+    throw new Error(`${label} : la bonne réponse doit être une lettre entre A et D.`)
+  }
+  if (!question.explanation?.trim()) {
+    throw new Error(
+      `${label} : ajoutez l’explication médicale qui sert de référence à la correction.`,
+    )
+  }
+}
+
+/**
+ * Publie les neuf thèmes en une seule écriture. Un seul thème invalide bloque
+ * tout le pack : le catalogue ne peut jamais être partiel.
+ */
+export function publishThemePack(input: ThemePackInput): Subject[] {
+  const errors = validateThemePackInput(input.themes)
+  if (errors.length) throw new AppError('INVALID_THEME_PACK', errors.join(' '))
+
+  const db = getDB()
+  const themes = canonicalizeThemePack(input.themes)
+  const now = new Date()
+  const nextSubjects = [...db.subjects]
+  const nextQuestions = [...db.questions]
+  const published: Subject[] = []
+
+  themes.forEach((themeInput, index) => {
+    const definition = PACE_THEMES[index]
+    const existingIndex = nextSubjects.findIndex(
+      (subject) =>
+        subject.id === definition.id || findPaceTheme(subject.title)?.id === definition.id,
+    )
+    const id = existingIndex >= 0 ? nextSubjects[existingIndex].id : definition.id
+
+    themeInput.questions.forEach((question, questionIndex) =>
+      validateQuestion(
+        question,
+        `${definition.title}, question ${question.number || questionIndex + 1}`,
+        true,
+      ),
+    )
+
+    const subject: Subject = {
+      id,
+      title: definition.title,
+      description: themeInput.description.trim() || definition.description,
+      monthLabel: themeInput.monthLabel.trim(),
+      publishedAt: now.toISOString(),
+      archived: false,
+      questionCount: themeInput.questions.length,
+    }
+    if (existingIndex >= 0) nextSubjects[existingIndex] = subject
+    else nextSubjects.push(subject)
+
+    for (let i = nextQuestions.length - 1; i >= 0; i -= 1) {
+      if (nextQuestions[i].subjectId === id) nextQuestions.splice(i, 1)
+    }
+    themeInput.questions.forEach((question) => {
+      nextQuestions.push({
+        ...question,
+        id: uid('q'),
+        subjectId: id,
+        matiere: question.matiere?.trim() || definition.title,
+      })
+    })
+    published.push(subject)
+  })
+
+  commit({ ...db, subjects: nextSubjects, questions: nextQuestions })
+  return sortThemes(published)
+}
+
+/** Ancien point d'entrée conservé pour compatibilité : hors interface docteur. */
+export function publishSubject(input: PublishSubjectInput): Subject {
+  const db = getDB()
+  if (!input.questions.length) throw new Error('Aucune question à ajouter au catalogue.')
+  const seenNumbers = new Set<number>()
+  input.questions.forEach((question, index) => {
+    validateQuestion(question, `Question ${question.number || index + 1}`, false)
+    if (seenNumbers.has(question.number)) {
+      throw new Error(`Question ${question.number} : ce numéro apparaît plusieurs fois.`)
+    }
+    seenNumbers.add(question.number)
+  })
 
   const now = new Date()
   const subject: Subject = {
@@ -775,14 +736,14 @@ export function publishSubject(input: PublishSubjectInput): Subject {
 export function removeSubject(subjectId: string) {
   const db = getDB()
   const subject = db.subjects.find((item) => item.id === subjectId)
-  if (!subject) throw new Error('Sujet introuvable.')
+  if (!subject) throw new Error('Thème introuvable.')
   if (db.assignments.some((assignment) => assignment.subjectId === subjectId)) {
     throw new Error(
-      'Ce sujet a déjà été attribué à un étudiant. Il ne peut plus être supprimé de la file.',
+      'Ce thème est lié à un ancien cycle. Il ne peut plus être supprimé du catalogue.',
     )
   }
   if (db.attempts.some((attempt) => attempt.subjectId === subjectId)) {
-    throw new Error('Ce sujet possède déjà un historique de résultats et ne peut pas être supprimé.')
+    throw new Error('Ce thème possède déjà un historique de résultats et ne peut pas être supprimé.')
   }
   commit({
     ...db,
@@ -792,9 +753,7 @@ export function removeSubject(subjectId: string) {
 }
 
 export function getPublishedSubjects(db: Database = getDB()): Subject[] {
-  return db.subjects
-    .filter((subject) => !subject.archived)
-    .sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime())
+  return sortThemes(db.subjects.filter((subject) => !subject.archived))
 }
 
 export function getSubjectQuestions(subjectId: string, db: Database = getDB()): Question[] {
@@ -803,36 +762,130 @@ export function getSubjectQuestions(subjectId: string, db: Database = getDB()): 
     .sort((a, b) => a.number - b.number)
 }
 
+/** Banque réellement utilisable pour une série : questions à réponse unique. */
+export function getUsableQuestions(subjectId: string, db: Database = getDB()): Question[] {
+  return getSubjectQuestions(subjectId, db).filter(
+    (question) => question.correctAnswers.length === 1,
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /* Attempts                                                            */
 /* ------------------------------------------------------------------ */
+
+export interface StartedSeries {
+  assignment: SubjectAssignment
+  subject: Subject
+  questions: Question[]
+}
+
+/** Ouvre une série tirée au hasard, sans jamais envoyer le corrigé au client. */
+export function startSeries(
+  userId: string,
+  subjectId: string,
+  count = SERIES_SIZE,
+): StartedSeries {
+  const db = getDB()
+  const assignment = getActiveAssignment(userId, db)
+  if (!assignment) {
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+  }
+  if (getSeriesUsage(userId, db).reached) {
+    throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
+  }
+
+  const subject = db.subjects.find((candidate) => candidate.id === subjectId)
+  if (!subject || subject.archived) {
+    throw new AppError('THEME_NOT_FOUND', 'Ce thème est introuvable dans le catalogue.')
+  }
+
+  const bank = getUsableQuestions(subjectId, db)
+  if (bank.length < SERIES_SIZE) {
+    throw new AppError(
+      'THEME_UNAVAILABLE',
+      `« ${subject.title} » sera bientôt disponible : le docteur prépare ses questions.`,
+    )
+  }
+
+  const size = Math.max(1, Math.min(count, SERIES_SIZE))
+  const ids = randomQuestionIds(bank, size)
+  const questions = ids
+    .map((id) => bank.find((question) => question.id === id))
+    .filter((question): question is Question => Boolean(question))
+
+  return {
+    assignment,
+    subject,
+    questions: questions.map((question) => ({
+      ...question,
+      correctAnswers: [],
+      explanation: '',
+    })),
+  }
+}
 
 export function saveAttempt(input: {
   userId: string
   subjectId: string
   questionIds: string[]
   answers: Record<string, string[]>
-  score: number
 }): Attempt {
   const db = getDB()
+  const assignment = getActiveAssignment(input.userId, db)
+  if (!assignment) {
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+  }
+  if (getSeriesUsage(input.userId, db).reached) {
+    throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
+  }
+
+  const subject = db.subjects.find((candidate) => candidate.id === input.subjectId)
+  if (!subject || subject.archived) {
+    throw new AppError('THEME_NOT_FOUND', 'Ce thème est introuvable dans le catalogue.')
+  }
+  if (new Set(input.questionIds).size !== input.questionIds.length) {
+    throw new AppError('DUPLICATE_QUESTIONS', 'La série contient des questions en double.')
+  }
+  if (input.questionIds.length !== SERIES_SIZE) {
+    throw new AppError(
+      'INVALID_QUESTION_SET',
+      `Une série doit contenir exactement ${SERIES_SIZE} questions.`,
+    )
+  }
+
   const questionSnapshot = input.questionIds.map((id) =>
-    db.questions.find((question) => question.id === id),
+    db.questions.find((question) => question.id === id && question.subjectId === subject.id),
   )
   if (questionSnapshot.some((question) => !question)) {
-    throw new Error('Une question de la série est introuvable dans le sujet.')
+    throw new AppError(
+      'INVALID_QUESTION_SET',
+      'La série envoyée ne correspond pas au thème sélectionné.',
+    )
   }
+
+  const questions = questionSnapshot.filter(
+    (question): question is Question => Boolean(question),
+  )
+  const score = questions.reduce(
+    (total, question) =>
+      total + (sameAnswer(input.answers[question.id] ?? [], question.correctAnswers) ? 1 : 0),
+    0,
+  )
+
   const attempt: Attempt = {
-    ...input,
     id: uid('attempt'),
+    userId: input.userId,
+    subjectId: subject.id,
+    questionIds: input.questionIds,
+    answers: input.answers,
+    score,
     total: input.questionIds.length,
     createdAt: new Date().toISOString(),
-    questionSnapshot: questionSnapshot
-      .filter((question): question is Question => Boolean(question))
-      .map((question) => ({
-        ...question,
-        options: { ...question.options },
-        correctAnswers: [...question.correctAnswers],
-      })),
+    questionSnapshot: questions.map((question) => ({
+      ...question,
+      options: { ...question.options },
+      correctAnswers: [...question.correctAnswers],
+    })),
   }
   commit({ ...db, attempts: [attempt, ...db.attempts] })
   return attempt
@@ -840,6 +893,46 @@ export function saveAttempt(input: {
 
 export function getAttempt(attemptId: string, db: Database = getDB()) {
   return db.attempts.find((attempt) => attempt.id === attemptId)
+}
+
+/**
+ * Corrigé d'une tentative. Un étudiant ne voit que les séries de son cycle
+ * courant ; le docteur conserve l'accès à tout l'historique.
+ */
+export function getAttemptForReview(
+  attemptId: string,
+  viewerId?: string,
+  db: Database = getDB(),
+): { attempt: Attempt; questions: Question[] } {
+  const attempt = getAttempt(attemptId, db)
+  if (!attempt) {
+    throw new AppError('ATTEMPT_NOT_FOUND', 'Ce résultat est introuvable.')
+  }
+
+  if (viewerId) {
+    const viewer = db.users.find((candidate) => candidate.id === viewerId)
+    if (!viewer) throw new AppError('ATTEMPT_NOT_FOUND', 'Ce résultat est introuvable.')
+    if (viewer.role !== 'professor') {
+      if (attempt.userId !== viewer.id) {
+        throw new AppError('ATTEMPT_NOT_FOUND', 'Ce résultat est introuvable.')
+      }
+      const current = getCurrentAssignment(viewer.id, db)
+      if (!current || new Date(attempt.createdAt).getTime() < new Date(current.startedAt).getTime()) {
+        throw new AppError(
+          'ATTEMPT_OUT_OF_CYCLE',
+          'Ce résultat appartient à un cycle précédent et n’est plus accessible.',
+        )
+      }
+    }
+  }
+
+  const questions = attempt.questionSnapshot?.length
+    ? attempt.questionSnapshot
+    : attempt.questionIds
+        .map((id) => db.questions.find((question) => question.id === id))
+        .filter((question): question is Question => Boolean(question))
+
+  return { attempt, questions }
 }
 
 /* ------------------------------------------------------------------ */
@@ -872,5 +965,6 @@ export function seedAccounts() {
     studentPending: { email: amina?.email ?? 'amina.benali@email.com', password: 'etudiant1234' },
     studentExpired: { email: 'lucas.martin@email.com', password: 'etudiant1234' },
     studentMember: { email: 'sarah.lemoine@email.com', password: 'etudiant1234' },
+    studentQuotaReached: { email: 'clara.fontaine@email.com', password: 'etudiant1234' },
   }
 }

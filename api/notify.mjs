@@ -275,17 +275,9 @@ async function notifyAccessActivated({ client, profile, requestId, userId }) {
     return { status: 200, body: { ok: true, skipped: 'access_expired' } }
   }
 
-  let subject = null
-  if (assignment?.subject_id) {
-    const { data } = await client
-      .from('subjects')
-      .select('id, title, month_label')
-      .eq('id', assignment.subject_id)
-      .maybeSingle()
-    subject = data
-  }
-
-  const subjectTitle = subject?.title || 'Sujet du mois'
+  // Les cycles sont désormais indépendants d'un thème unique : l'étudiant
+  // choisit librement parmi les neuf thèmes PACES, dans la limite de 30 séries.
+  const cycleSummary = '9 thèmes PACES · 30 séries de 10 questions'
   const period = `du ${formatDate(startsAt)} au ${formatDate(expiresAt)}`
   const loginUrl = `${STUDENT_APP_URL}/connexion`
 
@@ -293,7 +285,7 @@ async function notifyAccessActivated({ client, profile, requestId, userId }) {
     <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#15201b;">
       <p style="margin:0 0 14px;">Bonjour ${escapeHtml(student.first_name)},</p>
       <p style="margin:0 0 14px;">Votre dossier a été validé. Votre accès au QCM est ouvert <strong>${escapeHtml(period)}</strong>.</p>
-      <p style="margin:0 0 14px;"><strong>Sujet :</strong> ${escapeHtml(subjectTitle)}<br>
+      <p style="margin:0 0 14px;"><strong>Votre cycle :</strong> ${escapeHtml(cycleSummary)}<br>
       <strong>Votre identifiant :</strong> ${escapeHtml(student.email)}</p>
       <p style="margin:0 0 14px;"><a href="${escapeHtml(loginUrl)}" style="color:#0b6b4f;font-weight:700;">Accéder à mon espace</a></p>
       <p style="margin:0;">— Dr Sun RAZAFIMANDIMBY<br>MEDQCM L1</p>
@@ -304,7 +296,7 @@ async function notifyAccessActivated({ client, profile, requestId, userId }) {
 
 Votre dossier a été validé. Votre accès au QCM est ouvert ${period}.
 
-Sujet : ${subjectTitle}
+Votre cycle : ${cycleSummary}
 Votre identifiant : ${student.email}
 
 Accéder à mon espace : ${loginUrl}

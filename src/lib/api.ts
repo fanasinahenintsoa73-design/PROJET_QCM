@@ -3,8 +3,8 @@ import { isSupabaseConfigured } from '@/lib/supabase'
 import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
 import * as remote from '@/lib/supabaseData'
-import { randomQuestionIds } from '@/lib/seed'
-import { sameAnswer, SERIES_SIZE } from '@/lib/utils'
+import { AppError, SERIES_SIZE } from '@/lib/utils'
+import type { ThemePackInput } from '@/lib/themes'
 import type {
   AttemptReview,
   PublishSubjectInput,
@@ -73,25 +73,11 @@ export const api = {
 
   async approveRequest(requestId: string): Promise<void> {
     if (isSupabaseConfigured) {
-      const result = await remote.approveRequest(requestId)
-      if (!result.requiresChoice) {
-        await notify({ type: 'access_activated', requestId })
-      }
+      await remote.approveRequest(requestId)
+      await notify({ type: 'access_activated', requestId })
       return
     }
     demo.approveRequest(requestId)
-  },
-
-  async chooseRenewalSubject(
-    userId: string,
-    requestId: string,
-    subjectId: string,
-  ): Promise<void> {
-    if (isSupabaseConfigured) {
-      await remote.chooseRenewalSubject(requestId, subjectId)
-      return
-    }
-    demo.chooseRenewalSubject(userId, requestId, subjectId)
   },
 
   async rejectRequest(requestId: string, note?: string): Promise<void> {
@@ -127,6 +113,14 @@ export const api = {
     demo.extendAccess(userId, days)
   },
 
+  async publishThemePack(input: ThemePackInput): Promise<void> {
+    if (isSupabaseConfigured) {
+      await remote.publishThemePack(input)
+      return
+    }
+    demo.publishThemePack(input)
+  },
+
   async publishSubject(input: PublishSubjectInput): Promise<Subject> {
     if (isSupabaseConfigured) return remote.publishSubject(input)
     return demo.publishSubject(input)
@@ -140,63 +134,45 @@ export const api = {
     demo.removeSubject(subjectId)
   },
 
-  async startQuiz(userId: string, count = SERIES_SIZE): Promise<QuizPayload> {
-    if (isSupabaseConfigured) return remote.startQuiz(userId, count)
+  async startQuiz(
+    userId: string,
+    subjectId: string,
+    count = SERIES_SIZE,
+  ): Promise<QuizPayload> {
+    if (isSupabaseConfigured) return remote.startQuiz(subjectId, count)
 
-    const db = demo.getDB()
-    const assignment = demo.getActiveAssignment(userId, db)
-    if (!assignment) throw new Error('Votre accès n’est plus actif.')
-    const subject = db.subjects.find((candidate) => candidate.id === assignment.subjectId)
-    if (!subject) throw new Error('Aucun sujet actif ne vous est attribué.')
-    const bank = demo
-      .getSubjectQuestions(subject.id, db)
-      .filter((question) => question.correctAnswers.length === 1)
-    if (bank.length === 0) throw new Error('Le sujet ne contient aucune question à réponse unique.')
-    const ids = randomQuestionIds(bank, count)
-    const questions = ids
-      .map((id) => bank.find((question) => question.id === id))
-      .filter((question): question is NonNullable<typeof question> => Boolean(question))
-
+    const started = demo.startSeries(userId, subjectId, count)
     return {
-      assignmentId: assignment.id,
-      assignmentExpiresAt: assignment.expiresAt,
-      subject,
+      assignmentId: started.assignment.id,
+      assignmentExpiresAt: started.assignment.expiresAt,
+      subject: started.subject,
       // Le corrigé reste en base : il n'est jamais envoyé au navigateur
       // avant la soumission, même en mode démonstration.
-      questions: questions.map((question) => ({
-        ...question,
-        correctAnswers: [],
-        explanation: '',
-      })),
+      questions: started.questions,
     }
   },
 
   async saveAttempt(input: {
     userId: string
+    subjectId: string
     questionIds: string[]
     answers: Record<string, string[]>
   }): Promise<SubmitAttemptResult> {
     if (isSupabaseConfigured) {
       return remote.saveAttempt({
+        subjectId: input.subjectId,
         questionIds: input.questionIds,
         answers: input.answers,
       })
     }
 
-    const db = demo.getDB()
-    const bank = db.questions
-    const score = input.questionIds.reduce((total, id) => {
-      const question = bank.find((candidate) => candidate.id === id)
-      return total + (question && sameAnswer(input.answers[id] ?? [], question.correctAnswers) ? 1 : 0)
-    }, 0)
-    const active = demo.getActiveAssignment(input.userId, db)
     const attempt = demo.saveAttempt({
       userId: input.userId,
-      subjectId: active?.subjectId ?? '',
+      subjectId: input.subjectId,
       questionIds: input.questionIds,
       answers: input.answers,
-      score,
     })
+    const active = demo.getActiveAssignment(input.userId)
     return {
       attemptId: attempt.id,
       score: attempt.score,
@@ -209,15 +185,11 @@ export const api = {
   async getAttemptReview(attemptId: string): Promise<AttemptReview> {
     if (isSupabaseConfigured) return remote.getAttemptReview(attemptId)
 
-    const db = demo.getDB()
-    const attempt = demo.getAttempt(attemptId, db)
-    if (!attempt) throw new Error('Ce résultat est introuvable.')
-    const questions = attempt.questionSnapshot?.length
-      ? attempt.questionSnapshot
-      : attempt.questionIds
-          .map((id) => db.questions.find((question) => question.id === id))
-          .filter((question): question is NonNullable<typeof question> => Boolean(question))
-    return { attempt, questions }
+    const viewerId = demo.getSessionUserId()
+    if (!viewerId) {
+      throw new AppError('FORBIDDEN', 'Votre session a expiré. Reconnectez-vous.')
+    }
+    return demo.getAttemptForReview(attemptId, viewerId)
   },
 
   async resolveReceiptUrl(path?: string): Promise<string> {
