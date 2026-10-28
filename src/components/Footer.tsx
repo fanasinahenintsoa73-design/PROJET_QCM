@@ -1,11 +1,8 @@
-import { Logo } from '@/components/Logo'
-
 export function Footer() {
   return (
     <footer className="border-t border-line bg-surface">
-      <div className="mx-auto flex max-w-content items-center justify-between gap-6 px-5 py-8 lg:px-10">
-        <Logo />
-        <p className="text-right text-[11px] leading-relaxed text-mute">
+      <div className="mx-auto flex max-w-content items-center justify-center px-5 py-8 sm:justify-end lg:px-10">
+        <p className="text-center text-[11px] leading-relaxed text-mute sm:text-right">
           Entraînement mensuel
           <br />
           1ʳᵉ année de médecine
