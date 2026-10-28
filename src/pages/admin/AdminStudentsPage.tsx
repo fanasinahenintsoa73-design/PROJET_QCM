@@ -26,7 +26,7 @@ import {
   initials,
   isExpired,
 } from '@/lib/utils'
-import type { AccessRequest, User } from '@/types'
+import type { AccessRequest, Subject, User } from '@/types'
 
 type StudentFilter = 'all' | 'active' | 'expiring' | 'expired' | 'pending' | 'rejected'
 
@@ -51,6 +51,32 @@ function stateLabel(state: Exclude<StudentFilter, 'all'>) {
     case 'rejected':
       return { tone: 'error' as const, label: 'Suspendu' }
   }
+}
+
+function getSubjectNumber(subjectId: string, subjects: Subject[]) {
+  const ordered = [...subjects].sort((a, b) => {
+    const byDate = new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
+    return byDate !== 0 ? byDate : a.id.localeCompare(b.id)
+  })
+  const index = ordered.findIndex((subject) => subject.id === subjectId)
+  return index >= 0 ? index + 1 : undefined
+}
+
+function getSubjectTitle(subject: Subject, number?: number) {
+  if (!number) return subject.title
+  const match = subject.title.match(
+    new RegExp(`^Sujet\\s+${number}\\b\\s*(?:[.:—–-]\\s*)?(.*)$`, 'i'),
+  )
+  return match ? (match[1]?.trim() ?? '') : subject.title
+}
+
+function SubjectBadge({ number }: { number?: number }) {
+  if (!number) return null
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-accent-soft px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-accent">
+      Sujet {number}
+    </span>
+  )
 }
 
 const filters: { value: StudentFilter; label: string }[] = [
@@ -89,6 +115,11 @@ export default function AdminStudentsPage() {
       ? db.subjects.find((subject) => subject.id === assignment.subjectId)
       : undefined
   }
+
+  const selectedSubject = selected ? subjectForStudent(selected.id) : undefined
+  const selectedSubjectNumber = selectedSubject
+    ? getSubjectNumber(selectedSubject.id, db.subjects)
+    : undefined
 
   const students = useMemo(
     () => db.users.filter((candidate) => candidate.role === 'student'),
@@ -225,6 +256,12 @@ export default function AdminStudentsPage() {
                   request.userId === student.id && request.status === 'pending',
               )
               const assignedSubject = subjectForStudent(student.id)
+              const assignedSubjectNumber = assignedSubject
+                ? getSubjectNumber(assignedSubject.id, db.subjects)
+                : undefined
+              const assignedSubjectTitle = assignedSubject
+                ? getSubjectTitle(assignedSubject, assignedSubjectNumber)
+                : ''
               return (
                 <article key={student.id} className="border-b border-hairline py-5">
                   <div className="flex items-start justify-between gap-3">
@@ -299,9 +336,20 @@ export default function AdminStudentsPage() {
                     <span className="text-[9px] uppercase tracking-[0.12em] text-mute">
                       Sujet
                     </span>
-                    <span className="min-w-0 truncate text-[11px] font-medium text-charcoal">
-                      {assignedSubject?.title ?? 'Aucun sujet attribué'}
-                    </span>
+                    {assignedSubject ? (
+                      <span className="flex min-w-0 items-center gap-2">
+                        <SubjectBadge number={assignedSubjectNumber} />
+                        {assignedSubjectTitle && (
+                          <span className="truncate text-[11px] font-medium text-charcoal">
+                            {assignedSubjectTitle}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-medium text-charcoal">
+                        Aucun sujet attribué
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-3">
@@ -371,6 +419,12 @@ export default function AdminStudentsPage() {
                       request.userId === student.id && request.status === 'pending',
                   )
                   const assignedSubject = subjectForStudent(student.id)
+                  const assignedSubjectNumber = assignedSubject
+                    ? getSubjectNumber(assignedSubject.id, db.subjects)
+                    : undefined
+                  const assignedSubjectTitle = assignedSubject
+                    ? getSubjectTitle(assignedSubject, assignedSubjectNumber)
+                    : ''
                   return (
                     <tr
                       key={student.id}
@@ -429,9 +483,18 @@ export default function AdminStudentsPage() {
                         )}
                       </td>
                       <td className="py-4 pr-4">
-                        <p className="max-w-[180px] truncate text-[11px] font-medium text-charcoal">
-                          {assignedSubject?.title ?? 'Aucun sujet'}
-                        </p>
+                        {assignedSubject ? (
+                          <div className="flex min-w-0 max-w-[210px] items-center gap-2">
+                            <SubjectBadge number={assignedSubjectNumber} />
+                            {assignedSubjectTitle && (
+                              <p className="min-w-0 truncate text-[11px] font-medium text-charcoal">
+                                {assignedSubjectTitle}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] font-medium text-charcoal">Aucun sujet</p>
+                        )}
                         {assignedSubject && (
                           <p className="mt-0.5 text-[10px] text-mute">
                             {assignedSubject.monthLabel}
@@ -544,7 +607,12 @@ export default function AdminStudentsPage() {
         {selected && (
           <StudentDetails
             student={selected}
-            subjectTitle={subjectForStudent(selected.id)?.title}
+            subjectTitle={
+              selectedSubject
+                ? getSubjectTitle(selectedSubject, selectedSubjectNumber)
+                : undefined
+            }
+            subjectNumber={selectedSubjectNumber}
             attempts={db.attempts.filter((attempt) => attempt.userId === selected.id).length}
             pendingRequestId={
               db.requests.find(
@@ -625,12 +693,14 @@ export default function AdminStudentsPage() {
 function StudentDetails({
   student,
   subjectTitle,
+  subjectNumber,
   attempts,
   pendingRequestId,
   requests,
 }: {
   student: User
   subjectTitle?: string
+  subjectNumber?: number
   attempts: number
   pendingRequestId?: string
   requests: AccessRequest[]
@@ -677,7 +747,12 @@ function StudentDetails({
         </div>
         <div className="col-span-2 bg-white p-3">
           <dt className="text-mute">Sujet attribué</dt>
-          <dd className="mt-1 font-medium">{subjectTitle ?? 'Aucun sujet'}</dd>
+          <dd className="mt-1 flex flex-wrap items-center gap-2 font-medium">
+            <SubjectBadge number={subjectNumber} />
+            {(subjectTitle || !subjectNumber) && (
+              <span>{subjectTitle ?? 'Aucun sujet'}</span>
+            )}
+          </dd>
         </div>
       </dl>
 
