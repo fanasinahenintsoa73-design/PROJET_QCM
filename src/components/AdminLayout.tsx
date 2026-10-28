@@ -1,12 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BookOpen, ClipboardCheck, LayoutDashboard, LogOut, Users } from 'lucide-react'
+import { BookOpen, LayoutDashboard, LogOut, Users } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 import { fullName, initials } from '@/lib/utils'
 
 const navItems = [
   { to: '/admin', label: 'Vue d’ensemble', icon: LayoutDashboard, end: true },
-  { to: '/admin/demandes', label: 'Demandes', icon: ClipboardCheck },
   { to: '/admin/sujet', label: 'Sujets', icon: BookOpen },
   { to: '/admin/etudiants', label: 'Étudiants', icon: Users },
 ]
@@ -38,7 +37,7 @@ export function AdminLayout() {
                 }
               >
                 {item.label}
-                {item.to === '/admin/demandes' && pendingCount > 0 && (
+                {item.to === '/admin' && pendingCount > 0 && (
                   <span className="grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[9px] font-semibold text-white">
                     {pendingCount}
                   </span>
@@ -70,7 +69,7 @@ export function AdminLayout() {
 
         <div className="border-t border-line md:hidden">
           <nav
-            className="mx-auto grid max-w-content grid-cols-4 items-stretch px-2 sm:px-8"
+            className="mx-auto grid max-w-content grid-cols-3 items-stretch px-2 sm:px-8"
             aria-label="Navigation docteur mobile"
           >
             {navItems.map((item) => {
@@ -89,7 +88,7 @@ export function AdminLayout() {
                 >
                   <Icon className="hidden size-3.5 sm:block" strokeWidth={1.7} />
                   {item.label}
-                  {item.to === '/admin/demandes' && pendingCount > 0 && (
+                  {item.to === '/admin' && pendingCount > 0 && (
                     <span className="grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[8px] font-semibold text-white">
                       {pendingCount}
                     </span>
@@ -104,11 +103,6 @@ export function AdminLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
-
-      <footer className="border-t border-line bg-surface">
-        <div className="mx-auto flex max-w-content flex-col gap-2 px-5 py-5 text-[11px] text-mute sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
-        </div>
-      </footer>
     </div>
   )
 }

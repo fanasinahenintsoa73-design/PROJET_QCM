@@ -197,7 +197,7 @@ async function notifyNewRequest({ client, user, profile }) {
   const subject = isRenewal
     ? `🔔 Renouvellement QCM — ${studentName}`
     : `🔔 Nouvelle demande QCM — ${studentName}`
-  const adminUrl = `${DOCTOR_APP_URL}/admin/demandes?request=${encodeURIComponent(request.id)}`
+  const adminUrl = `${DOCTOR_APP_URL}/admin?request=${encodeURIComponent(request.id)}`
   const receiptUrl = signed?.signedUrl || adminUrl
 
   const content = `

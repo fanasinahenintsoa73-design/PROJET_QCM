@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
 import { ToastProvider } from '@/components/ui/Toast'
 import { isDoctorPortal } from '@/lib/portal'
@@ -26,7 +26,6 @@ import DashboardPage from '@/pages/DashboardPage'
 import QuizPage from '@/pages/QuizPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
-import AdminRequestsPage from '@/pages/admin/AdminRequestsPage'
 import AdminStudentsPage from '@/pages/admin/AdminStudentsPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
@@ -45,6 +44,11 @@ function RouteFallback() {
       </div>
     </div>
   )
+}
+
+function DemandesRedirect() {
+  const location = useLocation()
+  return <Navigate to={`/admin${location.search}`} replace />
 }
 
 function StudentRoutes() {
@@ -113,7 +117,7 @@ function DoctorRoutes() {
       <Route element={<RequireAdmin />}>
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
-          <Route path="/admin/demandes" element={<AdminRequestsPage />} />
+          <Route path="/admin/demandes" element={<DemandesRedirect />} />
           <Route
             path="/admin/sujet"
             element={

@@ -1,16 +1,17 @@
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   ArrowUpRight,
-  BookOpen,
   FileText,
   ShieldAlert,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { getPublishedSubjects } from '@/lib/db'
-import { ButtonLink } from '@/components/ui/Button'
+import { RequestReview } from '@/components/admin/RequestReview'
 import { usePageTitle } from '@/components/Layouts'
-import { cn, daysLeft, formatDate, formatDateLong, isExpired } from '@/lib/utils'
+import { cn, daysLeft, formatDate, isExpired } from '@/lib/utils'
+import type { AccessRequest } from '@/types'
 
 type StudentState = 'active' | 'expiring' | 'expired' | 'pending' | 'rejected'
 
@@ -25,6 +26,24 @@ function getStudentState(expiresAt?: string, status?: string): StudentState {
 export default function AdminDashboardPage() {
   const { user, db } = useAuth()
   usePageTitle('Vue d’ensemble — Espace docteur')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [preview, setPreview] = useState<AccessRequest | null>(null)
+  const requestedId = searchParams.get('request')
+
+  useEffect(() => {
+    if (!requestedId) return
+    const found = db.requests.find((request) => request.id === requestedId)
+    if (found) setPreview(found)
+  }, [requestedId, db.requests])
+
+  const closePreview = () => {
+    setPreview(null)
+    if (requestedId) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('request')
+      setSearchParams(next, { replace: true })
+    }
+  }
 
   const students = db.users.filter((account) => account.role === 'student')
   const studentCounts = students.reduce(
@@ -78,25 +97,22 @@ export default function AdminDashboardPage() {
                 Ouvrez le reçu avant d’accepter ou de refuser un dossier.
               </p>
             </div>
-            <Link
-              to="/admin/demandes"
-              className="group inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-charcoal hover:text-ink"
-            >
-              Tout voir
-              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            {pending.length > 0 && (
+              <span className="display shrink-0 text-[1.6rem] leading-none">{pending.length}</span>
+            )}
           </div>
 
           {pending.length > 0 ? (
             <div>
-              {pending.slice(0, 5).map((request) => (
-                <Link
+              {pending.map((request) => (
+                <button
                   key={request.id}
-                  to={`/admin/demandes?request=${request.id}`}
-                  className="group flex items-center gap-3 border-b border-hairline py-4 transition-colors hover:bg-cloud sm:gap-4 sm:px-2"
+                  type="button"
+                  onClick={() => setPreview(request)}
+                  className="group flex w-full items-center gap-3 border-b border-hairline py-4 text-left transition-colors hover:bg-cloud sm:gap-4 sm:px-2"
                 >
                   <div className="h-12 w-9 shrink-0 overflow-hidden bg-cloud">
-                    {request.receipt.mime === 'application/pdf' ? (
+                    {request.receipt.mime === 'application/pdf' || !request.receipt.dataUrl ? (
                       <div className="grid h-full place-items-center bg-accent text-white">
                         <FileText className="size-4" strokeWidth={1.5} />
                       </div>
@@ -125,7 +141,7 @@ export default function AdminDashboardPage() {
                     À vérifier
                   </span>
                   <ArrowUpRight className="size-4 shrink-0 text-stone transition-colors group-hover:text-ink" />
-                </Link>
+                </button>
               ))}
             </div>
           ) : (
@@ -181,6 +197,8 @@ export default function AdminDashboardPage() {
 
         </aside>
       </div>
+
+      <RequestReview request={preview} onClose={closePreview} />
     </>
   )
 }

@@ -13,7 +13,7 @@ import { getActiveAssignment, getLatestAssignment } from '@/lib/db'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Field'
-import { StatusPill } from '@/components/ui/StatusPill'
+import { StatusPill, requestStatus } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
 import {
@@ -26,7 +26,7 @@ import {
   initials,
   isExpired,
 } from '@/lib/utils'
-import type { User } from '@/types'
+import type { AccessRequest, User } from '@/types'
 
 type StudentFilter = 'all' | 'active' | 'expiring' | 'expired' | 'pending' | 'rejected'
 
@@ -307,7 +307,7 @@ export default function AdminStudentsPage() {
                   <div className="mt-4 flex items-center justify-between gap-3">
                     {pendingRequest ? (
                       <Link
-                        to={`/admin/demandes?request=${pendingRequest.id}`}
+                        to={`/admin?request=${pendingRequest.id}`}
                         className="text-[11px] font-medium underline decoration-1 underline-offset-4"
                       >
                         Voir la demande
@@ -457,7 +457,7 @@ export default function AdminStudentsPage() {
                         <div className="flex items-center justify-end gap-3">
                           {pendingRequest && (
                             <Link
-                              to={`/admin/demandes?request=${pendingRequest.id}`}
+                              to={`/admin?request=${pendingRequest.id}`}
                               className="text-[11px] font-medium underline decoration-1 underline-offset-4"
                             >
                               Demande
@@ -552,6 +552,12 @@ export default function AdminStudentsPage() {
                   request.userId === selected.id && request.status === 'pending',
               )?.id
             }
+            requests={db.requests
+              .filter((request) => request.userId === selected.id)
+              .sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+              )}
           />
         )}
       </Modal>
@@ -621,14 +627,17 @@ function StudentDetails({
   subjectTitle,
   attempts,
   pendingRequestId,
+  requests,
 }: {
   student: User
   subjectTitle?: string
   attempts: number
   pendingRequestId?: string
+  requests: AccessRequest[]
 }) {
   const state = getStudentState(student)
   const status = stateLabel(state)
+  const processedRequests = requests.filter((request) => request.status !== 'pending')
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -686,10 +695,10 @@ function StudentDetails({
       {pendingRequestId && (
         <div className="flex items-center justify-between gap-3 bg-cloud px-3.5 py-3">
           <p className="text-[11px] leading-relaxed text-charcoal">
-            Une demande de renouvellement attend une vérification.
+            Une demande attend une vérification.
           </p>
           <Link
-            to={`/admin/demandes?request=${pendingRequestId}`}
+            to={`/admin?request=${pendingRequestId}`}
             className="shrink-0 text-[11px] font-medium underline decoration-1 underline-offset-4"
           >
             Examiner
@@ -697,9 +706,43 @@ function StudentDetails({
         </div>
       )}
 
+      {processedRequests.length > 0 && (
+        <div>
+          <p className="eyebrow">Dossiers traités</p>
+          <ul className="mt-2 border-t border-hairline">
+            {processedRequests.map((request) => {
+              const requestState = requestStatus(request.status)
+              return (
+                <li
+                  key={request.id}
+                  className="flex items-start justify-between gap-3 border-b border-hairline py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium text-ink">
+                      {request.type === 'renewal' ? 'Renouvellement' : 'Première demande'}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-mute">
+                      {request.reviewedAt
+                        ? `Traitée le ${formatDate(request.reviewedAt)}`
+                        : `Reçue le ${formatDate(request.createdAt)}`}
+                    </p>
+                    {request.status === 'rejected' && request.note && (
+                      <p className="mt-1 text-[10px] leading-relaxed text-mute">
+                        {request.note}
+                      </p>
+                    )}
+                  </div>
+                  <StatusPill tone={requestState.tone}>{requestState.label}</StatusPill>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
       <p className="text-[10px] leading-relaxed text-mute">
-        Les décisions d’activation et de refus se prennent depuis la page Demandes, après
-        vérification du justificatif.
+        Les décisions d’activation et de refus se prennent depuis la boîte de réception du
+        tableau de bord, après vérification du justificatif.
       </p>
     </div>
   )
