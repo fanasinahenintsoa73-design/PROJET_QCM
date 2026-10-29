@@ -29,6 +29,15 @@ export default function QuizPage() {
   const { user, db } = useAuth()
   const themeParam = searchParams.get('theme') ?? ''
   const theme = findPaceTheme(themeParam)
+  const subject = theme
+    ? findThemeSubject(theme.id, db.subjects)
+    : db.subjects.find(
+        (candidate) =>
+          candidate.id === themeParam &&
+          !candidate.archived &&
+          candidate.questionCount >= SERIES_SIZE,
+      )
+  const subjectId = subject?.id ?? null
   const usage = user ? getSeriesUsage(user.id, db) : undefined
   const seriesNumber = Math.min(SERIES_LIMIT, (usage?.used ?? 0) + 1)
 
@@ -49,6 +58,8 @@ export default function QuizPage() {
   const answeredCount = questions.filter((question) => (answers[question.id] ?? []).length > 0).length
   const isLast = index === questions.length - 1
 
+  // La session recharge la base toutes les 20 s. On ne dépend que de
+  // l'identifiant du sujet pour ne pas relancer la série en cours.
   useEffect(() => {
     if (!user || !themeParam) {
       setLoading(false)
@@ -61,17 +72,7 @@ export default function QuizPage() {
     setLoadError('')
     setPayload(null)
 
-    const selectedTheme = findPaceTheme(themeParam)
-    const subject = selectedTheme
-      ? findThemeSubject(selectedTheme.id, db.subjects)
-      : db.subjects.find(
-          (candidate) =>
-            candidate.id === themeParam &&
-            !candidate.archived &&
-            candidate.questionCount >= SERIES_SIZE,
-        )
-
-    if (!subject) {
+    if (!subjectId) {
       setUnavailable(
         'Ce thème sera bientôt disponible : le docteur prépare encore ses questions.',
       )
@@ -80,7 +81,7 @@ export default function QuizPage() {
     }
 
     api
-      .startQuiz(user.id, subject.id, SERIES_SIZE)
+      .startQuiz(user.id, subjectId, SERIES_SIZE)
       .then((quiz) => {
         if (!active) return
         if (quiz.questions.length < SERIES_SIZE) {
@@ -122,7 +123,7 @@ export default function QuizPage() {
     return () => {
       active = false
     }
-  }, [db.subjects, themeParam, user?.id])
+  }, [subjectId, themeParam, user?.id])
 
   function toggleAnswer(letter: AnswerLetter) {
     if (!current) return
