@@ -39,7 +39,7 @@ const importAccept =
   '.xlsx,.xls,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel'
 
 export default function AdminSubjectPage() {
-  usePageTitle('Sujets — Espace docteur')
+  usePageTitle('Catalogue des thèmes — Espace docteur')
   const navigate = useNavigate()
   const { db, refresh } = useAuth()
   const { toast } = useToast()
@@ -56,7 +56,7 @@ export default function AdminSubjectPage() {
   const [parsing, setParsing] = useState(false)
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
   const [uploadError, setUploadError] = useState('')
-  const [title, setTitle] = useState(`Sujet ${subjects.length + 1} — ${monthLabel()}`)
+  const [title, setTitle] = useState(`Thème ${subjects.length + 1} — ${monthLabel()}`)
   const [description, setDescription] = useState('')
   const [label, setLabel] = useState(monthLabel())
   const [titleError, setTitleError] = useState('')
@@ -174,7 +174,7 @@ export default function AdminSubjectPage() {
       return
     }
     if (!title.trim()) {
-      setTitleError('Donnez un titre au sujet avant de l’enregistrer.')
+      setTitleError('Donnez un titre au thème avant de l’enregistrer.')
       return
     }
     if (!label.trim()) {
@@ -202,10 +202,10 @@ export default function AdminSubjectPage() {
       setAnswersFile(null)
       setParseResult(null)
       setDescription('')
-      setTitle(`Sujet ${subjects.length + 1} — ${monthLabel()}`)
+      setTitle(`Thème ${subjects.length + 1} — ${monthLabel()}`)
       setLabel(monthLabel())
       toast(
-        'Sujet enregistré et ajouté à la file. Vous pouvez l’attribuer dès maintenant.',
+        'Thème enregistré et ajouté au catalogue. Vous pouvez l’attribuer dès maintenant.',
         'success',
       )
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -222,7 +222,7 @@ export default function AdminSubjectPage() {
     try {
       await api.removeSubject(removeTarget.id)
       await refresh()
-      toast('Sujet retiré de la file.', 'success')
+      toast('Thème retiré du catalogue.', 'success')
       setRemoveTarget(null)
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : 'Retrait impossible.', 'error')
@@ -252,7 +252,7 @@ export default function AdminSubjectPage() {
       await api.assignSubjectToStudent(assignTarget.id, selectedCandidate.student.id)
       await refresh()
       toast(
-        `Sujet attribué à ${selectedCandidate.student.firstName} ${selectedCandidate.student.lastName}. Accès QCM ouvert pour 30 jours.`,
+        `Thème attribué à ${selectedCandidate.student.firstName} ${selectedCandidate.student.lastName}. Accès QCM ouvert.`,
         'success',
       )
       setAssignTarget(null)
@@ -272,12 +272,11 @@ export default function AdminSubjectPage() {
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
             <div>
               <p className="eyebrow text-mute">Parcours QCM</p>
-              <h1 className="display mt-3 text-[clamp(2.8rem,6vw,4.5rem)]">File de sujets.</h1>
+              <h1 className="display mt-3 text-[clamp(2.8rem,6vw,4.5rem)]">Catalogue des thèmes.</h1>
               <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-mute">
-                Préparez plusieurs sujets à l’avance. Chaque étudiant reçoit un seul sujet à la
-                fois, pour 30 jours à partir de l’acceptation de sa demande. Au renouvellement,
-                l’étudiant choisit entre reprendre son sujet actuel et passer au suivant dans la
-                file.
+                Publiez les thèmes PACES et leurs banques de questions. Les étudiants les
+                retrouvent dans leur espace, choisissent librement un thème et lancent une série
+                de dix questions. Le cycle est compté en séries, sans limite de jours.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -289,7 +288,7 @@ export default function AdminSubjectPage() {
                 Importer des fichiers
               </a>
               <StatusPill tone={subjects.length > 0 ? 'success' : 'neutral'} dot>
-                {subjects.length} sujet{subjects.length > 1 ? 's' : ''} en file
+                {subjects.length} thème{subjects.length > 1 ? 's' : ''} en ligne
               </StatusPill>
               <StatusPill tone="neutral" dot>
                 {totalAssigned} attribution{totalAssigned > 1 ? 's' : ''}
@@ -304,36 +303,35 @@ export default function AdminSubjectPage() {
           <div className="mb-7 flex items-start gap-3 border border-success/30 bg-[#f3faf5] px-4 py-3.5">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" strokeWidth={1.8} />
             <div>
-              <p className="text-[12px] font-medium text-ink">Sujet enregistré dans la file.</p>
+              <p className="text-[12px] font-medium text-ink">Thème enregistré.</p>
               <p className="mt-1 text-[11px] leading-relaxed text-charcoal">
                 « {published.title} » et ses deux fichiers sont enregistrés. Il est maintenant
-                dans la file.
-                l’accès QCM d’un étudiant, ou laissez-le disponible pour l’acceptation d’une
-                demande.
+                disponible dans le catalogue étudiant. Vous pouvez l’attribuer directement ou
+                laisser les étudiants le choisir librement.
               </p>
             </div>
           </div>
         )}
 
-        <section className="border-b border-hairline pb-8" aria-labelledby="queue-title">
+        <section className="border-b border-hairline pb-8" aria-labelledby="themes-title">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 id="queue-title" className="text-[18px] font-medium tracking-[-0.01em]">
-                Sujets en file
+              <h2 id="themes-title" className="text-[18px] font-medium tracking-[-0.01em]">
+                Thèmes disponibles
               </h2>
               <p className="mt-1 text-[11px] text-mute">
-                Au renouvellement, l’étudiant choisit le sujet suivant dans cet ordre. Vous pouvez
-                aussi attribuer un sujet manuellement à un étudiant.
+                Les étudiants choisissent librement parmi les thèmes publiés. Vous pouvez aussi
+                attribuer un thème manuellement à un étudiant.
               </p>
             </div>
             <p className="text-[10px] uppercase tracking-[0.12em] text-mute">
-              Ordre d’attribution
+              Catalogue
             </p>
           </div>
 
           {subjects.length === 0 ? (
             <p className="mt-4 border border-dashed border-hairline bg-cloud/30 px-4 py-8 text-center text-[12px] text-mute">
-              Aucun sujet dans la file. Enregistrez un premier sujet avant d’accepter une demande.
+              Aucun thème publié. Enregistrez un premier thème avant d’accepter une demande.
             </p>
           ) : (
             <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
@@ -387,7 +385,7 @@ export default function AdminSubjectPage() {
                           title={
                             canRemove
                               ? undefined
-                              : 'Ce sujet a déjà été attribué ou possède un historique et ne peut pas être retiré.'
+                              : 'Ce thème a déjà été attribué ou possède un historique et ne peut pas être retiré.'
                           }
                           className={cn(
                             'inline-flex items-center gap-1.5 text-[10px] font-medium',
@@ -506,7 +504,7 @@ export default function AdminSubjectPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-success">
                 <CheckCircle2 className="size-3.5" aria-hidden="true" />
                 <span>
-                  {questions.length} questions appariées. Le corrigé est enregistré avec le sujet.
+                  {questions.length} questions appariées. Le corrigé est enregistré avec le thème.
                 </span>
               </div>
             )}
@@ -562,7 +560,7 @@ export default function AdminSubjectPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={openConfirm} className="gap-2">
               <Save className="size-3.5" aria-hidden="true" />
-              Enregistrer le sujet
+              Enregistrer le thème
             </Button>
           </div>
         </section>
@@ -601,8 +599,8 @@ export default function AdminSubjectPage() {
         open={confirming}
         onClose={() => setConfirming(false)}
         size="md"
-        eyebrow="File de sujets"
-        title="Enregistrer ce sujet ?"
+        eyebrow="Catalogue des thèmes"
+        title="Enregistrer ce thème ?"
         footer={
           <div className="flex justify-end">
             <Button
@@ -614,16 +612,15 @@ export default function AdminSubjectPage() {
               className="gap-2"
             >
               <Save className="size-3.5" aria-hidden="true" />
-              Enregistrer le sujet
+              Enregistrer le thème
             </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <p className="text-[13px] leading-relaxed text-charcoal">
-            Le sujet et ses deux fichiers seront enregistrés ensemble, puis placés après les
-            sujets déjà en file. Il ne déclenche aucun accès tant que vous ne l’attribuez pas ou
-            qu’une demande n’est pas acceptée, et n’archive aucun autre sujet.
+            Le thème et ses deux fichiers seront enregistrés ensemble, puis ajoutés au catalogue. Il ne déclenche aucun accès tant que vous ne l’attribuez pas ou
+            qu’une demande n’est pas acceptée, et n’archive aucun autre thème.
           </p>
           <dl className="border-y border-hairline text-[12px]">
             <div className="flex justify-between gap-4 border-b border-hairline py-2.5">
@@ -639,13 +636,12 @@ export default function AdminSubjectPage() {
               <dd className="text-right font-medium">{questions.length}</dd>
             </div>
             <div className="flex justify-between gap-4 py-2.5">
-              <dt className="text-mute">Position</dt>
-              <dd className="text-right font-medium">Sujet {subjects.length + 1}</dd>
+              <dt className="text-mute">Référence</dt>
+              <dd className="text-right font-medium">Thème {subjects.length + 1}</dd>
             </div>
           </dl>
           <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-            L’étudiant ne peut pas retirer son sujet. Seul le docteur peut retirer un sujet
-            non attribué de la file.
+            L’étudiant ne peut pas retirer son thème. Seul le docteur peut retirer un thème non attribué du catalogue.
           </p>
         </div>
       </Modal>
@@ -654,8 +650,8 @@ export default function AdminSubjectPage() {
         open={!!removeTarget}
         onClose={() => setRemoveTarget(null)}
         size="md"
-        eyebrow="File de sujets"
-        title="Retirer ce sujet ?"
+        eyebrow="Catalogue des thèmes"
+        title="Retirer ce thème ?"
         footer={
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setRemoveTarget(null)}>
@@ -670,7 +666,7 @@ export default function AdminSubjectPage() {
               className="gap-2"
             >
               <Trash2 className="size-3.5" aria-hidden="true" />
-              Retirer de la file
+              Retirer du catalogue
             </Button>
           </div>
         }
@@ -678,11 +674,11 @@ export default function AdminSubjectPage() {
         {removeTarget && (
           <div className="space-y-3">
             <p className="text-[13px] leading-relaxed text-charcoal">
-              « {removeTarget.title} » sera supprimé de la file avec ses questions. Cette action
+              « {removeTarget.title} » sera supprimé du catalogue avec ses questions. Cette action
               est définitive.
             </p>
             <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-              Un sujet déjà attribué à un étudiant ne peut pas être retiré, afin de préserver son
+              Un thème déjà attribué à un étudiant ne peut pas être retiré, afin de préserver son
               historique. Archivez-le si vous ne voulez plus le proposer.
             </p>
           </div>
@@ -694,7 +690,7 @@ export default function AdminSubjectPage() {
         onClose={closeAssign}
         size="md"
         eyebrow="Attribution manuelle"
-        title={assignTarget ? `Attribuer « ${assignTarget.title} »` : 'Attribuer un sujet'}
+        title={assignTarget ? `Attribuer « ${assignTarget.title} »` : 'Attribuer un thème'}
         footer={
           <div className="flex justify-end gap-2">
             <Button
@@ -715,7 +711,7 @@ export default function AdminSubjectPage() {
               className="gap-2"
             >
               <UserPlus className="size-3.5" aria-hidden="true" />
-              Attribuer le sujet
+              Attribuer le thème
             </Button>
           </div>
         }
@@ -723,8 +719,8 @@ export default function AdminSubjectPage() {
         {assignTarget && (
           <div className="space-y-4">
             <p className="text-[13px] leading-relaxed text-charcoal">
-              L’étudiant choisi recevra immédiatement ce sujet et son accès QCM de 30 jours
-              démarrera maintenant. Un seul sujet actif est autorisé par étudiant.
+              L’étudiant choisi recevra immédiatement ce thème et son accès QCM
+              démarrera maintenant. Un seul thème actif est autorisé par étudiant.
             </p>
 
             {assignError && (
@@ -778,17 +774,17 @@ export default function AdminSubjectPage() {
                         )}
                       >
                         {alreadyAssigned
-                          ? 'Ce sujet lui a déjà été attribué.'
+                          ? 'Ce thème lui a déjà été attribué.'
                           : active
-                            ? `Cycle actif jusqu’au ${formatDate(active.expiresAt)}${
+                            ? `Cycle actif${
                                 activeSubject ? ` · ${activeSubject.title}` : ''
                               }`
                             : pending
                               ? 'Sa demande en attente sera validée et son accès activé.'
                               : isExpired(student.expiresAt)
-                                ? 'Accès expiré — sera réactivé pour 30 jours.'
+                                ? 'Accès expiré — sera réactivé.'
                                 : student.status === 'rejected'
-                                  ? 'Accès refusé — sera réactivé pour 30 jours.'
+                                  ? 'Accès refusé — sera réactivé.'
                                   : 'Disponible — aucun cycle actif.'}
                       </span>
                     </span>
@@ -805,14 +801,12 @@ export default function AdminSubjectPage() {
 
             {assignCandidates.length > 0 && assignCandidates.every((candidate) => candidate.disabled) && (
               <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-                Tous les étudiants ont déjà reçu ce sujet ou disposent d’un cycle actif. Attendez
-                la fin d’un cycle ou choisissez un autre sujet.
+                Tous les étudiants ont déjà reçu ce thème ou disposent d’un cycle actif. Attendez la fin d’un cycle ou choisissez un autre thème.
               </p>
             )}
 
             <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-              L’attribution est immédiate. Le sujet reste dans la file et peut encore être
-              attribué à d’autres étudiants, mais il ne pourra plus être retiré.
+              L’attribution est immédiate. Le thème reste dans le catalogue et peut encore être attribué à d’autres étudiants, mais il ne pourra plus être retiré.
             </p>
           </div>
         )}
