@@ -677,7 +677,7 @@ export interface SubjectQuestionInput {
   number: number
   matiere: string
   statement: string
-  options: { A: string; B: string; C: string; D: string }
+  options: { A: string; B: string; C: string; D: string; E?: string }
   correctAnswers: string[]
   explanation: string
 }
@@ -707,14 +707,17 @@ function validateQuestion(
   }
   if (!Array.isArray(question.correctAnswers) || question.correctAnswers.length === 0) {
     throw new Error(
-      `${label} : ajoutez au moins une bonne réponse (A, B, C ou D) avant d’enregistrer le thème.`,
+      `${label} : ajoutez au moins une bonne réponse (A, B, C, D ou E) avant d’enregistrer le thème.`,
     )
   }
   if (singleAnswer && question.correctAnswers.length !== 1) {
-    throw new Error(`${label} : une seule bonne réponse (A, B, C ou D) est attendue.`)
+    throw new Error(`${label} : une seule bonne réponse (A, B, C, D ou E) est attendue.`)
   }
-  if (question.correctAnswers.some((letter) => !['A', 'B', 'C', 'D'].includes(letter))) {
-    throw new Error(`${label} : la bonne réponse doit être une lettre entre A et D.`)
+  if (question.correctAnswers.some((letter) => !['A', 'B', 'C', 'D', 'E'].includes(letter))) {
+    throw new Error(`${label} : la bonne réponse doit être une lettre entre A et E.`)
+  }
+  if (question.correctAnswers.includes('E') && !question.options?.E?.trim()) {
+    throw new Error(`${label} : l’option E est vide alors que la bonne réponse est E.`)
   }
   if (!question.explanation?.trim()) {
     throw new Error(

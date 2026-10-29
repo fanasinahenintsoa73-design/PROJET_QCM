@@ -233,7 +233,7 @@ export function downloadBlob(content: BlobPart, filename: string, type: string) 
   URL.revokeObjectURL(url)
 }
 
-export const answerLetters = ['A', 'B', 'C', 'D'] as const
+export const answerLetters = ['A', 'B', 'C', 'D', 'E'] as const
 export type AnswerLetter = (typeof answerLetters)[number]
 
 export function sameAnswer(a: string[] = [], b: string[] = []) {

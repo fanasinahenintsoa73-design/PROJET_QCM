@@ -247,7 +247,7 @@ export default function ResultPage() {
               </h3>
 
               <div className="mt-4 max-w-3xl overflow-hidden rounded-lg border border-line">
-                {answerLetters.map((letter) => {
+                {answerLetters.filter((letter) => question.options[letter]?.trim()).map((letter) => {
                   const isExpected = question.correctAnswers.includes(letter)
                   const isGiven = given.includes(letter)
                   return (

@@ -155,7 +155,7 @@ create table public.questions (
   ),
   constraint questions_answers_subset check (
     cardinality(correct_answers) between 1 and 4
-    and correct_answers <@ array['A', 'B', 'C', 'D']::text[]
+    and correct_answers <@ array['A', 'B', 'C', 'D', 'E']::text[]
   ),
   constraint questions_number_unique_per_subject unique (subject_id, number)
 );
@@ -1396,7 +1396,11 @@ begin
                 then jsonb_array_length(q.item -> 'correctAnswers') <> 1
               else true
             end
-         or coalesce(q.item -> 'correctAnswers' ->> 0, '') not in ('A', 'B', 'C', 'D')
+         or coalesce(q.item -> 'correctAnswers' ->> 0, '') not in ('A', 'B', 'C', 'D', 'E')
+         or (
+              coalesce(q.item -> 'correctAnswers' ->> 0, '') = 'E'
+              and btrim(coalesce(q.item -> 'options' ->> 'E', '')) = ''
+            )
          or btrim(coalesce(q.item ->> 'explanation', '')) = ''
     ) then
       raise exception 'INVALID_CORRECTION' using errcode = 'P0001';

@@ -329,7 +329,7 @@ export default function QuizPage() {
         </h1>
 
         <div className="mt-7 space-y-2.5" role="group" aria-label="Réponses possibles">
-          {answerLetters.map((letter) => {
+          {answerLetters.filter((letter) => current.options[letter]?.trim()).map((letter) => {
             const active = selected.includes(letter)
             return (
               <button

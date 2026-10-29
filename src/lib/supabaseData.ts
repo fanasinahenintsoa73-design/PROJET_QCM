@@ -90,7 +90,7 @@ interface QuestionPayload {
   number: number
   matiere: string
   statement: string
-  options: { A: string; B: string; C: string; D: string }
+  options: { A: string; B: string; C: string; D: string; E?: string }
   correctAnswers?: string[]
   explanation?: string
   selected?: string[]
@@ -590,7 +590,7 @@ export interface SubjectQuestionInput {
   number: number
   matiere: string
   statement: string
-  options: { A: string; B: string; C: string; D: string }
+  options: { A: string; B: string; C: string; D: string; E?: string }
   correctAnswers: string[]
   explanation: string
 }

@@ -248,7 +248,211 @@ function isNoiseLine(text: string) {
   )
 }
 
-export async function readPdfRows(file: File): Promise<Record<string, unknown>[]> {
+type PdfRowMode = 'questions' | 'answers'
+
+function flattenPageLines(page: PdfLine[]) {
+  return page
+    .map((line) => line.text.replace(/\s+/g, ' ').trim())
+    .filter((line) => line && !isNoiseLine(line))
+}
+
+/**
+ * Coupe les options écrites sur une même ligne, par exemple
+ * « b- ... c- ... » ou « a- ... d- ... », sans toucher aux tirets du texte.
+ */
+function splitInlineOptions(line: string) {
+  return line
+    .replace(
+      /(^|\s)([a-e])\s*[-.)]\s+/gi,
+      (_match: string, prefix: string, letter: string) => `${prefix}\n${letter.toUpperCase()}- `,
+    )
+    .split('\n')
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function parseQuestionLines(lines: string[]): Record<string, string>[] {
+  const rows: Record<string, string>[] = []
+  let current: {
+    number: string
+    statement: string[]
+    options: Record<string, string>
+    lastOption?: string
+  } | null = null
+
+  const flush = () => {
+    if (!current) return
+    const statement = current.statement.join(' ').replace(/\s+/g, ' ').trim()
+    if (!statement) {
+      current = null
+      return
+    }
+    const row: Record<string, string> = {
+      'N° Question': current.number,
+      Matière: 'Général',
+      Énoncé: statement,
+    }
+    for (const letter of ['A', 'B', 'C', 'D', 'E']) {
+      const value = current.options[letter]?.replace(/\s+/g, ' ').trim()
+      if (value) row[`Option ${letter}`] = value
+    }
+    rows.push(row)
+    current = null
+  }
+
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) continue
+
+    const questionMatch = line.match(/^Q\s*(\d+)\s*[.)\-:]\s*(.*)$/i)
+    if (questionMatch) {
+      flush()
+      current = {
+        number: questionMatch[1],
+        statement: [questionMatch[2] ?? ''],
+        options: {},
+      }
+      continue
+    }
+
+    if (!current) continue
+
+    for (const part of splitInlineOptions(line)) {
+      const optionMatch = part.match(/^([a-e])\s*[-.)]\s*(.*)$/i)
+      if (optionMatch) {
+        const letter = optionMatch[1].toUpperCase()
+        current.options[letter] = optionMatch[2] ?? ''
+        current.lastOption = letter
+        continue
+      }
+
+      // Q20 du PDF physiologie : la proposition E est écrite sans lettre.
+      if (
+        /^aucune\s+(de\s+ces\s+r[ée]ponses|des\s+propositions)/i.test(part) &&
+        !current.options.E
+      ) {
+        current.options.E = part
+        current.lastOption = 'E'
+        continue
+      }
+
+      const lastOption = current.lastOption
+      if (lastOption) {
+        current.options[lastOption] =
+          `${current.options[lastOption] ?? ''} ${part}`.trim()
+      } else {
+        current.statement.push(part)
+      }
+    }
+  }
+
+  flush()
+  return rows
+}
+
+function parseAnswerLines(lines: string[]): Record<string, string>[] {
+  const rows: Record<string, string>[] = []
+  let current: {
+    number: string
+    answer: string[]
+    explanation: string[]
+    section: 'question' | 'answer' | 'explanation'
+  } | null = null
+
+  const flush = () => {
+    if (!current) return
+    const answerText = current.answer.join(' ').replace(/\s+/g, ' ').trim()
+    const explanation = current.explanation
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    const normalizedAnswer = answerText.replace(
+      /^r[ée]ponse\s*(?:attendue\s*probable)?\s*:\s*/i,
+      '',
+    )
+    const letterMatch = normalizedAnswer.match(/^([a-e])(?:\s*[—–-]|\s*$)/i)
+    const ambiguous = /aucune\s+(des\s+propositions|de\s+ces\s+r[ée]ponses)/i.test(
+      normalizedAnswer,
+    )
+    const correct = letterMatch?.[1].toUpperCase() ?? (ambiguous ? 'E' : '')
+    if (answerText || explanation) {
+      rows.push({
+        'N° Question': current.number,
+        'Réponse exacte': correct,
+        'Explication médicale': explanation,
+      })
+    }
+    current = null
+  }
+
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) continue
+
+    const questionMatch = line.match(/^Q\s*(\d+)\s*[.)\-:]\s*(.*)$/i)
+    if (questionMatch) {
+      flush()
+      current = {
+        number: questionMatch[1],
+        answer: [],
+        explanation: [],
+        section: 'question',
+      }
+      const rest = questionMatch[2] ?? ''
+      const inlineAnswer = rest.match(
+        /r[ée]ponse\s*(?:attendue\s*probable)?\s*:\s*(.*)$/i,
+      )
+      if (inlineAnswer) {
+        current.answer.push(inlineAnswer[1] ?? '')
+        current.section = 'answer'
+      }
+      continue
+    }
+
+    if (!current) continue
+
+    const answerMatch = line.match(
+      /^r[ée]ponse\s*(?:attendue\s*probable)?\s*:\s*(.*)$/i,
+    )
+    if (answerMatch) {
+      current.answer.push(answerMatch[1] ?? '')
+      current.section = 'answer'
+      continue
+    }
+
+    const explanationMatch = line.match(
+      /^explication\s*(?:m[ée]dicale)?\s*:\s*(.*)$/i,
+    )
+    if (explanationMatch) {
+      current.explanation.push(explanationMatch[1] ?? '')
+      current.section = 'explanation'
+      continue
+    }
+
+    if (/^remarque\s*:/i.test(line)) {
+      current.explanation.push(line)
+      current.section = 'explanation'
+      continue
+    }
+
+    if (current.section === 'answer') current.answer.push(line)
+    else if (current.section === 'explanation') current.explanation.push(line)
+  }
+
+  flush()
+  return rows
+}
+
+export function parseParagraphRows(pages: PdfLine[][], mode: PdfRowMode) {
+  const lines = pages.flatMap((page) => flattenPageLines(page))
+  const rows = mode === 'questions' ? parseQuestionLines(lines) : parseAnswerLines(lines)
+  return rows.length > 0 ? rows : null
+}
+
+export async function readPdfRows(
+  file: File,
+  mode: PdfRowMode = 'questions',
+): Promise<Record<string, unknown>[]> {
   let loadingTask: ReturnType<typeof getDocument> | null = null
 
   try {
@@ -312,6 +516,8 @@ export async function readPdfRows(file: File): Promise<Record<string, unknown>[]
     }
 
     if (!headers) {
+      const paragraphRows = parseParagraphRows(pages, mode)
+      if (paragraphRows) return paragraphRows
       throw new Error(
         'Impossible de détecter le tableau dans le PDF. Il doit contenir les colonnes N° Question, Matière, Énoncé et Option A à D (ou N° Question, Réponse exacte, Explication médicale).',
       )

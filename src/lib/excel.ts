@@ -63,10 +63,13 @@ async function readExcelRows(file: File): Promise<Record<string, unknown>[]> {
   return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false })
 }
 
-async function readRows(file: File): Promise<Record<string, unknown>[]> {
+async function readRows(
+  file: File,
+  mode: 'questions' | 'answers' = 'questions',
+): Promise<Record<string, unknown>[]> {
   if (isPdfFile(file)) {
     const { readPdfRows } = await import('@/lib/pdf')
-    return readPdfRows(file)
+    return readPdfRows(file, mode)
   }
   return readExcelRows(file)
 }
@@ -89,6 +92,7 @@ const questionAliases = {
   B: ['optionb', 'b', 'reponseb', 'choixb', 'propositionb'],
   C: ['optionc', 'c', 'reponsec', 'choixc', 'propositionc'],
   D: ['optiond', 'd', 'reponsed', 'choixd', 'propositiond'],
+  E: ['optione', 'e', 'reponsee', 'choixe', 'propositione'],
 }
 
 const answerAliases = {
@@ -118,14 +122,14 @@ export function parseAnswerLetters(value: string): string[] {
   const cleaned = value
     .toUpperCase()
     .replace(/\bET\b/g, ',')
-    .replace(/[^A-D]/g, '')
+    .replace(/[^A-E]/g, '')
   return [...new Set(cleaned.split(''))].filter((letter) =>
     answerLetters.includes(letter as (typeof answerLetters)[number]),
   )
 }
 
 export async function parseQuestionsFile(file: File): Promise<{ rows: RawQuestionRow[]; errors: string[] }> {
-  const rows = await readRows(file)
+  const rows = await readRows(file, 'questions')
   const errors: string[] = []
   if (!rows.length) throw new Error('Le fichier Questions est vide.')
   const first = rows[0]
@@ -156,13 +160,17 @@ export async function parseQuestionsFile(file: File): Promise<{ rows: RawQuestio
       errors.push(`Questions, ligne ${line} : énoncé vide.`)
       return
     }
+    const optionE = pick(row, questionAliases.E)
     const options: QuestionOptions = {
       A: pick(row, questionAliases.A),
       B: pick(row, questionAliases.B),
       C: pick(row, questionAliases.C),
       D: pick(row, questionAliases.D),
+      ...(optionE ? { E: optionE } : {}),
     }
-    const missing = answerLetters.filter((letter) => !options[letter])
+    const missing = answerLetters
+      .filter((letter) => letter !== 'E')
+      .filter((letter) => !options[letter])
     if (missing.length) {
       errors.push(`Questions, ligne ${line} : option(s) ${missing.join(', ')} vide(s).`)
       return
@@ -184,7 +192,7 @@ export async function parseQuestionsFile(file: File): Promise<{ rows: RawQuestio
 }
 
 export async function parseAnswersFile(file: File): Promise<{ rows: RawAnswerRow[]; errors: string[] }> {
-  const rows = await readRows(file)
+  const rows = await readRows(file, 'answers')
   const errors: string[] = []
   if (!rows.length) throw new Error('Le fichier Corrigés est vide.')
   const first = rows[0]
@@ -212,7 +220,7 @@ export async function parseAnswersFile(file: File): Promise<{ rows: RawAnswerRow
     }
     const correctAnswers = parseAnswerLetters(rawAnswer)
     if (!correctAnswers.length) {
-      errors.push(`Corrigés, ligne ${line} : réponse « ${rawAnswer || '—'} » invalide (attendu : A, B, C ou D).`)
+      errors.push(`Corrigés, ligne ${line} : réponse « ${rawAnswer || '—'} » invalide (attendu : A, B, C, D ou E).`)
       return
     }
     if (!explanation) {
@@ -226,6 +234,16 @@ export async function parseAnswersFile(file: File): Promise<{ rows: RawAnswerRow
   if (!parsed.length && !errors.length) errors.push('Aucun corrigé exploitable dans le fichier.')
   if (errors.length) return { rows: parsed, errors: errors.slice(0, 12) }
   return { rows: parsed.sort((a, b) => a.number - b.number), errors: [] }
+}
+
+const noneOfTheAboveFallback = 'Aucune de ces réponses n’est exacte.'
+
+function isNoneOfTheAboveOption(value: string) {
+  const normalized = normalizeHeader(value)
+  return (
+    normalized === 'aucunedecesreponsesnestexacte' ||
+    normalized === 'aucunedepropositionsnestexacte'
+  )
 }
 
 export function mergeQuestionFiles(questionRows: RawQuestionRow[], answerRows: RawAnswerRow[]): ParseResult {
@@ -246,9 +264,16 @@ export function mergeQuestionFiles(questionRows: RawQuestionRow[], answerRows: R
       errors.push(`La question n° ${question.number} n'a pas de corrigé correspondant.`)
       return []
     }
+    const optionE = question.options.E?.trim() ?? ''
+    const options =
+      answer.correctAnswers.includes('E') &&
+      (!optionE || isNoneOfTheAboveOption(optionE))
+        ? { ...question.options, E: noneOfTheAboveFallback }
+        : question.options
     return [
       {
         ...question,
+        options,
         correctAnswers: answer.correctAnswers,
         explanation: answer.explanation,
       },
@@ -440,12 +465,14 @@ function parseThemeSheet(
       errors.push(`${prefix} : énoncé vide.`)
       rowValid = false
     }
-    const missingOptions = answerLetters.filter((letter) => !options[letter]?.trim())
+    const missingOptions = answerLetters
+      .filter((letter) => letter !== 'E')
+      .filter((letter) => !options[letter]?.trim())
     if (missingOptions.length) {
       errors.push(`${prefix} : option(s) ${missingOptions.join(', ')} vide(s).`)
       rowValid = false
     }
-    if (correctAnswers.length !== 1) {
+    if (correctAnswers.length !== 1 || correctAnswers.includes('E')) {
       errors.push(
         `${prefix} : réponse « ${rawAnswer || '—'} » invalide (une seule lettre A, B, C ou D attendue).`,
       )
