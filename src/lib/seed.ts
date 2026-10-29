@@ -979,7 +979,7 @@ function receiptSvg(name: string, reference: string, date: string, amount = DEMO
   <text x="48" y="292" font-family="Arial, Helvetica, sans-serif" font-size="24" fill="#111111">${name}</text>
   <text x="48" y="350" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#707072" letter-spacing="2">OBJET DU PAIEMENT</text>
   <text x="48" y="380" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#111111">Accès mensuel aux 9 thèmes PACES</text>
-  <text x="48" y="404" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#111111">30 séries de 10 questions — 30 jours</text>
+  <text x="48" y="404" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#111111">30 séries de 10 questions</text>
   <text x="48" y="462" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#707072" letter-spacing="2">MOYEN DE PAIEMENT</text>
   <text x="48" y="490" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111111">Virement bancaire / espèces</text>
   <text x="48" y="544" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#707072" letter-spacing="2">MONTANT RÉGLÉ</text>

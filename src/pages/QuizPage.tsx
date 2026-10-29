@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, Clock3, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import { getSeriesUsage } from '@/lib/db'
@@ -13,11 +13,9 @@ import {
   answerLetters,
   cn,
   errorCode,
-  isExpired,
   SERIES_LIMIT,
   SERIES_LIMIT_MESSAGE,
   SERIES_SIZE,
-  timeLeft,
   type AnswerLetter,
 } from '@/lib/utils'
 
@@ -49,7 +47,6 @@ export default function QuizPage() {
   const selected = current ? answers[current.id] ?? [] : []
   const answeredCount = questions.filter((question) => (answers[question.id] ?? []).length > 0).length
   const isLast = index === questions.length - 1
-  const expiresAt = payload?.assignmentExpiresAt
 
   useEffect(() => {
     if (!user || !themeParam) {
@@ -113,25 +110,6 @@ export default function QuizPage() {
     }
   }, [db.subjects, themeParam, user?.id])
 
-  useEffect(() => {
-    const check = () => {
-      if (isExpired(user?.expiresAt)) {
-        navigate('/expiration', { replace: true })
-        return
-      }
-      if (payload && isExpired(expiresAt)) setBlocked('access')
-    }
-    check()
-    const interval = window.setInterval(check, 15_000)
-    window.addEventListener('focus', check)
-    document.addEventListener('visibilitychange', check)
-    return () => {
-      window.clearInterval(interval)
-      window.removeEventListener('focus', check)
-      document.removeEventListener('visibilitychange', check)
-    }
-  }, [expiresAt, navigate, payload, user?.expiresAt])
-
   function toggleAnswer(letter: AnswerLetter) {
     if (!current) return
     setAnswers((previous) => {
@@ -144,7 +122,7 @@ export default function QuizPage() {
   }
 
   function canContinue() {
-    if (isExpired(user?.expiresAt) || !payload || isExpired(expiresAt)) {
+    if (!payload) {
       setBlocked('access')
       return false
     }
@@ -327,9 +305,6 @@ export default function QuizPage() {
             <p className="text-[12px] tabular-nums text-mute">
               Série <span className="font-medium text-ink">{seriesNumber}</span> sur {SERIES_LIMIT}
             </p>
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
-              <Clock3 size={13} /> {timeLeft(expiresAt)}
-            </span>
           </div>
           <ProgressBar
             value={((index + 1) / questions.length) * 100}

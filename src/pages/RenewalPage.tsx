@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
 import type { Receipt } from '@/types'
-import { formatDateLong, SERIES_LIMIT, SERIES_SIZE } from '@/lib/utils'
+import { SERIES_LIMIT, SERIES_SIZE } from '@/lib/utils'
 
 export function RenewalPage() {
   usePageTitle('Renouveler mon accès — MEDQCM L1')
@@ -52,7 +52,7 @@ export function RenewalPage() {
       <div className="mx-auto max-w-content px-5 py-10 sm:px-8 lg:px-10 lg:py-16">
         <div className="flex flex-col justify-between gap-3 border-b border-line pb-5 sm:flex-row sm:items-center">
           <div>
-            <p className="text-[11px] font-medium text-accent uppercase tracking-[0.14em]">Renouvellement · Cycle de 30 jours</p>
+            <p className="text-[11px] font-medium text-accent uppercase tracking-[0.14em]">Renouvellement · Cycle de 30 séries</p>
             <h1 className="mt-1 font-display text-[2.2rem] leading-[1.05] tracking-[-0.03em] text-ink">Un nouveau cycle commence.</h1>
           </div>
           <StatusPill tone={rejected ? 'error' : 'warning'}>
@@ -66,8 +66,8 @@ export function RenewalPage() {
               {rejected
                 ? 'Le justificatif précédent n’a pas été accepté. Vous pouvez déposer un nouveau reçu pour faire valoir un renouvellement. Le docteur vérifiera votre demande sous 24 heures.'
                 : quotaReached
-                  ? `Vous avez utilisé vos ${SERIES_LIMIT} séries. Après validation du docteur, un nouveau cycle de 30 jours s’ouvre immédiatement : le compteur repart à zéro et vous retrouvez les neuf thèmes.`
-                  : `Votre cycle s’est achevé le ${formatDateLong(user.expiresAt)}. Après validation du docteur, un nouveau cycle de 30 jours s’ouvre immédiatement : les neuf thèmes et ${SERIES_LIMIT} nouvelles séries vous attendent.`}
+                  ? `Vous avez utilisé vos ${SERIES_LIMIT} séries. Après validation du docteur, un nouveau cycle de 30 séries s’ouvre immédiatement : le compteur repart à zéro et vous retrouvez les neuf thèmes.`
+                  : `Votre cycle est terminé. Après validation du docteur, un nouveau cycle de 30 séries s’ouvre immédiatement : les neuf thèmes et ${SERIES_LIMIT} nouvelles séries vous attendent.`}
             </p>
             {rejected && reason ? (
               <div className="mt-5 rounded-xl border border-sale/20 bg-danger-soft p-4">
@@ -130,8 +130,8 @@ export function RenewalPage() {
                 <span className="text-[14px] font-medium text-ink">{SERIES_SIZE}</span>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-[11px] text-mute">Durée</span>
-                <span className="text-[14px] font-medium text-ink">30 jours</span>
+                <span className="text-[11px] text-mute">Cycle</span>
+                <span className="text-[14px] font-medium text-ink">{SERIES_LIMIT} séries</span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-[11px] text-mute">Corrections</span>

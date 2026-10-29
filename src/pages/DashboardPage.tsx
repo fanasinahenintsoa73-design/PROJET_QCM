@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, Clock3 } from 'lucide-react'
+import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import {
   getCurrentCycleAttempts,
@@ -14,9 +14,7 @@ import { usePageTitle } from '@/components/Layouts'
 import {
   averageScoreOnTen,
   cn,
-  daysLeft,
   formatDate,
-  formatDateLong,
   scoreOnTen,
   SERIES_LIMIT,
   SERIES_LIMIT_MESSAGE,
@@ -91,13 +89,10 @@ export default function DashboardPage() {
     0,
   )
   const average = averageScoreOnTen(attempts)
-  const remainingDays = daysLeft(assignment?.expiresAt ?? user?.expiresAt)
-  const lowTime = remainingDays <= 7
   const used = usage?.used ?? 0
   const remainingSeries = usage?.remaining ?? SERIES_LIMIT
   const reached = usage?.reached ?? false
   const seriesProgress = Math.min(100, (used / SERIES_LIMIT) * 100)
-  const accessProgress = Math.min(100, Math.max(0, (remainingDays / 30) * 100))
 
   return (
     <div className="bg-canvas">
@@ -115,8 +110,8 @@ export default function DashboardPage() {
                 Neuf thèmes PACES. Des séries de dix questions, à votre rythme.
               </p>
             </div>
-            <StatusPill tone={reached ? 'warning' : lowTime ? 'warning' : 'success'} dot>
-              {reached ? 'Quota atteint' : lowTime ? 'Derniers jours' : 'Accès actif'}
+            <StatusPill tone={reached ? 'warning' : 'success'} dot>
+              {reached ? 'Quota atteint' : 'Accès actif'}
             </StatusPill>
           </div>
         </div>
@@ -146,23 +141,7 @@ export default function DashboardPage() {
               />
             </div>
 
-            <div className="mt-6 grid gap-5 sm:grid-cols-2">
-              <div>
-                <div className="flex items-center justify-between gap-3 text-[12px]">
-                  <span className="text-mute">Temps restant</span>
-                  <span className="font-medium tabular-nums text-ink">{remainingDays} jours</span>
-                </div>
-                <div className="mt-2 h-1 overflow-hidden rounded-full bg-cloud">
-                  <div
-                    className={cn('h-full rounded-full', lowTime ? 'bg-warning' : 'bg-accent')}
-                    style={{ width: `${accessProgress}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-[11px] text-mute">
-                  Fin le {formatDateLong(assignment?.expiresAt ?? user?.expiresAt)}
-                </p>
-              </div>
-              <dl className="grid grid-cols-3 gap-3">
+            <dl className="mt-6 grid grid-cols-3 gap-3">
                 {[
                   ['Séries', String(attempts.length)],
                   ['Moyenne', attempts.length ? `${formatTen(average)}/10` : '—'],
@@ -173,8 +152,7 @@ export default function DashboardPage() {
                     <dd className="mt-1 text-[14px] font-medium tabular-nums text-ink">{value}</dd>
                   </div>
                 ))}
-              </dl>
-            </div>
+            </dl>
           </div>
 
           <div
@@ -198,11 +176,7 @@ export default function DashboardPage() {
               <ButtonLink to="/reinscription" size="lg" className="mt-5 w-full justify-center">
                 Renouveler mon accès <ArrowRight size={16} />
               </ButtonLink>
-            ) : (
-              <div className="mt-5 flex items-center gap-2 text-[11px] text-mute">
-                <Clock3 size={14} /> {remainingDays} jours restants
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       </section>

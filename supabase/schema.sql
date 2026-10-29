@@ -12,7 +12,7 @@
 --
 --  Modèle PACES :
 --    • neuf thèmes fixes, publiés ensemble par le docteur ;
---    • un cycle de 30 jours par étudiant, sans thème imposé ;
+--    • un cycle de 30 séries par étudiant, sans thème imposé ;
 --    • 30 séries soumises maximum par cycle, 10 questions par série ;
 --    • l'historique étudiant est limité au cycle courant ; les lignes restent
 --      en base pour l'audit et la consultation par le docteur.
@@ -92,7 +92,7 @@ create index access_requests_status_created_idx
 create index access_requests_user_created_idx
   on public.access_requests (user_id, created_at desc);
 
--- Les neuf thèmes PACES. Ils ne portent pas d'échéance : le cycle de 30 jours
+-- Les neuf thèmes PACES. Ils ne portent pas d'échéance : le cycle de 30 séries
 -- appartient à l'affectation de chaque étudiant. Le docteur publie le pack
 -- complet en une seule transaction via publish_theme_pack().
 create table public.subjects (
@@ -751,7 +751,7 @@ declare
   v_active public.subject_assignments%rowtype;
   v_used integer;
   v_started_at timestamptz := now();
-  v_expires_at timestamptz := now() + interval '30 days';
+  v_expires_at timestamptz := now() + interval '100 years';
   v_assignment_id uuid;
 begin
   if not public.is_professor() then
@@ -1241,7 +1241,7 @@ set search_path = public
 as $$
 declare
   v_started_at timestamptz := now();
-  v_expires_at timestamptz := now() + interval '30 days';
+  v_expires_at timestamptz := now() + interval '100 years';
   v_assignment_id uuid;
   v_request_id uuid;
   v_question_count integer;

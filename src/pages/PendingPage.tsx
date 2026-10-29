@@ -33,7 +33,7 @@ export function PendingPage() {
                 Votre inscription est validée.
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-mute">
-                Votre dossier a été accepté par le docteur. Votre cycle de 30 jours est ouvert :
+                Votre dossier a été accepté par le docteur. Votre cycle de 30 séries est ouvert :
                 les neuf thèmes PACES et vos 30 séries vous attendent dans votre espace.
               </p>
 

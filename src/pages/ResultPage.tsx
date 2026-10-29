@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import type { AttemptReview } from '@/lib/supabaseData'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
-import { answerLetters, cn, formatDateTime, isExpired, scoreTone } from '@/lib/utils'
+import { answerLetters, cn, formatDateTime, scoreTone } from '@/lib/utils'
 
 export default function ResultPage() {
   usePageTitle('Résultat de la série — MEDQCM L1')
   const { attemptId } = useParams<{ attemptId: string }>()
-  const navigate = useNavigate()
   const { user, db } = useAuth()
 
   const [review, setReview] = useState<AttemptReview | null>(null)
@@ -48,21 +47,6 @@ export default function ResultPage() {
   const ownsAttempt = attempt && userIdMatches(attempt.userId, user?.id)
   const subject = attempt ? db.subjects.find((item) => item.id === attempt.subjectId) : undefined
   const questions = review?.questions ?? []
-
-  useEffect(() => {
-    const check = () => {
-      if (isExpired(user?.expiresAt)) navigate('/expiration', { replace: true })
-    }
-    check()
-    const interval = window.setInterval(check, 15_000)
-    window.addEventListener('focus', check)
-    document.addEventListener('visibilitychange', check)
-    return () => {
-      window.clearInterval(interval)
-      window.removeEventListener('focus', check)
-      document.removeEventListener('visibilitychange', check)
-    }
-  }, [navigate, user?.expiresAt])
 
   if (loading) {
     return (

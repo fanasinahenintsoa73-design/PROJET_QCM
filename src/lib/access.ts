@@ -31,7 +31,8 @@ export function getStudentAccess(user: User, db: Database): StudentAccess {
   if (user.status === 'rejected') return 'rejected'
   if (getPendingRequest(user.id, db)) return 'pending'
   if (user.status === 'pending') return 'pending'
-  if (isExpired(user.expiresAt)) return 'expired'
+  const current = getSeriesUsage(user.id, db).assignment
+  if (!current && isExpired(user.expiresAt)) return 'expired'
   return 'active'
 }
 

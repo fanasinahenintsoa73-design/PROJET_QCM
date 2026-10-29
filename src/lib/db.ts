@@ -255,8 +255,8 @@ export function submitRenewal(userId: string, receipt: Receipt): AccessRequest {
   )
   if (existingPending) throw new Error('Une demande est déjà en attente de validation.')
 
-  const active = getActiveAssignment(userId, db)
-  if (active && !getSeriesUsage(userId, db).reached) {
+  const current = getCurrentAssignment(userId, db)
+  if (current && !getSeriesUsage(userId, db).reached) {
     throw new Error(
       'Votre cycle est encore actif. Vous pourrez renouveler dès que vos 30 séries seront terminées.',
     )
@@ -367,7 +367,7 @@ function createAssignment(
     subjectId: null,
     requestId,
     startedAt: now.toISOString(),
-    expiresAt: addDays(now, 30).toISOString(),
+    expiresAt: addDays(now, 36500).toISOString(),
   }
 }
 
@@ -384,18 +384,18 @@ export function approveRequest(requestId: string): User {
   if (!user) throw new Error('Étudiant introuvable.')
 
   const now = new Date()
-  const active = getActiveAssignment(user.id, db)
+  const active = getCurrentAssignment(user.id, db)
   let assignments = db.assignments
 
   if (active) {
     const usage = getSeriesUsage(user.id, db)
     if (request.type !== 'renewal' || !usage.reached) {
       throw new Error(
-        'Cet étudiant dispose déjà d’un cycle actif. Attendez la fin de ses 30 séries ou de son échéance avant de valider un renouvellement.',
+        'Cet étudiant dispose déjà d’un cycle actif. Attendez la fin de ses 30 séries avant de valider un renouvellement.',
       )
     }
-    // Le renouvellement est autorisé avant l'échéance dès que le quota de
-    // séries est atteint : l'ancien cycle est clos à cet instant.
+    // Le renouvellement est autorisé dès que le quota de séries est atteint :
+    // l'ancien cycle est clos à cet instant.
     assignments = db.assignments.map((assignment) =>
       assignment.id === active.id
         ? { ...assignment, expiresAt: now.toISOString() }
@@ -786,7 +786,7 @@ export function startSeries(
   count = SERIES_SIZE,
 ): StartedSeries {
   const db = getDB()
-  const assignment = getActiveAssignment(userId, db)
+  const assignment = getCurrentAssignment(userId, db)
   if (!assignment) {
     throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
   }
@@ -831,7 +831,7 @@ export function saveAttempt(input: {
   answers: Record<string, string[]>
 }): Attempt {
   const db = getDB()
-  const assignment = getActiveAssignment(input.userId, db)
+  const assignment = getCurrentAssignment(input.userId, db)
   if (!assignment) {
     throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
   }

@@ -86,7 +86,8 @@ Un cycle est une ligne de `subject_assignments` :
 
 - `subject_id` est **nul** pour les nouveaux cycles : aucun thème n’est imposé,
   l’étudiant choisit librement parmi les neuf thèmes publiés ;
-- `started_at` ouvre le cycle, `expires_at` le ferme après 30 jours ;
+- `started_at` ouvre le cycle ; `expires_at` reste une limite technique
+  lointaine, le cycle se termine par le quota de 30 séries ou un renouvellement ;
 - le docteur peut prolonger un cycle actif avec `extend_access` : la date de fin
   recule et le compteur de séries **n’est pas** remis à zéro ;
 - sans cycle actif, `extend_access` ouvre un nouveau cycle complet, sans thème.
@@ -101,7 +102,7 @@ Le quota est de **30 séries soumises par cycle**, à 10 questions chacune :
 - une série abandonnée avant soumission ne compte pas ;
 - `start_quiz` et `submit_attempt` refusent le 31e envoi avec le code
   `SERIES_LIMIT_REACHED` ;
-- l’échéance des 30 jours reste une contrainte indépendante ;
+- le cycle est clôturé par le quota de 30 séries ou par un renouvellement validé ;
 - `submit_attempt` verrouille la ligne du profil pour sérialiser deux envois
   concurrents et ne jamais dépasser 30.
 

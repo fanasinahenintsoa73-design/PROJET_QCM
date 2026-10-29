@@ -14,9 +14,6 @@ export function ExpirationPage() {
   const rejected = access === 'rejected'
   const reason = user.rejectionReason || latestRequest?.note
   const usage = getSeriesUsage(user.id, db)
-  const expiredDaysAgo = user.expiresAt
-    ? Math.max(0, Math.floor((Date.now() - new Date(user.expiresAt).getTime()) / 86_400_000))
-    : null
 
   return (
     <div className="bg-canvas">
@@ -34,11 +31,7 @@ export function ExpirationPage() {
             <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-mute">
               {rejected
                 ? 'Le justificatif transmis n’a pas permis d’ouvrir votre accès. Vous pouvez déposer un nouveau reçu pour une nouvelle vérification.'
-                : `Votre accès de 30 jours s’est achevé le ${formatDateLong(user.expiresAt)}${
-                    expiredDaysAgo && expiredDaysAgo > 0
-                      ? `, il y a ${expiredDaysAgo} jour${expiredDaysAgo > 1 ? 's' : ''}`
-                      : ''
-                  }. Les neuf thèmes et vos ${SERIES_LIMIT} séries reviennent dès le renouvellement validé.`}
+                : `Votre cycle de ${SERIES_LIMIT} séries est terminé. Les neuf thèmes et vos ${SERIES_LIMIT} nouvelles séries reviennent dès le renouvellement validé.`}
             </p>
 
             {rejected && reason ? (
@@ -53,7 +46,7 @@ export function ExpirationPage() {
                 {rejected ? 'Déposer un nouveau reçu' : 'Renouveler mon accès'} <ArrowRight size={16} />
               </ButtonLink>
               <p className="text-[12px] leading-relaxed text-mute">
-                Le nouveau cycle démarre dès la validation, pour 30 jours.
+                Le nouveau cycle démarre dès la validation, pour 30 séries.
               </p>
             </div>
 
@@ -87,11 +80,11 @@ export function ExpirationPage() {
                 <dd className="text-right font-medium text-ink">{user.email}</dd>
               </div>
               <div className="flex items-start justify-between gap-5">
-                <dt className="text-mute">{rejected ? 'Dernière demande' : 'Fin de l’accès'}</dt>
+                <dt className="text-mute">{rejected ? 'Dernière demande' : 'Cycle'}</dt>
                 <dd className="text-right font-medium text-ink">
                   {rejected
                     ? formatDateLong(latestRequest?.createdAt ?? user.createdAt)
-                    : formatDateLong(user.expiresAt)}
+                    : `${SERIES_LIMIT} séries terminées`}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-5">
