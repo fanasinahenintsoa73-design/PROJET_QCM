@@ -1,130 +1,108 @@
-import { useNavigate } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
-  Download,
   FileSpreadsheet,
   FileText,
   FolderOpen,
   Loader2,
+  PencilLine,
   Save,
-  Trash2,
-  Upload,
-  UserPlus,
+  X,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
-import {
-  getActiveAssignment,
-  getPublishedSubjects,
-} from '@/lib/db'
-import {
-  downloadAnswersTemplate,
-  downloadQuestionsTemplate,
-  parseSubjectFiles,
-  type ParseResult,
-} from '@/lib/excel'
+import { getPublishedSubjects } from '@/lib/db'
+import { parseSubjectFiles, type ParseResult } from '@/lib/excel'
+import { PACE_THEMES, findPaceTheme, type ThemeQuestionInput } from '@/lib/themes'
 import { Button } from '@/components/ui/Button'
-import { Field, Input, Textarea } from '@/components/ui/Field'
-import { Modal } from '@/components/ui/Modal'
+import { Field, Textarea } from '@/components/ui/Field'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
-import { cn, formatBytes, formatDate, isExpired, monthLabel } from '@/lib/utils'
+import {
+  cn,
+  formatBytes,
+  formatDate,
+  monthLabel,
+  SERIES_SIZE,
+} from '@/lib/utils'
 import type { Subject } from '@/types'
 
 const importAccept =
   '.xlsx,.xls,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel'
 
+type FileKey = 'questions' | 'answers'
+
+interface FileErrors {
+  questions?: string
+  answers?: string
+}
+
+interface SaveNotice {
+  title: string
+  questionCount: number
+  updated: boolean
+  metadataOnly: boolean
+}
+
+/** Une seule entrée par thème, même si d'anciens doublons existent en base. */
+function uniqueSubjectsByTheme(subjects: Subject[]) {
+  const seen = new Set<string>()
+  return subjects.filter((subject) => {
+    const theme = findPaceTheme(subject.title)
+    if (!theme) return false
+    if (seen.has(theme.id)) return false
+    seen.add(theme.id)
+    return true
+  })
+}
+
 export default function AdminSubjectPage() {
-  usePageTitle('Catalogue des thèmes — Espace docteur')
-  const navigate = useNavigate()
+  usePageTitle('Sujets — Espace docteur')
   const { db, refresh } = useAuth()
   const { toast } = useToast()
 
-  const subjects = getPublishedSubjects(db)
-  const assignmentsFor = (subjectId: string) =>
-    db.assignments.filter((assignment) => assignment.subjectId === subjectId)
-  const attemptsFor = (subjectId: string) =>
-    db.attempts.filter((attempt) => attempt.subjectId === subjectId)
-  const totalAssigned = db.assignments.length
+  const subjects = uniqueSubjectsByTheme(getPublishedSubjects(db))
 
+  const [themeId, setThemeId] = useState('')
+  const [description, setDescription] = useState('')
   const [questionsFile, setQuestionsFile] = useState<File | null>(null)
   const [answersFile, setAnswersFile] = useState<File | null>(null)
   const [parsing, setParsing] = useState(false)
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
-  const [uploadError, setUploadError] = useState('')
-  const [title, setTitle] = useState(`Thème ${subjects.length + 1} — ${monthLabel()}`)
-  const [description, setDescription] = useState('')
-  const [label, setLabel] = useState(monthLabel())
-  const [titleError, setTitleError] = useState('')
-  const [confirming, setConfirming] = useState(false)
-  const [publishing, setPublishing] = useState(false)
-  const [published, setPublished] = useState<Subject | null>(null)
-  const [removeTarget, setRemoveTarget] = useState<Subject | null>(null)
-  const [removing, setRemoving] = useState(false)
-  const [assignTarget, setAssignTarget] = useState<Subject | null>(null)
-  const [assignStudentId, setAssignStudentId] = useState('')
-  const [assigning, setAssigning] = useState(false)
-  const [assignError, setAssignError] = useState('')
-  const [embedded, setEmbedded] = useState(false)
+  const [parseError, setParseError] = useState('')
+  const [themeError, setThemeError] = useState('')
+  const [fileErrors, setFileErrors] = useState<FileErrors>({})
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState<SaveNotice | null>(null)
 
-  const students = db.users
-    .filter((student) => student.role === 'student')
-    .sort((left, right) =>
-      `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`, 'fr'),
-    )
+  const formRef = useRef<HTMLElement>(null)
+  const themeSelectRef = useRef<HTMLSelectElement>(null)
 
-  const assignCandidates = assignTarget
-    ? students.map((student) => {
-        const alreadyAssigned = db.assignments.some(
-          (assignment) =>
-            assignment.userId === student.id && assignment.subjectId === assignTarget.id,
-        )
-        const active = getActiveAssignment(student.id, db)
-        const activeSubject = active
-          ? db.subjects.find((candidate) => candidate.id === active.subjectId)
-          : undefined
-        const pending = db.requests.some(
-          (request) => request.userId === student.id && request.status === 'pending',
-        )
-        return {
-          student,
-          alreadyAssigned,
-          active,
-          activeSubject,
-          pending,
-          disabled: alreadyAssigned || Boolean(active),
-        }
-      })
-    : []
-  const selectedCandidate = assignCandidates.find(
-    (candidate) => candidate.student.id === assignStudentId,
-  )
-
-  useEffect(() => {
-    setEmbedded(window.self !== window.top)
-  }, [])
-
-  useEffect(() => {
-    if (window.location.hash !== '#importer') return
-    const timer = window.setTimeout(() => {
-      document.getElementById('importer')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 120)
-    return () => window.clearTimeout(timer)
-  }, [])
+  const selectedTheme = PACE_THEMES.find((theme) => theme.id === themeId)
+  const existingForTheme = selectedTheme
+    ? subjects.find(
+        (subject) =>
+          subject.id === selectedTheme.id ||
+          findPaceTheme(subject.title)?.id === selectedTheme.id,
+      )
+    : undefined
 
   useEffect(() => {
     if (!questionsFile || !answersFile) {
-      setParseResult(null)
       setParsing(false)
+      setParseResult(null)
       return
     }
+
     let cancelled = false
     setParsing(true)
-    setUploadError('')
+    setParseError('')
+    setParseResult(null)
+
     parseSubjectFiles(questionsFile, answersFile)
       .then((result) => {
         if (!cancelled) setParseResult(result)
@@ -132,7 +110,7 @@ export default function AdminSubjectPage() {
       .catch((caught) => {
         if (cancelled) return
         setParseResult(null)
-        setUploadError(
+        setParseError(
           caught instanceof Error
             ? caught.message
             : 'Impossible de lire les fichiers. Vérifiez leur format Excel ou PDF.',
@@ -141,127 +119,215 @@ export default function AdminSubjectPage() {
       .finally(() => {
         if (!cancelled) setParsing(false)
       })
+
     return () => {
       cancelled = true
     }
-  }, [questionsFile, answersFile])
+  }, [answersFile, questionsFile])
 
-  const questions = parseResult?.questions ?? []
-  const ready = questions.length > 0 && !parseResult?.errors.length && !parsing
+  const parsedQuestions = parseResult?.questions ?? []
+  const parseIssues = [
+    ...(parseError ? [parseError] : []),
+    ...(parseResult?.errors ?? []),
+  ]
   const warnings = parseResult?.warnings ?? []
-  const errors = [...(uploadError ? [uploadError] : []), ...(parseResult?.errors ?? [])]
+  const hasAnyFile = Boolean(questionsFile || answersFile)
+  const enoughQuestions = parsedQuestions.length >= SERIES_SIZE
+  const parsedReady = Boolean(parseResult) && !parseIssues.length && !parsing
+  const canReuseContent = Boolean(existingForTheme) && !hasAnyFile
 
-  const chooseFile = (file: File | undefined, setter: (value: File | null) => void) => {
+  const clearForm = () => {
+    setThemeId('')
+    setDescription('')
+    setQuestionsFile(null)
+    setAnswersFile(null)
+    setParseResult(null)
+    setParseError('')
+    setThemeError('')
+    setFileErrors({})
+    setFormError('')
+  }
+
+  const resetForm = () => {
+    clearForm()
+    setNotice(null)
+  }
+
+  const chooseTheme = (nextThemeId: string) => {
+    setThemeId(nextThemeId)
+    setThemeError('')
+    setFormError('')
+    setNotice(null)
+    setQuestionsFile(null)
+    setAnswersFile(null)
+    setParseResult(null)
+    setParseError('')
+    setFileErrors({})
+
+    const theme = PACE_THEMES.find((candidate) => candidate.id === nextThemeId)
+    const existing = theme
+      ? subjects.find(
+          (subject) =>
+            subject.id === theme.id || findPaceTheme(subject.title)?.id === theme.id,
+        )
+      : undefined
+    setDescription(existing?.description ?? '')
+  }
+
+  const startEdit = (subject: Subject) => {
+    const theme = findPaceTheme(subject.title)
+    if (!theme) {
+      toast('Ce sujet n’est rattaché à aucun des neuf thèmes PACES.', 'error')
+      return
+    }
+    chooseTheme(theme.id)
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      themeSelectRef.current?.focus({ preventScroll: true })
+    }, 0)
+  }
+
+  const chooseFile = (key: FileKey, file: File | undefined) => {
     if (!file) return
     if (!/\.(xlsx|xls|pdf)$/i.test(file.name)) {
-      setUploadError('Format non pris en charge. Importez un fichier Excel (.xlsx/.xls) ou PDF (.pdf).')
+      setFileErrors((current) => ({
+        ...current,
+        [key]: 'Format non pris en charge. Utilisez un fichier Excel (.xlsx/.xls) ou PDF.',
+      }))
       return
     }
     if (file.size > 10 * 1024 * 1024) {
-      setUploadError('Fichier trop volumineux (10 Mo maximum).')
+      setFileErrors((current) => ({
+        ...current,
+        [key]: 'Fichier trop volumineux (10 Mo maximum).',
+      }))
       return
     }
-    setUploadError('')
-    setPublished(null)
-    setter(file)
+
+    setFileErrors((current) => {
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+    setFormError('')
+    setNotice(null)
+    setParseError('')
+
+    if (key === 'questions') setQuestionsFile(file)
+    else setAnswersFile(file)
   }
 
-  const openConfirm = () => {
-    if (!ready) {
-      setUploadError(
-        'Importez les deux fichiers et vérifiez que chaque question possède une bonne réponse et une explication avant l’enregistrement.',
+  const clearFile = (key: FileKey) => {
+    setFileErrors((current) => {
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+    setFormError('')
+    setNotice(null)
+    setParseError('')
+
+    if (key === 'questions') setQuestionsFile(null)
+    else setAnswersFile(null)
+  }
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (saving) return
+
+    setFormError('')
+    setNotice(null)
+
+    const theme = PACE_THEMES.find((candidate) => candidate.id === themeId)
+    if (!theme) {
+      setThemeError('Sélectionnez la matière du sujet.')
+      themeSelectRef.current?.focus()
+      return
+    }
+
+    const nextFileErrors: FileErrors = {}
+    if (hasAnyFile) {
+      if (!questionsFile) {
+        nextFileErrors.questions = 'Choisissez aussi le fichier du sujet pour remplacer le contenu.'
+      }
+      if (!answersFile) {
+        nextFileErrors.answers = 'Choisissez aussi le fichier de correction pour remplacer le contenu.'
+      }
+    } else if (!existingForTheme) {
+      nextFileErrors.questions = 'Le fichier du sujet est obligatoire.'
+      nextFileErrors.answers = 'Le fichier de correction est obligatoire.'
+    }
+
+    if (nextFileErrors.questions || nextFileErrors.answers) {
+      setFileErrors(nextFileErrors)
+      setFormError(
+        hasAnyFile
+          ? 'Les deux fichiers doivent être remplacés ensemble pour éviter un sujet partiel.'
+          : 'Ajoutez les deux fichiers avant d’enregistrer le sujet.',
       )
       return
     }
-    if (!title.trim()) {
-      setTitleError('Donnez un titre au thème avant de l’enregistrer.')
-      return
-    }
-    if (!label.trim()) {
-      setTitleError('Le mois affiché est obligatoire.')
-      return
-    }
-    setTitleError('')
-    setConfirming(true)
-  }
 
-  const handlePublish = async () => {
-    if (!ready || publishing) return
-    setPublishing(true)
+    if (hasAnyFile) {
+      if (parsing) {
+        setFormError('La lecture des fichiers est encore en cours. Patientez un instant.')
+        return
+      }
+      if (parseIssues.length) {
+        setFormError('Les fichiers contiennent des erreurs : corrigez-les avant d’enregistrer.')
+        return
+      }
+      if (!enoughQuestions) {
+        setFormError(
+          `Le sujet doit contenir au moins ${SERIES_SIZE} questions valides pour ouvrir une série étudiante.`,
+        )
+        return
+      }
+    }
+
+    const metadataOnly = !hasAnyFile
+    const updated = Boolean(existingForTheme)
+
+    setSaving(true)
     try {
-      const subject = await api.publishSubject({
-        title: title.trim(),
+      const questions: ThemeQuestionInput[] | undefined = metadataOnly
+        ? undefined
+        : parsedQuestions.map((question) => ({
+            ...question,
+            matiere: theme.title,
+          }))
+
+      const subject = await api.saveSubject({
+        themeId: theme.id,
+        title: theme.title,
         description: description.trim(),
-        monthLabel: label.trim(),
+        monthLabel: existingForTheme?.monthLabel?.trim() || monthLabel(),
         questions,
+        questionFileName: questionsFile?.name,
+        answerFileName: answersFile?.name,
       })
+
       await refresh()
-      setConfirming(false)
-      setPublished(subject)
-      setQuestionsFile(null)
-      setAnswersFile(null)
-      setParseResult(null)
-      setDescription('')
-      setTitle(`Thème ${subjects.length + 1} — ${monthLabel()}`)
-      setLabel(monthLabel())
+      clearForm()
+      setNotice({
+        title: subject.title,
+        questionCount: subject.questionCount,
+        updated,
+        metadataOnly,
+      })
       toast(
-        'Thème enregistré et ajouté au catalogue. Vous pouvez l’attribuer dès maintenant.',
+        updated
+          ? 'Sujet mis à jour. Les étudiants retrouvent immédiatement le nouveau contenu.'
+          : 'Sujet enregistré et disponible pour les séries étudiantes.',
         'success',
       )
-      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (caught) {
-      toast(caught instanceof Error ? caught.message : 'Enregistrement impossible.', 'error')
+      const message =
+        caught instanceof Error ? caught.message : 'Enregistrement du sujet impossible.'
+      setFormError(message)
+      toast(message, 'error')
     } finally {
-      setPublishing(false)
-    }
-  }
-
-  const handleRemove = async () => {
-    if (!removeTarget || removing) return
-    setRemoving(true)
-    try {
-      await api.removeSubject(removeTarget.id)
-      await refresh()
-      toast('Thème retiré du catalogue.', 'success')
-      setRemoveTarget(null)
-    } catch (caught) {
-      toast(caught instanceof Error ? caught.message : 'Retrait impossible.', 'error')
-    } finally {
-      setRemoving(false)
-    }
-  }
-
-  const openAssign = (subject: Subject) => {
-    setAssignTarget(subject)
-    setAssignStudentId('')
-    setAssignError('')
-  }
-
-  const closeAssign = () => {
-    if (assigning) return
-    setAssignTarget(null)
-    setAssignStudentId('')
-    setAssignError('')
-  }
-
-  const handleAssign = async () => {
-    if (!assignTarget || !selectedCandidate || selectedCandidate.disabled || assigning) return
-    setAssigning(true)
-    setAssignError('')
-    try {
-      await api.assignSubjectToStudent(assignTarget.id, selectedCandidate.student.id)
-      await refresh()
-      toast(
-        `Thème attribué à ${selectedCandidate.student.firstName} ${selectedCandidate.student.lastName}. Accès QCM ouvert.`,
-        'success',
-      )
-      setAssignTarget(null)
-      setAssignStudentId('')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    } catch (caught) {
-      setAssignError(caught instanceof Error ? caught.message : 'Attribution impossible.')
-    } finally {
-      setAssigning(false)
+      setSaving(false)
     }
   }
 
@@ -272,26 +338,22 @@ export default function AdminSubjectPage() {
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
             <div>
               <p className="eyebrow text-mute">Parcours QCM</p>
-              <h1 className="display mt-3 text-[clamp(2.8rem,6vw,4.5rem)]">Catalogue des thèmes.</h1>
+              <h1 className="display mt-3 text-[clamp(2.8rem,6vw,4.5rem)]">Sujets.</h1>
               <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-mute">
-                Publiez les thèmes PACES et leurs banques de questions. Les étudiants les
-                retrouvent dans leur espace, choisissent librement un thème et lancent une série
-                de dix questions. Le cycle est compté en séries, sans limite de jours.
+                Choisissez un thème PACES, joignez le fichier des questions et celui de la
+                correction, puis enregistrez. Chaque sujet est immédiatement proposé aux
+                étudiants qui disposent d’un accès actif.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <a
-                href="#importer"
-                className="inline-flex items-center gap-2 border border-hairline bg-white px-3.5 py-2 text-[10px] font-medium transition-colors hover:border-ink"
+              <StatusPill
+                tone={subjects.length > 0 ? 'success' : 'neutral'}
+                dot
               >
-                <FolderOpen className="size-3.5" aria-hidden="true" />
-                Importer des fichiers
-              </a>
-              <StatusPill tone={subjects.length > 0 ? 'success' : 'neutral'} dot>
-                {subjects.length} thème{subjects.length > 1 ? 's' : ''} en ligne
+                {subjects.length} sujet{subjects.length > 1 ? 's' : ''} en ligne
               </StatusPill>
               <StatusPill tone="neutral" dot>
-                {totalAssigned} attribution{totalAssigned > 1 ? 's' : ''}
+                {PACE_THEMES.length} thèmes PACES
               </StatusPill>
             </div>
           </div>
@@ -299,646 +361,479 @@ export default function AdminSubjectPage() {
       </section>
 
       <div className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-        {published && (
-          <div className="mb-7 flex items-start gap-3 border border-success/30 bg-[#f3faf5] px-4 py-3.5">
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" strokeWidth={1.8} />
-            <div>
-              <p className="text-[12px] font-medium text-ink">Thème enregistré.</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-charcoal">
-                « {published.title} » et ses deux fichiers sont enregistrés. Il est maintenant
-                disponible dans le catalogue étudiant. Vous pouvez l’attribuer directement ou
-                laisser les étudiants le choisir librement.
-              </p>
-            </div>
-          </div>
-        )}
-
-        <section className="border-b border-hairline pb-8" aria-labelledby="themes-title">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 id="themes-title" className="text-[18px] font-medium tracking-[-0.01em]">
-                Thèmes disponibles
-              </h2>
-              <p className="mt-1 text-[11px] text-mute">
-                Les étudiants choisissent librement parmi les thèmes publiés. Vous pouvez aussi
-                attribuer un thème manuellement à un étudiant.
-              </p>
-            </div>
-            <p className="text-[10px] uppercase tracking-[0.12em] text-mute">
-              Catalogue
-            </p>
-          </div>
-
-          {subjects.length === 0 ? (
-            <p className="mt-4 border border-dashed border-hairline bg-cloud/30 px-4 py-8 text-center text-[12px] text-mute">
-              Aucun thème publié. Enregistrez un premier thème avant d’accepter une demande.
-            </p>
-          ) : (
-            <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-              {subjects.map((subject, index) => {
-                const assigned = assignmentsFor(subject.id)
-                const attempts = attemptsFor(subject.id)
-                const canRemove = assigned.length === 0 && attempts.length === 0
-                return (
-                  <article key={subject.id} className="flex flex-col justify-between border border-hairline bg-white p-4 sm:p-5">
-                    <div>
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-[11px] font-semibold text-white">
-                          {index + 1}
-                        </span>
-                        <span className={cn(
-                          'text-[9px] font-semibold uppercase tracking-[0.12em]',
-                          assigned.length > 0 ? 'text-success' : 'text-mute',
-                        )}>
-                          {assigned.length > 0
-                            ? `${assigned.length} étudiant${assigned.length > 1 ? 's' : ''}`
-                            : 'Non attribué'}
-                        </span>
-                      </div>
-                      <h3 className="mt-3 text-[14px] font-medium leading-snug">{subject.title}</h3>
-                      <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-mute">
-                        {subject.monthLabel} · {subject.questionCount} questions
-                      </p>
-                      {subject.description && (
-                        <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-charcoal">
-                          {subject.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-hairline-soft pt-3">
-                      <span className="text-[10px] text-mute">
-                        Ajouté le {formatDate(subject.publishedAt)}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => openAssign(subject)}
-                          className="inline-flex items-center gap-1.5 text-[10px] font-medium text-ink hover:opacity-70"
-                        >
-                          <UserPlus className="size-3" aria-hidden="true" />
-                          Attribuer
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRemoveTarget(subject)}
-                          disabled={!canRemove}
-                          title={
-                            canRemove
-                              ? undefined
-                              : 'Ce thème a déjà été attribué ou possède un historique et ne peut pas être retiré.'
-                          }
-                          className={cn(
-                            'inline-flex items-center gap-1.5 text-[10px] font-medium',
-                            canRemove
-                              ? 'text-sale hover:opacity-70'
-                              : 'cursor-not-allowed text-mute/50',
-                          )}
-                        >
-                          <Trash2 className="size-3" aria-hidden="true" />
-                          Retirer
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
-        <section id="importer" className="scroll-mt-[130px] pt-8">
-          <div>
-            <h2 className="text-[18px] font-medium tracking-[-0.01em]">Importer les fichiers</h2>
-            <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-mute">
-              Utilisez le bouton noir ci-dessous pour ouvrir l’explorateur de fichiers. Choisissez
-              le fichier des questions puis celui des corrigés, au format Excel ou PDF. Le corrigé
-              est obligatoire : chaque question doit avoir une réponse exacte et une explication.
-              Un modèle vierge reste téléchargeable en bas de chaque bloc.
-            </p>
-          </div>
-
-          {embedded && (
-            <div className="mt-4 border border-accent bg-accent px-5 py-4 text-white">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />
-                <div>
-                  <p className="text-[12px] font-medium">
-                    L’aperçu intégré bloque l’explorateur de fichiers.
-                  </p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-white/70">
-                    Ouvrez l’application dans un onglet, puis cliquez sur le bouton de sélection
-                    des fichiers.
-                  </p>
-                  <a
-                    href={window.location.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-2 bg-white px-4 py-2.5 text-[11px] font-medium text-ink transition hover:bg-cloud"
-                  >
-                    Ouvrir l’application dans un onglet
-                  </a>
-                  <p className="mt-2 break-all text-[9px] text-white/50">
-                    Adresse : {window.location.href}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <FileDropzone
-              id="questions-file"
-              label="Questions"
-              columns="N° · Matière · Énoncé · Options A à D"
-              file={questionsFile}
-              onChoose={(file) => chooseFile(file, setQuestionsFile)}
-              onRemove={() => setQuestionsFile(null)}
-              onTemplate={downloadQuestionsTemplate}
-            />
-            <FileDropzone
-              id="answers-file"
-              label="Corrigés"
-              columns="N° · Réponse exacte · Explication"
-              file={answersFile}
-              onChoose={(file) => chooseFile(file, setAnswersFile)}
-              onRemove={() => setAnswersFile(null)}
-              onTemplate={downloadAnswersTemplate}
-            />
-          </div>
-
-          <div className="mt-4 space-y-2">
-            {parsing && (
-              <p className="flex items-center gap-2 text-[11px] text-mute">
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                Lecture des fichiers…
-              </p>
-            )}
-            {errors.length > 0 && (
-              <div className="border-l-2 border-sale bg-[#fdf0f0] px-3.5 py-3">
-                <p className="flex items-center gap-2 text-[11px] font-medium text-sale">
-                  <AlertCircle className="size-3.5" aria-hidden="true" />
-                  Ajout bloqué
-                </p>
-                <ul className="mt-1.5 space-y-1 pl-5 text-[10px] leading-relaxed text-charcoal">
-                  {errors.slice(0, 8).map((error) => (
-                    <li key={error} className="list-disc">
-                      {error}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {warnings.length > 0 && (
-              <div className="border-l-2 border-[#b26b00] bg-[#fff8ec] px-3.5 py-3">
-                <p className="text-[11px] font-medium text-[#8a5300]">À vérifier</p>
-                <ul className="mt-1.5 space-y-1 pl-5 text-[10px] leading-relaxed text-charcoal">
-                  {warnings.slice(0, 8).map((warning) => (
-                    <li key={warning} className="list-disc">
-                      {warning}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {ready && (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-success">
-                <CheckCircle2 className="size-3.5" aria-hidden="true" />
-                <span>
-                  {questions.length} questions appariées. Le corrigé est enregistré avec le thème.
-                </span>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {questions.length > 0 && (
-          <section className="mt-9 border-t border-hairline pt-7">
-            <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <section
+            ref={formRef}
+            aria-labelledby="subject-form-title"
+            className="scroll-mt-[130px] border border-hairline bg-white p-5 sm:p-6"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-hairline-soft pb-4">
               <div>
-                <h2 className="text-[18px] font-medium tracking-[-0.01em]">Aperçu</h2>
-                <p className="mt-1 text-[11px] text-mute">
-                  {questions.length} question{questions.length > 1 ? 's' : ''} · corrigé intégré
+                <h2
+                  id="subject-form-title"
+                  className="text-[18px] font-medium tracking-[-0.01em]"
+                >
+                  {existingForTheme ? 'Modifier le sujet' : 'Enregistrer un sujet'}
+                </h2>
+                <p className="mt-1 max-w-md text-[11px] leading-relaxed text-mute">
+                  Un seul sujet par thème. Enregistrer à nouveau un thème met à jour son
+                  contenu sans créer de doublon.
                 </p>
               </div>
-            </div>
-            <div className="mt-4 max-h-[420px] overflow-auto border border-hairline">
-              <table className="w-full min-w-[680px] border-collapse text-left text-[11px]">
-                <thead className="sticky top-0 bg-cloud">
-                  <tr className="border-b border-hairline">
-                    {['N°', 'Matière', 'Énoncé', 'Réponse', 'Explication'].map((heading) => (
-                      <th
-                        key={heading}
-                        className="whitespace-nowrap px-3 py-2.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-mute"
-                      >
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {questions.map((question) => (
-                    <tr key={question.number} className="border-b border-hairline-soft align-top">
-                      <td className="px-3 py-3 font-medium tabular-nums">{question.number}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-charcoal">{question.matiere}</td>
-                      <td className="max-w-[260px] px-3 py-3 text-charcoal">{question.statement}</td>
-                      <td className="whitespace-nowrap px-3 py-3 font-medium">
-                        {question.correctAnswers.join(', ')}
-                      </td>
-                      <td className="max-w-[280px] px-3 py-3 text-mute">{question.explanation}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        <section
-          id="enregistrer"
-          className="mt-9 scroll-mt-[130px] border-t border-hairline pt-7"
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" onClick={openConfirm} className="gap-2">
-              <Save className="size-3.5" aria-hidden="true" />
-              Enregistrer le thème
-            </Button>
-          </div>
-        </section>
-
-        <details className="group mt-8 border border-hairline">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-[11px] font-medium [&::-webkit-details-marker]:hidden">
-            Format attendu des fichiers
-            <ChevronDown className="size-4 text-mute transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="grid gap-5 border-t border-hairline px-4 py-4 sm:grid-cols-2">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-                Questions
-              </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-charcoal">
-                N° Question, Matière, Énoncé, Option A, Option B, Option C, Option D
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-                Corrigés
-              </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-charcoal">
-                N° Question, Réponse exacte (A, B, C ou D), Explication médicale
-              </p>
-            </div>
-            <p className="text-[10px] leading-relaxed text-mute sm:col-span-2">
-              Formats acceptés : Excel (.xlsx/.xls) ou PDF texte. Le PDF doit contenir un tableau
-              avec ces mêmes colonnes ; les PDF scannés en image ne sont pas lisibles.
-            </p>
-          </div>
-        </details>
-      </div>
-
-      <Modal
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        size="md"
-        eyebrow="Catalogue des thèmes"
-        title="Enregistrer ce thème ?"
-        footer={
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              onClick={handlePublish}
-              loading={publishing}
-              disabled={!ready}
-              className="gap-2"
-            >
-              <Save className="size-3.5" aria-hidden="true" />
-              Enregistrer le thème
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <p className="text-[13px] leading-relaxed text-charcoal">
-            Le thème et ses deux fichiers seront enregistrés ensemble, puis ajoutés au catalogue. Il ne déclenche aucun accès tant que vous ne l’attribuez pas ou
-            qu’une demande n’est pas acceptée, et n’archive aucun autre thème.
-          </p>
-          <dl className="border-y border-hairline text-[12px]">
-            <div className="flex justify-between gap-4 border-b border-hairline py-2.5">
-              <dt className="text-mute">Titre</dt>
-              <dd className="text-right font-medium">{title || '—'}</dd>
-            </div>
-            <div className="flex justify-between gap-4 border-b border-hairline py-2.5">
-              <dt className="text-mute">Mois</dt>
-              <dd className="text-right font-medium">{label || '—'}</dd>
-            </div>
-            <div className="flex justify-between gap-4 border-b border-hairline py-2.5">
-              <dt className="text-mute">Questions</dt>
-              <dd className="text-right font-medium">{questions.length}</dd>
-            </div>
-            <div className="flex justify-between gap-4 py-2.5">
-              <dt className="text-mute">Référence</dt>
-              <dd className="text-right font-medium">Thème {subjects.length + 1}</dd>
-            </div>
-          </dl>
-          <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-            L’étudiant ne peut pas retirer son thème. Seul le docteur peut retirer un thème non attribué du catalogue.
-          </p>
-        </div>
-      </Modal>
-
-      <Modal
-        open={!!removeTarget}
-        onClose={() => setRemoveTarget(null)}
-        size="md"
-        eyebrow="Catalogue des thèmes"
-        title="Retirer ce thème ?"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setRemoveTarget(null)}>
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              size="sm"
-              onClick={handleRemove}
-              loading={removing}
-              className="gap-2"
-            >
-              <Trash2 className="size-3.5" aria-hidden="true" />
-              Retirer du catalogue
-            </Button>
-          </div>
-        }
-      >
-        {removeTarget && (
-          <div className="space-y-3">
-            <p className="text-[13px] leading-relaxed text-charcoal">
-              « {removeTarget.title} » sera supprimé du catalogue avec ses questions. Cette action
-              est définitive.
-            </p>
-            <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-              Un thème déjà attribué à un étudiant ne peut pas être retiré, afin de préserver son
-              historique. Archivez-le si vous ne voulez plus le proposer.
-            </p>
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        open={!!assignTarget}
-        onClose={closeAssign}
-        size="md"
-        eyebrow="Attribution manuelle"
-        title={assignTarget ? `Attribuer « ${assignTarget.title} »` : 'Attribuer un thème'}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={closeAssign}
-              disabled={assigning}
-            >
-              Annuler
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleAssign}
-              loading={assigning}
-              disabled={!selectedCandidate || selectedCandidate.disabled}
-              className="gap-2"
-            >
-              <UserPlus className="size-3.5" aria-hidden="true" />
-              Attribuer le thème
-            </Button>
-          </div>
-        }
-      >
-        {assignTarget && (
-          <div className="space-y-4">
-            <p className="text-[13px] leading-relaxed text-charcoal">
-              L’étudiant choisi recevra immédiatement ce thème et son accès QCM
-              démarrera maintenant. Un seul thème actif est autorisé par étudiant.
-            </p>
-
-            {assignError && (
-              <p className="border-l-2 border-sale bg-[#fdf0f0] px-3.5 py-3 text-[11px] leading-relaxed text-sale">
-                {assignError}
-              </p>
-            )}
-
-            <div className="border-y border-hairline">
-              {assignCandidates.map(
-                ({ student, alreadyAssigned, active, activeSubject, pending, disabled }) => (
-                  <label
-                    key={student.id}
-                    className={cn(
-                      'flex gap-3 border-b border-hairline-soft px-2 py-3 last:border-b-0',
-                      disabled
-                        ? 'cursor-not-allowed opacity-55'
-                        : 'cursor-pointer hover:bg-cloud/40',
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="assign-student"
-                      value={student.id}
-                      checked={assignStudentId === student.id}
-                      disabled={disabled}
-                      onChange={() => {
-                        setAssignStudentId(student.id)
-                        setAssignError('')
-                      }}
-                      className="mt-1 size-3.5 shrink-0 accent-ink"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[12px] font-medium">
-                          {student.firstName} {student.lastName}
-                        </span>
-                        {pending && !active && !alreadyAssigned && (
-                          <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[#8a5300]">
-                            Demande en attente
-                          </span>
-                        )}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[10px] text-mute">
-                        {student.email}
-                      </span>
-                      <span
-                        className={cn(
-                          'mt-1 block text-[10px] leading-relaxed',
-                          disabled ? 'text-mute' : 'text-charcoal',
-                        )}
-                      >
-                        {alreadyAssigned
-                          ? 'Ce thème lui a déjà été attribué.'
-                          : active
-                            ? `Cycle actif${
-                                activeSubject ? ` · ${activeSubject.title}` : ''
-                              }`
-                            : pending
-                              ? 'Sa demande en attente sera validée et son accès activé.'
-                              : isExpired(student.expiresAt)
-                                ? 'Accès expiré — sera réactivé.'
-                                : student.status === 'rejected'
-                                  ? 'Accès refusé — sera réactivé.'
-                                  : 'Disponible — aucun cycle actif.'}
-                      </span>
-                    </span>
-                  </label>
-                ),
+              {existingForTheme && (
+                <StatusPill tone="info" dot>
+                  Thème déjà enregistré
+                </StatusPill>
               )}
             </div>
 
-            {assignCandidates.length === 0 && (
-              <p className="border border-dashed border-hairline px-4 py-6 text-center text-[11px] text-mute">
-                Aucun étudiant n’est enregistré dans la base.
-              </p>
+            {notice && (
+              <div
+                role="status"
+                className="mt-4 flex items-start gap-3 border border-success/30 bg-[#f3faf5] px-4 py-3.5"
+              >
+                <CheckCircle2
+                  className="mt-0.5 size-4 shrink-0 text-success"
+                  strokeWidth={1.8}
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="text-[12px] font-medium text-ink">
+                    {notice.updated ? 'Sujet mis à jour.' : 'Sujet enregistré.'}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-charcoal">
+                    « {notice.title} » est en ligne
+                    {notice.metadataOnly
+                      ? '. Le contenu et le corrigé déjà enregistrés sont conservés, ainsi que l’historique des tentatives.'
+                      : ` avec ${notice.questionCount} question${
+                          notice.questionCount > 1 ? 's' : ''
+                        } et leur correction. Les étudiants peuvent lancer une série.${
+                          notice.updated
+                            ? ' Les tentatives déjà enregistrées restent inchangées.'
+                            : ''
+                        }`}
+                  </p>
+                </div>
+              </div>
             )}
 
-            {assignCandidates.length > 0 && assignCandidates.every((candidate) => candidate.disabled) && (
-              <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-                Tous les étudiants ont déjà reçu ce thème ou disposent d’un cycle actif. Attendez la fin d’un cycle ou choisissez un autre thème.
-              </p>
-            )}
+            <form className="mt-5 space-y-5" onSubmit={handleSubmit} noValidate>
+              <Field
+                label="Matière / sujet"
+                htmlFor="subject-theme"
+                required
+                error={themeError}
+                hint={
+                  selectedTheme
+                    ? selectedTheme.description
+                    : 'Sélectionnez l’un des neuf thèmes PACES officiels.'
+                }
+              >
+                <div className="relative">
+                  <select
+                    ref={themeSelectRef}
+                    id="subject-theme"
+                    className={cn(
+                      'form-input appearance-none pr-10',
+                      themeError && 'border-sale',
+                    )}
+                    value={themeId}
+                    onChange={(event) => chooseTheme(event.target.value)}
+                    aria-invalid={Boolean(themeError)}
+                    aria-required="true"
+                  >
+                    <option value="" disabled>
+                      Sélectionner un thème PACES
+                    </option>
+                    {PACE_THEMES.map((theme, index) => (
+                      <option key={theme.id} value={theme.id}>
+                        {String(index + 1).padStart(2, '0')} — {theme.title}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-mute"
+                    aria-hidden="true"
+                  />
+                </div>
+              </Field>
 
-            <p className="bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-mute">
-              L’attribution est immédiate. Le thème reste dans le catalogue et peut encore être attribué à d’autres étudiants, mais il ne pourra plus être retiré.
-            </p>
-          </div>
-        )}
-      </Modal>
+              <Field
+                label="Description du sujet"
+                htmlFor="subject-description"
+                hint="Facultative. Elle apparaît sous le titre du sujet dans la liste."
+              >
+                <Textarea
+                  id="subject-description"
+                  rows={4}
+                  value={description}
+                  onChange={(event) => {
+                    setDescription(event.target.value)
+                    setNotice(null)
+                  }}
+                  placeholder="Ex. Révisions des membranes, organites et cycle cellulaire."
+                />
+              </Field>
+
+              <div className="space-y-4">
+                <SubjectFileField
+                  id="subject-questions-file"
+                  label="Fichier du sujet (modèle QCM)"
+                  hint="Excel (.xlsx/.xls) ou PDF — une ligne par question avec les options A à D."
+                  file={questionsFile}
+                  existing={Boolean(existingForTheme)}
+                  existingName={existingForTheme?.questionFileName}
+                  error={fileErrors.questions}
+                  onChoose={(file) => chooseFile('questions', file)}
+                  onClear={() => clearFile('questions')}
+                />
+                <SubjectFileField
+                  id="subject-answers-file"
+                  label="Fichier de correction"
+                  hint="Excel (.xlsx/.xls) ou PDF — réponse exacte et explication pour chaque question."
+                  file={answersFile}
+                  existing={Boolean(existingForTheme)}
+                  existingName={existingForTheme?.answerFileName}
+                  error={fileErrors.answers}
+                  onChoose={(file) => chooseFile('answers', file)}
+                  onClear={() => clearFile('answers')}
+                />
+              </div>
+
+              {canReuseContent && (
+                <p className="border-l-2 border-accent bg-accent-soft/60 px-3.5 py-3 text-[10px] leading-relaxed text-charcoal">
+                  Le contenu actuel de « {existingForTheme?.title} » (
+                  {existingForTheme?.questionCount ?? 0} question
+                  {(existingForTheme?.questionCount ?? 0) > 1 ? 's' : ''}) et son corrigé seront
+                  conservés. Choisissez les deux nouveaux fichiers uniquement pour remplacer
+                  les questions.
+                </p>
+              )}
+
+              <div className="space-y-2" aria-live="polite">
+                {parsing && (
+                  <p className="flex items-center gap-2 text-[11px] text-mute">
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                    Lecture et appariement des deux fichiers…
+                  </p>
+                )}
+
+                {parseIssues.length > 0 && (
+                  <div className="border-l-2 border-sale bg-[#fdf0f0] px-3.5 py-3">
+                    <p className="flex items-center gap-2 text-[11px] font-medium text-sale">
+                      <AlertCircle className="size-3.5" aria-hidden="true" />
+                      Enregistrement bloqué
+                    </p>
+                    <ul className="mt-1.5 space-y-1 pl-5 text-[10px] leading-relaxed text-charcoal">
+                      {parseIssues.slice(0, 8).map((issue) => (
+                        <li key={issue} className="list-disc">
+                          {issue}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {warnings.length > 0 && (
+                  <div className="border-l-2 border-[#b26b00] bg-[#fff8ec] px-3.5 py-3">
+                    <p className="text-[11px] font-medium text-[#8a5300]">À vérifier</p>
+                    <ul className="mt-1.5 space-y-1 pl-5 text-[10px] leading-relaxed text-charcoal">
+                      {warnings.slice(0, 8).map((warning) => (
+                        <li key={warning} className="list-disc">
+                          {warning}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {parsedReady && enoughQuestions && (
+                  <p className="flex items-center gap-2 text-[11px] text-success">
+                    <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                    {parsedQuestions.length} questions appariées avec leur corrigé.
+                  </p>
+                )}
+
+                {parsedReady && !enoughQuestions && (
+                  <p className="flex items-start gap-2 border-l-2 border-[#b26b00] bg-[#fff8ec] px-3.5 py-3 text-[10px] leading-relaxed text-charcoal">
+                    <AlertCircle
+                      className="mt-0.5 size-3.5 shrink-0 text-[#8a5300]"
+                      aria-hidden="true"
+                    />
+                    {parsedQuestions.length} question
+                    {parsedQuestions.length > 1 ? 's' : ''} détectée
+                    {parsedQuestions.length > 1 ? 's' : ''}. Une série nécessite au moins{' '}
+                    {SERIES_SIZE} questions valides.
+                  </p>
+                )}
+
+                {questionsFile && answersFile && !parsing && parseResult && (
+                  <p className="text-[10px] text-mute">
+                    Fichiers choisis : {questionsFile.name} · {answersFile.name}
+                  </p>
+                )}
+              </div>
+
+              {formError && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 border-l-2 border-sale bg-[#fdf0f0] px-3.5 py-3 text-[11px] leading-relaxed text-sale"
+                >
+                  <AlertCircle
+                    className="mt-0.5 size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  {formError}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 border-t border-hairline-soft pt-5">
+                <Button
+                  type="submit"
+                  loading={saving}
+                  disabled={parsing}
+                  className="min-w-[150px] gap-2"
+                >
+                  {!saving && <Save className="size-3.5" aria-hidden="true" />}
+                  Enregistrer
+                </Button>
+                {(themeId || description || hasAnyFile) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetForm}
+                    disabled={saving}
+                  >
+                    Réinitialiser
+                  </Button>
+                )}
+              </div>
+            </form>
+          </section>
+
+          <section
+            aria-labelledby="saved-subjects-title"
+            className="border border-hairline bg-white"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-hairline-soft p-5 sm:p-6">
+              <div>
+                <h2
+                  id="saved-subjects-title"
+                  className="text-[18px] font-medium tracking-[-0.01em]"
+                >
+                  Sujets enregistrés
+                </h2>
+                <p className="mt-1 max-w-md text-[11px] leading-relaxed text-mute">
+                  Chaque sujet disponible côté étudiant. Utilisez le crayon pour recharger son
+                  thème et sa description dans le formulaire.
+                </p>
+              </div>
+              <StatusPill tone={subjects.length > 0 ? 'success' : 'neutral'} dot>
+                {subjects.length} / {PACE_THEMES.length}
+              </StatusPill>
+            </div>
+
+            {subjects.length === 0 ? (
+              <p className="m-5 border border-dashed border-hairline bg-cloud/30 px-4 py-10 text-center text-[12px] text-mute sm:m-6">
+                Aucun sujet enregistré. Choisissez un thème et déposez les deux fichiers pour
+                publier le premier sujet.
+              </p>
+            ) : (
+              <ul className="divide-y divide-hairline-soft">
+                {subjects.map((subject) => {
+                  const theme = findPaceTheme(subject.title)
+                  const themeIndex = theme
+                    ? PACE_THEMES.findIndex((candidate) => candidate.id === theme.id)
+                    : -1
+                  const loaded = Boolean(theme && theme.id === themeId)
+                  const fileNames = [subject.questionFileName, subject.answerFileName]
+                    .filter((name): name is string => Boolean(name?.trim()))
+                    .join(' · ')
+                  const hasDescription = Boolean(subject.description.trim())
+
+                  return (
+                    <li
+                      key={subject.id}
+                      className={cn(
+                        'flex gap-3 px-5 py-4 transition-colors sm:px-6',
+                        loaded && 'bg-accent-soft/40',
+                      )}
+                    >
+                      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-cloud text-[10px] font-semibold tabular-nums text-mute">
+                        {themeIndex >= 0
+                          ? String(themeIndex + 1).padStart(2, '0')
+                          : '—'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="text-[13px] font-medium leading-snug text-ink">
+                            {subject.title}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => startEdit(subject)}
+                            aria-label={`Modifier ${subject.title}`}
+                            title="Modifier ce sujet"
+                            className="-mr-1 grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-cloud hover:text-accent"
+                          >
+                            <PencilLine
+                              className="size-3.5"
+                              strokeWidth={1.8}
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </div>
+                        {hasDescription && (
+                          <p className="mt-1.5 text-[11px] leading-relaxed text-charcoal">
+                            {subject.description}
+                          </p>
+                        )}
+                        <p className="mt-2 text-[10px] uppercase tracking-[0.1em] text-mute">
+                          {subject.questionCount} question
+                          {subject.questionCount > 1 ? 's' : ''} · Enregistré le{' '}
+                          {formatDate(subject.publishedAt)}
+                        </p>
+                        {fileNames && (
+                          <p
+                            className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[10px] text-mute"
+                            title={fileNames}
+                          >
+                            <FileText
+                              className="size-3 shrink-0"
+                              strokeWidth={1.6}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{fileNames}</span>
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   )
 }
 
-function FileDropzone({
+function SubjectFileField({
   id,
   label,
-  columns,
+  hint,
   file,
+  existing,
+  existingName,
+  error,
   onChoose,
-  onRemove,
-  onTemplate,
+  onClear,
 }: {
   id: string
   label: string
-  columns: string
+  hint: string
   file: File | null
+  existing: boolean
+  existingName?: string
+  error?: string
   onChoose: (file: File | undefined) => void
-  onRemove: () => void
-  onTemplate: () => void
+  onClear: () => void
 }) {
-  const [dragOver, setDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const storedName = existingName?.trim() || (existing ? 'Fichier déjà enregistré' : '')
+  const displayName = file?.name || storedName
+  const isPdf = /\.pdf$/i.test(displayName)
 
-  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onChoose(event.target.files?.[0])
-    event.target.value = ''
-  }
-
-  const openFilePicker = () => {
-    if (window.self !== window.top) {
-      window.open(window.location.href, '_blank', 'noopener,noreferrer')
-      return
-    }
-    fileInputRef.current?.click()
-  }
-
-  const renderFileInput = (className: string) => (
-    <input
-      id={id}
-      ref={fileInputRef}
-      type="file"
-      accept={importAccept}
-      className={className}
-      onChange={handleFile}
-      aria-label={`Choisir le fichier — ${label}`}
-    />
-  )
-
-  if (file) {
-    return (
-      <div className="flex flex-col border border-hairline bg-white">
-        <div className="flex flex-1 flex-col justify-between p-4">
-          <div className="flex items-start gap-3">
-            <span className="grid size-9 shrink-0 place-items-center bg-cloud text-ink">
-              {file.name.toLowerCase().endsWith('.pdf') ? (
-                <FileText className="size-4" strokeWidth={1.5} aria-hidden="true" />
-              ) : (
-                <FileSpreadsheet className="size-4" strokeWidth={1.5} aria-hidden="true" />
-              )}
-            </span>
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-success">
-                Fichier enregistré
-              </p>
-              <p className="mt-1 truncate text-[12px] font-medium">{file.name}</p>
-              <p className="mt-0.5 text-[10px] text-mute">
-                {file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Excel'} ·{' '}
-                {formatBytes(file.size)}
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-4">
-            <button
-              type="button"
-              onClick={openFilePicker}
-              className="inline-flex min-h-9 items-center text-[11px] font-medium underline decoration-1 underline-offset-4 hover:text-mute"
-            >
-              Remplacer le fichier
-            </button>
-            {renderFileInput('sr-only')}
-            <button
-              type="button"
-              onClick={onRemove}
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-sale hover:opacity-70"
-            >
-              <Trash2 className="size-3" aria-hidden="true" />
-              Retirer
-            </button>
-          </div>
-                  </div>
-              </div>
-    )
-  }
+  const openPicker = () => inputRef.current?.click()
 
   return (
-    <div className="flex flex-col border border-hairline bg-white">
+    <Field label={label} htmlFor={id} required hint={hint} error={error}>
+      <input
+        id={id}
+        ref={inputRef}
+        type="file"
+        accept={importAccept}
+        className="sr-only"
+        aria-label={`Choisir le fichier — ${label}`}
+        aria-required="true"
+        aria-invalid={Boolean(error)}
+        onChange={(event) => {
+          onChoose(event.target.files?.[0])
+          event.target.value = ''
+        }}
+      />
       <div
-        onClick={(event) => {
-          const target = event.target as HTMLElement
-          if (target.closest('button, input, a')) return
-          openFilePicker()
-        }}
-        onDragOver={(event) => {
-          event.preventDefault()
-          setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(event) => {
-          event.preventDefault()
-          setDragOver(false)
-          onChoose(event.dataTransfer.files[0])
-        }}
         className={cn(
-          'group flex flex-1 cursor-pointer flex-col items-center justify-center px-5 py-7 text-center transition-colors',
-          dragOver ? 'bg-cloud' : 'bg-cloud/25 hover:bg-cloud/60',
+          'flex items-stretch overflow-hidden rounded-[10px] border bg-surface transition',
+          error
+            ? 'border-sale'
+            : file
+              ? 'border-accent'
+              : 'border-line',
         )}
       >
-        <span className="grid size-10 place-items-center rounded-full bg-white text-mute transition-colors group-hover:text-ink">
-          <Upload className="size-4" strokeWidth={1.5} aria-hidden="true" />
-        </span>
-        <span className="mt-3 text-[13px] font-medium">{label}</span>
-        <span className="mt-1 text-[10px] text-mute">{columns}</span>
-        {renderFileInput('sr-only')}
-        <span className="mt-2 text-[10px] text-mute">
-          Glissez-déposez votre fichier Excel ou PDF
-        </span>
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-3.5 py-3">
+          <span
+            className={cn(
+              'grid size-8 shrink-0 place-items-center',
+              file ? 'bg-accent-soft text-accent' : 'bg-cloud text-mute',
+            )}
+          >
+            {isPdf ? (
+              <FileText className="size-4" strokeWidth={1.6} aria-hidden="true" />
+            ) : (
+              <FileSpreadsheet
+                className="size-4"
+                strokeWidth={1.6}
+                aria-hidden="true"
+              />
+            )}
+          </span>
+          <span className="min-w-0">
+            {displayName ? (
+              <span
+                className="block truncate text-[13px] font-medium text-ink"
+                title={displayName}
+              >
+                {displayName}
+              </span>
+            ) : (
+              <span className="block text-[13px] text-mute">
+                Aucun fichier sélectionné
+              </span>
+            )}
+            <span className="mt-0.5 block text-[10px] text-mute">
+              {file
+                ? `${formatBytes(file.size)} · prêt à être enregistré`
+                : storedName
+                  ? 'Fichier enregistré · conservez-le ou remplacez-le'
+                  : 'Excel (.xlsx/.xls) ou PDF'}
+            </span>
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={openPicker}
+          aria-label={`Ouvrir l’explorateur de fichiers — ${label}`}
+          title="Parcourir les fichiers"
+          className="grid w-11 shrink-0 place-items-center border-l border-line text-mute transition-colors hover:bg-cloud hover:text-ink"
+        >
+          <FolderOpen className="size-4" strokeWidth={1.7} aria-hidden="true" />
+        </button>
+        {file && (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label={`Retirer le fichier — ${label}`}
+            title="Retirer ce fichier"
+            className="grid w-9 shrink-0 place-items-center border-l border-line text-sale transition-colors hover:bg-danger-soft"
+          >
+            <X className="size-3.5" strokeWidth={2} aria-hidden="true" />
+          </button>
+        )}
       </div>
-          </div>
+    </Field>
   )
 }

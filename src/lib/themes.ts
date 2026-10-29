@@ -113,6 +113,21 @@ export interface ThemePackInput {
   themes: ThemePackThemeInput[]
 }
 
+/**
+ * Enregistrement d'un sujet depuis l'espace docteur. Sans `questions`, seules
+ * les informations du sujet sont mises à jour : le contenu déjà publié et son
+ * corrigé sont conservés.
+ */
+export interface SaveSubjectInput {
+  themeId: string
+  title: string
+  description: string
+  monthLabel: string
+  questions?: ThemeQuestionInput[]
+  questionFileName?: string
+  answerFileName?: string
+}
+
 function normalizeSpaces(value: string) {
   return value.replace(/\s+/g, ' ').trim()
 }

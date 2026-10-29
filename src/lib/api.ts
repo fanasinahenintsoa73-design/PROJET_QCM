@@ -4,7 +4,7 @@ import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
 import * as remote from '@/lib/supabaseData'
 import { AppError, SERIES_SIZE } from '@/lib/utils'
-import type { ThemePackInput } from '@/lib/themes'
+import type { SaveSubjectInput, ThemePackInput } from '@/lib/themes'
 import type {
   AttemptReview,
   PublishSubjectInput,
@@ -140,6 +140,11 @@ export const api = {
   async publishSubject(input: PublishSubjectInput): Promise<Subject> {
     if (isSupabaseConfigured) return remote.publishSubject(input)
     return demo.publishSubject(input)
+  },
+
+  async saveSubject(input: SaveSubjectInput): Promise<Subject> {
+    if (isSupabaseConfigured) return remote.saveSubject(input)
+    return demo.saveSubject(input)
   },
 
   async removeSubject(subjectId: string): Promise<void> {

@@ -105,6 +105,10 @@ create table public.subjects (
   published_at timestamptz not null default now(),
   archived boolean not null default false,
   question_count integer not null default 0 check (question_count >= 0),
+  -- Noms des fichiers d'origine, affichés au docteur lors d'une modification.
+  -- Le contenu exploitable reste stocké dans public.questions.
+  question_file_name text not null default '',
+  answer_file_name text not null default '',
   published_by uuid references public.profiles (id)
 );
 
@@ -197,6 +201,13 @@ alter table public.access_requests
 
 alter table public.attempts
   add column if not exists question_snapshot jsonb;
+
+-- Noms des fichiers déposés par le docteur pour chaque sujet. Les anciens
+-- sujets restent lisibles : les colonnes sont vides jusqu'au prochain
+-- enregistrement depuis la page Sujets.
+alter table public.subjects
+  add column if not exists question_file_name text not null default '',
+  add column if not exists answer_file_name text not null default '';
 
 -- Ancien flux de choix du sujet : suppression des objets devenus inutiles.
 drop index if exists public.access_requests_pending_choice_idx;
@@ -1298,7 +1309,233 @@ revoke all on function public.publish_theme_pack(jsonb) from public, anon;
 grant execute on function public.publish_theme_pack(jsonb) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 14. RPC professeur historiques (compatibilité, hors interface docteur)
+-- 14. RPC professeur : enregistrer ou modifier un sujet d'un thème PACES
+-- ---------------------------------------------------------------------------
+
+-- Un seul sujet actif par thème. Si le titre officiel existe déjà, la fonction
+-- met à jour ce sujet au lieu d'en créer un second. Les questions sont
+-- remplacées dans la même transaction ; les tentatives déjà enregistrées
+-- gardent leur copie figée (question_snapshot). Les questions de même numéro
+-- conservent leur identifiant pour les anciennes tentatives sans copie.
+create or replace function public.save_subject(
+  p_title text,
+  p_description text default '',
+  p_month_label text default '',
+  p_questions jsonb default null,
+  p_question_file_name text default null,
+  p_answer_file_name text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_series_size constant integer := 10;
+  v_titles constant text[] := array[
+    'Biologie cellulaire S1 et S2',
+    'Étude des tissus S1 et S2',
+    'Structure et fonction des biomolécules',
+    'Physiologie S1 et S2',
+    'Anatomie viscérale',
+    'Biomathématiques, Biophysique, Statistiques',
+    'Initiation à la connaissance des médicaments',
+    'Français médical',
+    'Unités d’enseignements spécifiques'
+  ];
+  v_title text := btrim(coalesce(p_title, ''));
+  v_description text := coalesce(p_description, '');
+  v_month_label text := btrim(coalesce(p_month_label, ''));
+  v_subject_id uuid;
+  v_result jsonb;
+begin
+  if not public.is_professor() then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  if v_title = '' or not (v_title = any (v_titles)) then
+    raise exception 'INVALID_THEME' using errcode = 'P0001';
+  end if;
+
+  -- Sérialise deux enregistrements simultanés du même thème : le second
+  -- mettra à jour le sujet créé par le premier au lieu de le dupliquer.
+  perform pg_advisory_xact_lock(hashtext('save_subject:' || lower(v_title))::bigint);
+
+  select s.id
+  into v_subject_id
+  from public.subjects s
+  where not s.archived
+    and lower(btrim(s.title)) = lower(v_title)
+  order by s.published_at asc
+  limit 1
+  for update;
+
+  if p_questions is not null then
+    if jsonb_typeof(p_questions) <> 'array'
+       or jsonb_array_length(p_questions) < v_series_size then
+      raise exception 'INVALID_CORRECTION' using errcode = 'P0001';
+    end if;
+
+    if exists (
+      select 1
+      from jsonb_array_elements(p_questions) as q(item)
+      where case
+              when coalesce(q.item ->> 'number', '') ~ '^[0-9]+$'
+                then (q.item ->> 'number')::integer < 1
+              else true
+            end
+         or btrim(coalesce(q.item ->> 'statement', '')) = ''
+         or jsonb_typeof(q.item -> 'options') is distinct from 'object'
+         or btrim(coalesce(q.item -> 'options' ->> 'A', '')) = ''
+         or btrim(coalesce(q.item -> 'options' ->> 'B', '')) = ''
+         or btrim(coalesce(q.item -> 'options' ->> 'C', '')) = ''
+         or btrim(coalesce(q.item -> 'options' ->> 'D', '')) = ''
+         or jsonb_typeof(q.item -> 'correctAnswers') is distinct from 'array'
+         or case
+              when jsonb_typeof(q.item -> 'correctAnswers') = 'array'
+                then jsonb_array_length(q.item -> 'correctAnswers') <> 1
+              else true
+            end
+         or coalesce(q.item -> 'correctAnswers' ->> 0, '') not in ('A', 'B', 'C', 'D')
+         or btrim(coalesce(q.item ->> 'explanation', '')) = ''
+    ) then
+      raise exception 'INVALID_CORRECTION' using errcode = 'P0001';
+    end if;
+
+    if exists (
+      select 1
+      from jsonb_array_elements(p_questions) as q(item)
+      group by q.item ->> 'number'
+      having count(*) > 1
+    ) then
+      raise exception 'INVALID_CORRECTION' using errcode = 'P0001';
+    end if;
+  end if;
+
+  if v_subject_id is null then
+    if p_questions is null then
+      raise exception 'EMPTY_SUBJECT' using errcode = 'P0001';
+    end if;
+    if v_month_label = '' then
+      raise exception 'INVALID_SUBJECT' using errcode = 'P0001';
+    end if;
+
+    insert into public.subjects (
+      title,
+      description,
+      month_label,
+      published_at,
+      archived,
+      question_count,
+      question_file_name,
+      answer_file_name,
+      published_by
+    )
+    values (
+      v_title,
+      v_description,
+      v_month_label,
+      now(),
+      false,
+      jsonb_array_length(p_questions),
+      coalesce(nullif(btrim(p_question_file_name), ''), ''),
+      coalesce(nullif(btrim(p_answer_file_name), ''), ''),
+      auth.uid()
+    )
+    returning id into v_subject_id;
+  else
+    update public.subjects
+    set description = v_description,
+        month_label = case
+          when v_month_label <> '' then v_month_label
+          else month_label
+        end,
+        published_at = now(),
+        archived = false,
+        question_count = case
+          when p_questions is null then question_count
+          else jsonb_array_length(p_questions)
+        end,
+        question_file_name = coalesce(
+          nullif(btrim(p_question_file_name), ''),
+          question_file_name
+        ),
+        answer_file_name = coalesce(
+          nullif(btrim(p_answer_file_name), ''),
+          answer_file_name
+        ),
+        published_by = auth.uid()
+    where id = v_subject_id;
+  end if;
+
+  if p_questions is not null then
+    -- Mise à jour par numéro : l'identifiant d'une question inchangée reste
+    -- stable, ce qui préserve la consultation des anciennes tentatives.
+    insert into public.questions (
+      subject_id,
+      number,
+      matiere,
+      statement,
+      options,
+      correct_answers,
+      explanation
+    )
+    select
+      v_subject_id,
+      (q.item ->> 'number')::integer,
+      coalesce(nullif(btrim(q.item ->> 'matiere'), ''), v_title),
+      q.item ->> 'statement',
+      q.item -> 'options',
+      array(select jsonb_array_elements_text(q.item -> 'correctAnswers')),
+      q.item ->> 'explanation'
+    from jsonb_array_elements(p_questions) as q(item)
+    on conflict (subject_id, number) do update
+    set matiere = excluded.matiere,
+        statement = excluded.statement,
+        options = excluded.options,
+        correct_answers = excluded.correct_answers,
+        explanation = excluded.explanation;
+
+    delete from public.questions
+    where subject_id = v_subject_id
+      and number not in (
+        select (q.item ->> 'number')::integer
+        from jsonb_array_elements(p_questions) as q(item)
+      );
+  end if;
+
+  -- Nettoie d'éventuels doublons historiques du même thème, sans supprimer
+  -- leur historique : ils sont seulement retirés du catalogue actif.
+  update public.subjects
+  set archived = true
+  where not archived
+    and lower(btrim(title)) = lower(v_title)
+    and id <> v_subject_id;
+
+  select jsonb_build_object(
+           'id', s.id,
+           'title', s.title,
+           'description', s.description,
+           'monthLabel', s.month_label,
+           'publishedAt', s.published_at,
+           'archived', s.archived,
+           'questionCount', s.question_count,
+           'questionFileName', s.question_file_name,
+           'answerFileName', s.answer_file_name
+         )
+  into v_result
+  from public.subjects s
+  where s.id = v_subject_id;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.save_subject(text, text, text, jsonb, text, text) from public, anon;
+grant execute on function public.save_subject(text, text, text, jsonb, text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 15. RPC professeur historiques (compatibilité, hors interface docteur)
 -- ---------------------------------------------------------------------------
 
 create or replace function public.publish_subject(
@@ -1666,7 +1903,7 @@ revoke all on function public.extend_access(uuid, integer) from public, anon;
 grant execute on function public.extend_access(uuid, integer) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 15. Stockage privé des justificatifs
+-- 16. Stockage privé des justificatifs
 -- ---------------------------------------------------------------------------
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -1706,7 +1943,7 @@ create policy "receipts_read_owner_or_professor"
 -- La purge RGPD se fait avec la clé service_role côté serveur.
 
 -- ---------------------------------------------------------------------------
--- 16. Exemple d'initialisation du professeur
+-- 17. Exemple d'initialisation du professeur
 -- ---------------------------------------------------------------------------
 -- 1. Créer le compte dans Authentication > Users (email + mot de passe).
 -- 2. Exécuter :

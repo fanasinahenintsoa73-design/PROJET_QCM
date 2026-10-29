@@ -54,6 +54,10 @@ export interface Subject {
   publishedAt: string
   archived: boolean
   questionCount: number
+  /** Nom du dernier fichier de questions enregistré (vide pour les anciens sujets). */
+  questionFileName?: string
+  /** Nom du dernier fichier de correction enregistré (vide pour les anciens sujets). */
+  answerFileName?: string
 }
 
 export interface SubjectAssignment {

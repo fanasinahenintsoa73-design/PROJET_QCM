@@ -14,7 +14,7 @@ import type {
 } from '@/types'
 import { requireSupabase } from '@/lib/supabase'
 import { AppError, SERIES_LIMIT_MESSAGE, SERIES_SIZE } from '@/lib/utils'
-import type { ThemePackInput } from '@/lib/themes'
+import type { SaveSubjectInput, ThemePackInput } from '@/lib/themes'
 
 /* ------------------------------------------------------------------ */
 /* Lignes Supabase                                                     */
@@ -61,6 +61,8 @@ interface SubjectRow {
   published_at: string
   archived: boolean
   question_count: number
+  question_file_name?: string | null
+  answer_file_name?: string | null
 }
 
 interface AssignmentRow {
@@ -127,6 +129,8 @@ function mapSubject(row: SubjectRow): Subject {
     publishedAt: row.published_at,
     archived: row.archived,
     questionCount: row.question_count,
+    questionFileName: row.question_file_name ?? '',
+    answerFileName: row.answer_file_name ?? '',
   }
 }
 
@@ -198,6 +202,8 @@ const errorMessages: Record<string, string> = {
   THEME_UNAVAILABLE:
     'Ce thème sera bientôt disponible : le docteur prépare encore ses questions.',
   INVALID_THEME_PACK: 'Le pack des neuf thèmes est incomplet ou invalide.',
+  INVALID_THEME: 'Ce sujet ne correspond à aucun des neuf thèmes PACES.',
+  INVALID_SUBJECT: 'Le sujet est incomplet : vérifiez le thème et le mois de publication.',
   INVALID_QUESTION_SET: 'La série envoyée ne correspond pas au thème sélectionné.',
   INVALID_ANSWERS: 'Les réponses envoyées sont invalides.',
   DUPLICATE_QUESTIONS: 'La série contient des questions en double.',
@@ -600,6 +606,48 @@ export async function publishThemePack(input: ThemePackInput): Promise<void> {
   const client = requireSupabase()
   const { error } = await client.rpc('publish_theme_pack', { p_pack: input })
   if (error) throw asFrenchError(error)
+}
+
+/**
+ * Enregistre un sujet unique par thème. La fonction SQL met à jour le sujet
+ * existant (même titre officiel) et remplace ses questions dans la même
+ * transaction ; les tentatives conservent leur copie figée du corrigé.
+ */
+export async function saveSubject(input: SaveSubjectInput): Promise<Subject> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('save_subject', {
+    p_title: input.title.trim(),
+    p_description: input.description.trim(),
+    p_month_label: input.monthLabel.trim(),
+    p_questions: input.questions ?? null,
+    p_question_file_name: input.questionFileName?.trim() || null,
+    p_answer_file_name: input.answerFileName?.trim() || null,
+  })
+  if (error) throw asFrenchError(error)
+  const payload = data as {
+    id: string
+    title?: string
+    description?: string
+    monthLabel?: string
+    publishedAt?: string
+    archived?: boolean
+    questionCount?: number
+    questionFileName?: string | null
+    answerFileName?: string | null
+  }
+  return {
+    id: String(payload.id),
+    title: payload.title ?? input.title.trim(),
+    description: payload.description ?? input.description.trim(),
+    monthLabel: payload.monthLabel ?? input.monthLabel.trim(),
+    publishedAt: payload.publishedAt ?? new Date().toISOString(),
+    archived: payload.archived ?? false,
+    questionCount: payload.questionCount ?? input.questions?.length ?? 0,
+    questionFileName:
+      payload.questionFileName ?? input.questionFileName?.trim() ?? '',
+    answerFileName:
+      payload.answerFileName ?? input.answerFileName?.trim() ?? '',
+  }
 }
 
 export async function publishSubject(input: PublishSubjectInput): Promise<Subject> {

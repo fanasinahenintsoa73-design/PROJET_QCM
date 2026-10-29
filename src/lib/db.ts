@@ -15,12 +15,14 @@ import {
   findPaceTheme,
   sortThemes,
   validateThemePackInput,
+  type SaveSubjectInput,
   type ThemePackInput,
 } from '@/lib/themes'
 import {
   addDays,
   AppError,
   isExpired,
+  monthLabel,
   SERIES_LIMIT,
   SERIES_LIMIT_MESSAGE,
   SERIES_SIZE,
@@ -815,6 +817,107 @@ export function publishSubject(input: PublishSubjectInput): Subject {
     subjects: [subject, ...db.subjects],
     questions: [...db.questions, ...questions],
   })
+  return subject
+}
+
+/**
+ * Enregistre un sujet rattaché à l'un des neuf thèmes PACES. Un seul sujet
+ * actif existe par thème : une nouvelle sauvegarde met à jour le sujet existant
+ * au lieu de créer un doublon. Les tentatives déjà enregistrées ne sont jamais
+ * supprimées ; leurs questions gardent le même identifiant quand le numéro est
+ * conservé.
+ */
+export function saveSubject(input: SaveSubjectInput): Subject {
+  const definition =
+    PACE_THEMES.find((theme) => theme.id === input.themeId) ?? findPaceTheme(input.title)
+  if (!definition) {
+    throw new AppError('INVALID_THEME', 'Ce sujet ne correspond à aucun des neuf thèmes PACES.')
+  }
+
+  const db = getDB()
+  const existingIndex = db.subjects.findIndex(
+    (subject) =>
+      subject.id === definition.id || findPaceTheme(subject.title)?.id === definition.id,
+  )
+  const existing = existingIndex >= 0 ? db.subjects[existingIndex] : undefined
+  const hasQuestions = Boolean(input.questions?.length)
+
+  if (!hasQuestions && !existing) {
+    throw new AppError(
+      'EMPTY_SUBJECT',
+      'Ajoutez le fichier des questions et celui de la correction avant d’enregistrer le sujet.',
+    )
+  }
+
+  if (hasQuestions && input.questions) {
+    if (input.questions.length < SERIES_SIZE) {
+      throw new AppError(
+        'INVALID_CORRECTION',
+        `Une série comporte ${SERIES_SIZE} questions : ajoutez au moins ${SERIES_SIZE} questions valides.`,
+      )
+    }
+    const seenNumbers = new Set<number>()
+    input.questions.forEach((question, index) => {
+      validateQuestion(question, `Question ${question.number || index + 1}`, true)
+      if (seenNumbers.has(question.number)) {
+        throw new AppError(
+          'INVALID_CORRECTION',
+          `Question ${question.number} : ce numéro apparaît plusieurs fois.`,
+        )
+      }
+      seenNumbers.add(question.number)
+    })
+  }
+
+  const now = new Date().toISOString()
+  const subject: Subject = {
+    id: existing?.id ?? definition.id,
+    title: definition.title,
+    description: input.description.trim(),
+    monthLabel: input.monthLabel.trim() || existing?.monthLabel || monthLabel(),
+    publishedAt: now,
+    archived: false,
+    questionCount: hasQuestions ? input.questions!.length : existing!.questionCount,
+    questionFileName:
+      input.questionFileName?.trim() || existing?.questionFileName || '',
+    answerFileName: input.answerFileName?.trim() || existing?.answerFileName || '',
+  }
+
+  const subjects =
+    existingIndex >= 0
+      ? db.subjects.map((candidate, index) => (index === existingIndex ? subject : candidate))
+      : [...db.subjects, subject]
+
+  let questions = db.questions
+  if (hasQuestions && input.questions) {
+    const previousById = new Map(
+      db.questions
+        .filter((question) => question.subjectId === subject.id)
+        .map((question) => [question.number, question.id]),
+    )
+    questions = [
+      ...db.questions.filter((question) => question.subjectId !== subject.id),
+      ...input.questions.map((question) => ({
+        ...question,
+        // Conserve l'identifiant des questions déjà présentes afin que les
+        // anciennes tentatives sans copie figée restent consultables.
+        id: previousById.get(question.number) ?? uid('q'),
+        subjectId: subject.id,
+        matiere: question.matiere?.trim() || definition.title,
+      })),
+    ]
+  }
+
+  // Archive d'éventuels doublons historiques du même thème.
+  const nextSubjects = subjects.map((candidate) =>
+    candidate.id !== subject.id &&
+    !candidate.archived &&
+    findPaceTheme(candidate.title)?.id === definition.id
+      ? { ...candidate, archived: true }
+      : candidate,
+  )
+
+  commit({ ...db, subjects: nextSubjects, questions })
   return subject
 }
 
