@@ -716,7 +716,7 @@ begin
                           'selected',
                           coalesce(a.answers -> (elem ->> 'id'), '[]'::jsonb)
                         )
-                        order by (elem ->> 'number')::integer
+                        order by array_position(a.question_ids, (elem ->> 'id')::uuid)
                       )
                from jsonb_array_elements(a.question_snapshot) as snapshot(elem)
              )
@@ -732,7 +732,7 @@ begin
                           'explanation', q.explanation,
                           'selected', coalesce(a.answers -> q.id::text, '[]'::jsonb)
                         )
-                        order by q.number
+                        order by array_position(a.question_ids, q.id)
                       )
                from public.questions q
                where q.id = any (a.question_ids)
