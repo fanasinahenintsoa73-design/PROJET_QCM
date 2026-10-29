@@ -8,6 +8,7 @@ import {
   getUsableQuestions,
 } from '@/lib/db'
 import { PACE_THEMES, findPaceTheme, sortThemes } from '@/lib/themes'
+import { findThemeSubject } from '@/lib/subjects'
 import { ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { usePageTitle } from '@/components/Layouts'
@@ -39,37 +40,19 @@ export default function DashboardPage() {
     [assignment, db, user],
   )
 
-  const themeBySubject = useMemo(
+  const themes = useMemo(
     () =>
-      new Map(
-        PACE_THEMES.map((theme) => [
-          theme.id,
-          db.subjects.find(
-            (subject) => subject.id === theme.id || findPaceTheme(subject.title)?.id === theme.id,
-          ),
-        ]),
-      ),
-    [db.subjects],
+      PACE_THEMES.map((theme, index) => {
+        const subject = findThemeSubject(theme.id, db.subjects)
+        const usable = subject
+          ? db.questions.length > 0
+            ? getUsableQuestions(subject.id, db).length
+            : subject.questionCount
+          : 0
+        return { theme, subject, usable, number: index + 1 }
+      }),
+    [db.questions, db.subjects],
   )
-
-  const themes = useMemo(() => {
-    const subjects = sortThemes(
-      db.subjects.filter((subject) => !subject.archived),
-    )
-    return PACE_THEMES.map((theme, index) => {
-      const subject =
-        subjects.find((candidate) => findPaceTheme(candidate.title)?.id === theme.id) ??
-        themeBySubject.get(theme.id)
-      const usable = subject
-        ? db.questions.length > 0
-          ? getUsableQuestions(subject.id, db).length
-          : subject.questionCount
-        : 0
-      return { theme, subject, usable, number: index + 1 }
-    })
-    // themeBySubject is derived from db.subjects; listing both deps keeps the
-    // memo honest without recomputing on unrelated renders.
-  }, [db.questions, db.subjects, themeBySubject])
 
   const attemptedThemeIds = useMemo(
     () => new Set(attempts.map((attempt) => attempt.subjectId)),

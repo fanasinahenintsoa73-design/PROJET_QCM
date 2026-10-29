@@ -9,6 +9,7 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { usePageTitle } from '@/components/Layouts'
 import { findPaceTheme } from '@/lib/themes'
+import { findThemeSubject } from '@/lib/subjects'
 import {
   answerLetters,
   cn,
@@ -61,20 +62,33 @@ export default function QuizPage() {
     setPayload(null)
 
     const selectedTheme = findPaceTheme(themeParam)
-    const subject =
-      (selectedTheme
-        ? db.subjects.find(
-            (candidate) =>
-              candidate.id === selectedTheme.id ||
-              findPaceTheme(candidate.title)?.id === selectedTheme.id,
-          )
-        : undefined) ?? db.subjects.find((candidate) => candidate.id === themeParam)
-    const subjectId = subject?.id ?? themeParam
+    const subject = selectedTheme
+      ? findThemeSubject(selectedTheme.id, db.subjects)
+      : db.subjects.find(
+          (candidate) =>
+            candidate.id === themeParam &&
+            !candidate.archived &&
+            candidate.questionCount >= SERIES_SIZE,
+        )
+
+    if (!subject) {
+      setUnavailable(
+        'Ce thème sera bientôt disponible : le docteur prépare encore ses questions.',
+      )
+      setLoading(false)
+      return
+    }
 
     api
-      .startQuiz(user.id, subjectId, SERIES_SIZE)
+      .startQuiz(user.id, subject.id, SERIES_SIZE)
       .then((quiz) => {
         if (!active) return
+        if (quiz.questions.length < SERIES_SIZE) {
+          setUnavailable(
+            'Ce thème ne contient pas encore assez de questions pour une série complète.',
+          )
+          return
+        }
         setPayload(quiz)
         setIndex(0)
         setAnswers({})

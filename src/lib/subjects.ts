@@ -1,4 +1,6 @@
 import type { Subject } from '@/types'
+import { findPaceTheme } from '@/lib/themes'
+import { SERIES_SIZE } from '@/lib/utils'
 
 /** Ordre du catalogue : publication, puis identifiant pour départager. */
 export function sortSubjectsByPublication(subjects: Subject[]): Subject[] {
@@ -6,6 +8,32 @@ export function sortSubjectsByPublication(subjects: Subject[]): Subject[] {
     const byDate = new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
     return byDate !== 0 ? byDate : a.id.localeCompare(b.id)
   })
+}
+
+/**
+ * Sujet actif d'un thème PACES. Plusieurs sujets historiques peuvent porter le
+ * même thème : seuls les sujets non archivés et disposant d'assez de questions
+ * sont retenus, et le plus récent est prioritaire.
+ */
+export function findThemeSubject(
+  themeId: string,
+  subjects: Subject[],
+  minimumQuestions = SERIES_SIZE,
+): Subject | undefined {
+  return subjects
+    .filter(
+      (subject) =>
+        !subject.archived &&
+        subject.questionCount >= minimumQuestions &&
+        (subject.id === themeId || findPaceTheme(subject.title)?.id === themeId),
+    )
+    .sort((left, right) => {
+      const byDate =
+        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime()
+      return Number.isFinite(byDate) && byDate !== 0
+        ? byDate
+        : right.id.localeCompare(left.id)
+    })[0]
 }
 
 export function getSubjectNumber(subjectId: string, subjects: Subject[]): number | undefined {

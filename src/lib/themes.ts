@@ -158,8 +158,10 @@ function themeKeys(theme: PaceThemeDefinition) {
   )
 }
 
-/** Retrouve un thème à partir d'un titre complet ou d'un nom de feuille abrégé. */
+/** Retrouve un thème à partir de son identifiant, d'un titre ou d'un nom de feuille. */
 export function findPaceTheme(value: string): PaceThemeDefinition | undefined {
+  const direct = PACE_THEMES.find((theme) => theme.id === value.trim())
+  if (direct) return direct
   const key = stripSheetPrefix(normalizeThemeKey(value))
   if (!key) return undefined
   const matches = PACE_THEMES.filter((theme) =>
