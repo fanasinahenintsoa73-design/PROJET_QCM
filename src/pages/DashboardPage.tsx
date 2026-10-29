@@ -220,7 +220,7 @@ export default function DashboardPage() {
                   {theme.title}
                 </h3>
                 <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-mute">
-                  {theme.description}
+                  {subject?.description?.trim() || theme.description}
                 </p>
                 <div className="mt-5 flex items-center justify-between border-t border-line pt-3 text-[11px]">
                   <span className={cn('font-medium', available && !blocked ? 'text-accent' : 'text-mute')}>
