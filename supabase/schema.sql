@@ -58,6 +58,8 @@ create index profiles_role_idx on public.profiles (role);
 create table public.access_requests (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles (id) on delete cascade,
+  user_name text,
+  user_email text,
   type public.request_type not null,
   receipt_path text not null check (char_length(receipt_path) > 0),
   receipt_name text not null,
@@ -185,6 +187,8 @@ alter table public.subject_assignments
   alter column subject_id drop not null;
 
 alter table public.access_requests
+  add column if not exists user_name text,
+  add column if not exists user_email text,
   add column if not exists receipt_size integer not null default 0,
   add column if not exists current_subject_id uuid references public.subjects (id),
   add column if not exists next_subject_id uuid references public.subjects (id),
@@ -913,7 +917,200 @@ revoke all on function public.reject_access_request(uuid, text) from public, ano
 grant execute on function public.reject_access_request(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 12. RPC professeur : publier les neuf thèmes en une transaction
+-- 12. RPC : renouvellement direct après paiement
+-- ---------------------------------------------------------------------------
+
+-- Le paiement est simulé : l'étudiant clôt lui-même son cycle terminé et
+-- ouvre immédiatement le suivant. Un historique approuvé est conservé pour le
+-- docteur, avec un reçu technique sans fichier.
+create or replace function public.renew_now(
+  p_full_name text,
+  p_email text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_series_limit constant integer := 30;
+  v_full_name text := btrim(coalesce(p_full_name, ''));
+  v_email text := btrim(coalesce(p_email, ''));
+  v_status public.account_status;
+  v_assignment public.subject_assignments%rowtype;
+  v_used integer;
+  v_started_at timestamptz := now();
+  v_expires_at timestamptz := now() + interval '100 years';
+  v_assignment_id uuid;
+  v_first_name text;
+  v_last_name text;
+begin
+  select status
+  into v_status
+  from public.profiles
+  where id = auth.uid()
+    and role = 'student'
+  for update;
+
+  if not found then
+    raise exception 'STUDENT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  -- Une première inscription en attente doit rester validée par le docteur.
+  if v_status = 'pending' then
+    raise exception 'REQUEST_PENDING' using errcode = 'P0001';
+  end if;
+
+  if v_full_name = '' then
+    raise exception 'INVALID_FULL_NAME' using errcode = 'P0001';
+  end if;
+
+  if v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'INVALID_EMAIL' using errcode = 'P0001';
+  end if;
+
+  select *
+  into v_assignment
+  from public.subject_assignments
+  where user_id = auth.uid()
+  order by started_at desc
+  limit 1
+  for update;
+
+  if found then
+    select count(*)
+    into v_used
+    from public.attempts
+    where user_id = auth.uid()
+      and created_at >= v_assignment.started_at;
+
+    -- Un renouvellement direct ne peut clore qu'un cycle complet, sauf pour
+    -- un dossier refusé : le paiement rouvre alors immédiatement l'accès.
+    if v_used < v_series_limit and v_status <> 'rejected' then
+      raise exception 'SERIES_NOT_COMPLETE' using errcode = 'P0001';
+    end if;
+
+    update public.subject_assignments
+    set expires_at = v_started_at
+    where id = v_assignment.id;
+  end if;
+
+  insert into public.subject_assignments (
+    user_id,
+    subject_id,
+    request_id,
+    started_at,
+    expires_at
+  )
+  values (
+    auth.uid(),
+    null,
+    null,
+    v_started_at,
+    v_expires_at
+  )
+  returning id into v_assignment_id;
+
+  -- Le nom complet est réparti sur les deux colonnes du profil lorsque les
+  -- deux parties sont présentes. L'email d'authentification reste inchangé.
+  v_first_name := split_part(v_full_name, ' ', 1);
+  v_last_name := btrim(substr(v_full_name, char_length(v_first_name) + 1));
+
+  update public.profiles
+  set status = 'active',
+      activated_at = v_started_at,
+      expires_at = v_expires_at,
+      rejection_reason = null,
+      first_name = case
+        when v_last_name <> '' then left(v_first_name, 80)
+        else first_name
+      end,
+      last_name = case
+        when v_last_name <> '' then left(v_last_name, 80)
+        else last_name
+      end
+  where id = auth.uid();
+
+  insert into public.access_requests (
+    user_id,
+    user_name,
+    user_email,
+    type,
+    receipt_path,
+    receipt_name,
+    receipt_mime,
+    receipt_size,
+    status,
+    created_at,
+    reviewed_at,
+    note
+  )
+  values (
+    auth.uid(),
+    v_full_name,
+    v_email,
+    'renewal',
+    'renewal',
+    'Paiement en ligne',
+    'text/plain',
+    0,
+    'approved',
+    v_started_at,
+    v_started_at,
+    'Renouvellement direct après paiement.'
+  );
+
+  return jsonb_build_object(
+    'assignment_id', v_assignment_id,
+    'started_at', v_started_at,
+    'expires_at', v_expires_at
+  );
+end;
+$$;
+
+revoke all on function public.renew_now(text, text) from public, anon;
+grant execute on function public.renew_now(text, text) to authenticated;
+
+create or replace function public.delete_renewal(p_request_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_professor() then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  -- La ligne d'historique peut référencer un ancien cycle : on détache le
+  -- cycle avant de supprimer la demande, sans jamais fermer l'accès.
+  update public.subject_assignments
+  set request_id = null
+  where request_id = p_request_id
+    and exists (
+      select 1
+      from public.access_requests r
+      where r.id = p_request_id
+        and r.type = 'renewal'
+        and r.status = 'approved'
+    );
+
+  delete from public.access_requests
+  where id = p_request_id
+    and type = 'renewal'
+    and status = 'approved';
+
+  if not found then
+    raise exception 'REQUEST_NOT_FOUND' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
+revoke all on function public.delete_renewal(uuid) from public, anon;
+grant execute on function public.delete_renewal(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 13. RPC professeur : publier les neuf thèmes en une transaction
 -- ---------------------------------------------------------------------------
 
 create or replace function public.publish_theme_pack(p_pack jsonb)
@@ -1101,7 +1298,7 @@ revoke all on function public.publish_theme_pack(jsonb) from public, anon;
 grant execute on function public.publish_theme_pack(jsonb) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 13. RPC professeur historiques (compatibilité, hors interface docteur)
+-- 14. RPC professeur historiques (compatibilité, hors interface docteur)
 -- ---------------------------------------------------------------------------
 
 create or replace function public.publish_subject(
@@ -1469,7 +1666,7 @@ revoke all on function public.extend_access(uuid, integer) from public, anon;
 grant execute on function public.extend_access(uuid, integer) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 14. Stockage privé des justificatifs
+-- 15. Stockage privé des justificatifs
 -- ---------------------------------------------------------------------------
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -1509,7 +1706,7 @@ create policy "receipts_read_owner_or_professor"
 -- La purge RGPD se fait avec la clé service_role côté serveur.
 
 -- ---------------------------------------------------------------------------
--- 15. Exemple d'initialisation du professeur
+-- 16. Exemple d'initialisation du professeur
 -- ---------------------------------------------------------------------------
 -- 1. Créer le compte dans Authentication > Users (email + mot de passe).
 -- 2. Exécuter :

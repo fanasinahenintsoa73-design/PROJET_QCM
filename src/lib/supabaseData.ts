@@ -36,6 +36,8 @@ interface ProfileRow {
 interface AccessRequestRow {
   id: string
   user_id: string
+  user_name: string | null
+  user_email: string | null
   type: RequestType
   receipt_path: string
   receipt_name: string
@@ -158,14 +160,17 @@ function mapRequest(
   signedUrls: Map<string, string>,
 ): AccessRequest {
   const profile = profiles.get(row.user_id)
+  const placeholderReceipt = row.receipt_path === 'renewal'
   return {
     id: row.id,
     userId: row.user_id,
-    userName: profile ? `${profile.first_name} ${profile.last_name}` : 'Étudiant',
-    userEmail: profile?.email ?? '',
+    userName:
+      row.user_name?.trim() ||
+      (profile ? `${profile.first_name} ${profile.last_name}` : 'Étudiant'),
+    userEmail: row.user_email?.trim() || profile?.email || '',
     type: row.type,
     receipt: {
-      dataUrl: signedUrls.get(row.receipt_path) ?? '',
+      dataUrl: placeholderReceipt ? '' : signedUrls.get(row.receipt_path) ?? '',
       name: row.receipt_name,
       mime: row.receipt_mime,
       size: row.receipt_size ?? 0,
@@ -210,6 +215,11 @@ const errorMessages: Record<string, string> = {
     'Ce résultat appartient à un cycle précédent et n’est plus accessible.',
   STUDENT_NOT_FOUND: 'Étudiant introuvable.',
   INVALID_DURATION: 'La durée demandée est invalide.',
+  SERIES_NOT_COMPLETE:
+    'Vos 30 séries ne sont pas encore terminées. Le renouvellement sera disponible à la fin du cycle.',
+  REQUEST_PENDING: 'Votre demande est en attente de validation.',
+  INVALID_FULL_NAME: 'Indiquez votre nom et prénom.',
+  INVALID_EMAIL: 'Saisissez une adresse email valide.',
 }
 
 function rawError(error: unknown): { message?: string; code?: string; details?: string } {
@@ -367,7 +377,10 @@ export async function fetchDatabase(currentProfile?: User): Promise<Database> {
   // Le docteur ne signe que les reçus à traiter ; les anciens sont résolus à
   // la demande depuis l'interface. L'étudiant voit tous ses propres reçus.
   const paths = requestRows
-    .filter((row) => professor === false || row.status === 'pending')
+    .filter(
+      (row) =>
+        (professor === false || row.status === 'pending') && row.receipt_path !== 'renewal',
+    )
     .map((row) => row.receipt_path)
   const signedUrls = await signReceiptUrls(paths)
 
@@ -499,6 +512,15 @@ export async function submitRenewal(receipt: Receipt): Promise<void> {
   await insertRequest(data.user.id, 'renewal', receipt)
 }
 
+export async function renewNow(fullName: string, email: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('renew_now', {
+    p_full_name: fullName.trim(),
+    p_email: email.trim(),
+  })
+  if (error) throw asFrenchError(error)
+}
+
 /* ------------------------------------------------------------------ */
 /* Actions docteur                                                     */
 /* ------------------------------------------------------------------ */
@@ -516,6 +538,14 @@ export async function rejectRequest(requestId: string, note?: string): Promise<v
   const { error } = await client.rpc('reject_access_request', {
     p_request_id: requestId,
     p_note: note?.trim() || null,
+  })
+  if (error) throw asFrenchError(error)
+}
+
+export async function deleteRenewal(requestId: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('delete_renewal', {
+    p_request_id: requestId,
   })
   if (error) throw asFrenchError(error)
 }

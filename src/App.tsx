@@ -80,6 +80,10 @@ function StudentRoutes() {
 
       <Route element={<RequireStudentAccount />}>
         <Route path="/en-attente" element={<PendingPage />} />
+        {/* Le résultat de la 30e série reste consultable après la fermeture du cycle. */}
+        <Route element={<StudentLayout />}>
+          <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
+        </Route>
       </Route>
 
       <Route element={<RequireStudent />}>
@@ -87,7 +91,6 @@ function StudentRoutes() {
         <Route element={<StudentLayout />}>
           <Route path="/app" element={<DashboardPage />} />
           <Route path="/app/entrainement" element={<QuizPage />} />
-          <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
         </Route>
       </Route>
 

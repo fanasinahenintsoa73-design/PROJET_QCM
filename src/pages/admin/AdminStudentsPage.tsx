@@ -4,8 +4,10 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Ban,
+  RotateCcw,
   Search,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
@@ -24,6 +26,7 @@ import {
   daysLeft,
   formatDate,
   formatDateLong,
+  formatDateTime,
   fullName,
   initials,
   isExpired,
@@ -79,13 +82,21 @@ export default function AdminStudentsPage() {
   const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const filterParam = searchParams.get('statut')
+  const renewalsView = searchParams.get('vue') === 'renouvellements'
   const filter: StudentFilter = filters.some((item) => item.value === filterParam)
     ? (filterParam as StudentFilter)
     : 'all'
   const setFilter = (next: StudentFilter) => {
     const params = new URLSearchParams(searchParams)
+    params.delete('vue')
     if (next === 'all') params.delete('statut')
     else params.set('statut', next)
+    setSearchParams(params, { replace: true })
+  }
+  const showRenewals = () => {
+    const params = new URLSearchParams(searchParams)
+    params.delete('statut')
+    params.set('vue', 'renouvellements')
     setSearchParams(params, { replace: true })
   }
   const [query, setQuery] = useState('')
@@ -110,6 +121,14 @@ export default function AdminStudentsPage() {
   const students = useMemo(
     () => db.users.filter((candidate) => candidate.role === 'student'),
     [db.users],
+  )
+
+  const renewals = useMemo(
+    () =>
+      db.requests
+        .filter((request) => request.type === 'renewal' && request.status === 'approved')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [db.requests],
   )
 
   const counts = useMemo(() => {
@@ -169,14 +188,31 @@ export default function AdminStudentsPage() {
     }
   }
 
+  const handleDeleteRenewal = async (request: AccessRequest) => {
+    if (
+      !window.confirm(
+        `Supprimer le renouvellement de ${request.userName} de l’historique ? Le cycle de l’étudiant reste ouvert.`,
+      )
+    ) {
+      return
+    }
+    try {
+      await api.deleteRenewal(request.id)
+      await refresh()
+      toast('Renouvellement supprimé de l’historique.', 'info')
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : 'Suppression impossible.', 'error')
+    }
+  }
+
   return (
     <div className="bg-canvas">
       <section className="border-b border-hairline-soft">
         <div className="mx-auto max-w-content px-4 py-8 sm:px-8 sm:py-9 lg:px-12">
           <h1 className="display text-[clamp(2.8rem,6vw,4.5rem)]">Étudiants.</h1>
           <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-mute">
-            Filtrez par état d’accès, ouvrez une fiche et gérez les comptes. Une validation ouvre
-            30 jours à compter du jour du traitement.
+            Filtrez par état d’accès, ouvrez une fiche et gérez les comptes. Le renouvellement
+            ouvre immédiatement un nouveau cycle de 30 séries.
           </p>
         </div>
       </section>
@@ -184,7 +220,9 @@ export default function AdminStudentsPage() {
       <section>
         <div className="mx-auto max-w-content px-4 py-7 sm:px-8 sm:py-9 lg:px-12">
           <div className="mb-3">
-            <p className="text-[11px] font-medium text-charcoal">Filtrer par statut</p>
+            <p className="text-[11px] font-medium text-charcoal">
+              {renewalsView ? 'Historique' : 'Filtrer par statut'}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -194,10 +232,10 @@ export default function AdminStudentsPage() {
                   key={item.value}
                   type="button"
                   onClick={() => setFilter(item.value)}
-                  aria-pressed={filter === item.value}
+                  aria-pressed={filter === item.value && !renewalsView}
                   className={cn(
                     'inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[12px] font-medium transition-colors',
-                    filter === item.value
+                    filter === item.value && !renewalsView
                       ? 'border-accent bg-accent text-white'
                       : 'border-hairline bg-white text-charcoal hover:border-stone',
                   )}
@@ -206,31 +244,53 @@ export default function AdminStudentsPage() {
                   <span
                     className={cn(
                       'text-[10px]',
-                      filter === item.value ? 'text-white/50' : 'text-stone',
+                      filter === item.value && !renewalsView ? 'text-white/50' : 'text-stone',
                     )}
                   >
                     {counts[item.value]}
                   </span>
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={showRenewals}
+                aria-pressed={renewalsView}
+                className={cn(
+                  'inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[12px] font-medium transition-colors',
+                  renewalsView
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-hairline bg-white text-charcoal hover:border-stone',
+                )}
+              >
+                Renouvellements
+                <span className={cn('text-[10px]', renewalsView ? 'text-white/50' : 'text-stone')}>
+                  {renewals.length}
+                </span>
+              </button>
             </div>
 
-            <div className="relative w-full sm:w-auto">
-              <Search
-                className="pointer-events-none absolute left-4 top-1/2 size-3.5 -translate-y-1/2 text-mute"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Nom ou email…"
-                aria-label="Rechercher un étudiant"
-                className="h-10 w-full rounded-full border border-hairline bg-white pl-10 pr-4 text-[12px] text-ink outline-none transition focus:border-ink focus:ring-4 focus:ring-cloud sm:w-[250px]"
-              />
-            </div>
+            {!renewalsView && (
+              <div className="relative w-full sm:w-auto">
+                <Search
+                  className="pointer-events-none absolute left-4 top-1/2 size-3.5 -translate-y-1/2 text-mute"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Nom ou email…"
+                  aria-label="Rechercher un étudiant"
+                  className="h-10 w-full rounded-full border border-hairline bg-white pl-10 pr-4 text-[12px] text-ink outline-none transition focus:border-ink focus:ring-4 focus:ring-cloud sm:w-[250px]"
+                />
+              </div>
+            )}
           </div>
 
+          {renewalsView ? (
+            <RenewalHistory requests={renewals} onDelete={handleDeleteRenewal} />
+          ) : (
+            <>
           <div className="mt-5 border-t border-hairline lg:hidden">
             {rows.map((student) => {
               const state = getStudentState(student)
@@ -570,11 +630,14 @@ export default function AdminStudentsPage() {
               </p>
             </div>
           )}
+            </>
+          )}
 
           <p className="mt-5 flex items-start gap-2 text-[10px] leading-relaxed text-mute">
             <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            Les comptes expirés ne peuvent plus charger de questions. Leur renouvellement passe
-            obligatoirement par un nouveau justificatif et une validation manuelle.
+            {renewalsView
+              ? 'Supprimer une ligne retire uniquement l’historique du renouvellement. Le cycle de l’étudiant reste ouvert.'
+              : 'Les comptes expirés ne peuvent plus charger de questions. Leur renouvellement ouvre immédiatement un nouveau cycle de 30 séries.'}
           </p>
         </div>
       </section>
@@ -685,8 +748,8 @@ export default function AdminStudentsPage() {
           <div className="flex items-start gap-3 bg-[#fff5f5] px-3.5 py-3 text-[11px] leading-relaxed text-charcoal">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-sale" aria-hidden="true" />
             <p>
-              L’accès au QCM sera coupé immédiatement. L’étudiant devra transmettre un nouveau
-              justificatif pour être réactivé.
+              L’accès au QCM sera coupé immédiatement. L’étudiant pourra ouvrir un nouveau cycle
+              depuis la page de renouvellement.
             </p>
           </div>
           <div>
@@ -703,6 +766,77 @@ export default function AdminStudentsPage() {
           </div>
         </div>
       </Modal>
+    </div>
+  )
+}
+
+function RenewalHistory({
+  requests,
+  onDelete,
+}: {
+  requests: AccessRequest[]
+  onDelete: (request: AccessRequest) => void
+}) {
+  return (
+    <div className="mt-5 border-t border-hairline">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline py-5">
+        <div>
+          <p className="text-[15px] font-medium text-ink">Historique des renouvellements</p>
+          <p className="mt-1 text-[11px] text-mute">
+            {requests.length} renouvellement{requests.length > 1 ? 's' : ''} validé
+            {requests.length > 1 ? 's' : ''} · paiement direct
+          </p>
+        </div>
+        <span className="inline-flex items-center rounded-full bg-accent-soft px-3 py-1 text-[11px] font-medium text-accent">
+          {requests.length} au total
+        </span>
+      </div>
+
+      {requests.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <span className="grid size-11 place-items-center rounded-full bg-cloud">
+            <RotateCcw className="size-4 text-ash" strokeWidth={1.5} aria-hidden="true" />
+          </span>
+          <p className="mt-4 text-[15px] font-medium">Aucun renouvellement.</p>
+          <p className="mt-1 max-w-sm text-[12px] leading-relaxed text-mute">
+            Les renouvellements validés apparaîtront ici, avec le nom, l’email et la date.
+          </p>
+        </div>
+      ) : (
+        <ul>
+          {requests.map((request) => (
+            <li
+              key={request.id}
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-hairline py-4"
+            >
+              <div className="min-w-0 flex-[1_1_220px]">
+                <p className="truncate text-[13px] font-medium text-ink">{request.userName}</p>
+                <p className="mt-0.5 truncate text-[11px] text-mute sm:hidden">
+                  {request.userEmail || '—'}
+                </p>
+              </div>
+              <p className="hidden min-w-0 flex-[1_1_180px] truncate text-[11px] text-charcoal sm:block">
+                {request.userEmail || '—'}
+              </p>
+              <div className="min-w-[145px]">
+                <p className="text-[11px] font-medium text-charcoal">
+                  {formatDateTime(request.reviewedAt ?? request.createdAt)}
+                </p>
+                <p className="mt-0.5 text-[10px] text-mute">30 séries</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onDelete(request)}
+                className="grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-danger-soft hover:text-sale"
+                aria-label={`Supprimer le renouvellement de ${request.userName}`}
+                title="Supprimer de l’historique"
+              >
+                <Trash2 className="size-4" strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

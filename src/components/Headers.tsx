@@ -2,8 +2,6 @@ import { ArrowRight, LogOut } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { ButtonLink } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
-import { daysLeft } from '@/lib/utils'
-import { StatusPill } from '@/components/ui/StatusPill'
 
 export function PublicHeader() {
   const { user, homePath } = useAuth()
@@ -28,7 +26,6 @@ export function StudentHeader() {
   const { user, logout } = useAuth()
 
   if (!user) return null
-  const remaining = daysLeft(user.expiresAt)
 
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-surface/95 backdrop-blur">
@@ -36,9 +33,6 @@ export function StudentHeader() {
         <Logo to="/app" />
 
         <div className="flex items-center gap-3">
-          <StatusPill tone={remaining <= 7 ? 'warning' : 'success'} className="hidden sm:inline-flex">
-            {remaining} jours
-          </StatusPill>
           <span
             className="grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent"
             aria-hidden

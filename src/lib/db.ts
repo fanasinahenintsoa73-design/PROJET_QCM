@@ -286,6 +286,91 @@ export function submitRenewal(userId: string, receipt: Receipt): AccessRequest {
   return request
 }
 
+export function renewNow(userId: string, fullName: string, email: string): SubjectAssignment {
+  const db = getDB()
+  const user = db.users.find((candidate) => candidate.id === userId)
+  if (!user || user.role !== 'student') throw new Error('Compte étudiant introuvable.')
+
+  if (user.status === 'pending') {
+    throw new Error('Votre demande est en attente de validation.')
+  }
+
+  const cleanName = fullName.trim()
+  const cleanEmail = email.trim()
+  if (!cleanName) throw new Error('Indiquez votre nom et prénom.')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    throw new Error('Saisissez une adresse email valide.')
+  }
+
+  const current = getCurrentAssignment(userId, db)
+  if (current && user.status !== 'rejected' && !getSeriesUsage(userId, db).reached) {
+    throw new Error(
+      'Vos 30 séries ne sont pas encore terminées. Le renouvellement sera disponible à la fin du cycle.',
+    )
+  }
+
+  const now = new Date()
+  const expiredAssignments = current
+    ? db.assignments.map((assignment) =>
+        assignment.id === current.id ? { ...assignment, expiresAt: now.toISOString() } : assignment,
+      )
+    : db.assignments
+  const assignment = createAssignment(user.id, undefined, now)
+
+  const [firstName, ...lastNameParts] = cleanName.split(/\s+/)
+  const lastName = lastNameParts.join(' ')
+  const updatedUser: User = {
+    ...user,
+    ...(lastName ? { firstName, lastName } : {}),
+    status: 'active',
+    activatedAt: assignment.startedAt,
+    expiresAt: assignment.expiresAt,
+    rejectionReason: undefined,
+  }
+
+  const request: AccessRequest = {
+    id: uid('req'),
+    userId: user.id,
+    userName: cleanName,
+    userEmail: cleanEmail,
+    type: 'renewal',
+    receipt: {
+      dataUrl: '',
+      name: 'Paiement en ligne',
+      mime: 'text/plain',
+      size: 0,
+      path: 'renewal',
+    },
+    status: 'approved',
+    createdAt: now.toISOString(),
+    reviewedAt: now.toISOString(),
+    note: 'Renouvellement direct après paiement.',
+  }
+
+  commit({
+    ...db,
+    users: db.users.map((candidate) => (candidate.id === userId ? updatedUser : candidate)),
+    requests: [request, ...db.requests],
+    assignments: [assignment, ...expiredAssignments],
+  })
+  return assignment
+}
+
+export function deleteRenewal(requestId: string) {
+  const db = getDB()
+  const request = db.requests.find((item) => item.id === requestId)
+  if (!request || request.type !== 'renewal' || request.status !== 'approved') {
+    throw new Error('Ce renouvellement est introuvable.')
+  }
+  commit({
+    ...db,
+    requests: db.requests.filter((item) => item.id !== requestId),
+    assignments: db.assignments.map((assignment) =>
+      assignment.requestId === requestId ? { ...assignment, requestId: undefined } : assignment,
+    ),
+  })
+}
+
 /* ------------------------------------------------------------------ */
 /* Cycles & quota                                                      */
 /* ------------------------------------------------------------------ */

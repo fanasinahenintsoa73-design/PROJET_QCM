@@ -71,6 +71,22 @@ export const api = {
     demo.submitRenewal(userId, receipt)
   },
 
+  async renewNow(userId: string, fullName: string, email: string): Promise<void> {
+    if (isSupabaseConfigured) {
+      await remote.renewNow(fullName, email)
+      return
+    }
+    demo.renewNow(userId, fullName, email)
+  },
+
+  async deleteRenewal(requestId: string): Promise<void> {
+    if (isSupabaseConfigured) {
+      await remote.deleteRenewal(requestId)
+      return
+    }
+    demo.deleteRenewal(requestId)
+  },
+
   async approveRequest(requestId: string): Promise<void> {
     if (isSupabaseConfigured) {
       await remote.approveRequest(requestId)

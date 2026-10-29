@@ -82,8 +82,8 @@ export function RequestReview({
       await refresh()
       toast(
         isRenewal
-          ? `${userName} doit maintenant choisir son sujet.`
-          : `${userName} est activé pour 30 jours.`,
+          ? `${userName} dispose maintenant d’un nouveau cycle de 30 séries.`
+          : `${userName} est activé pour un cycle de 30 séries.`,
         'success',
       )
       onClose()
@@ -133,7 +133,7 @@ export function RequestReview({
               </Button>
               <Button type="button" size="sm" onClick={handleApprove} loading={busy} className="gap-2">
                 <Check className="size-3.5" strokeWidth={2.2} />
-                {isRenewal ? 'Valider le renouvellement' : 'Accepter pour 1 mois'}
+                {isRenewal ? 'Valider le renouvellement' : 'Accepter l’étudiant'}
               </Button>
             </div>
           ) : (
@@ -223,8 +223,8 @@ export function RequestReview({
               <p className="mt-4 flex items-start gap-2 bg-[#e9f5ee] px-3 py-2.5 text-[10px] leading-relaxed text-success">
                 <CheckCheck className="mt-0.5 size-3.5 shrink-0" />
                 {isRenewal
-                  ? 'Renouvellement validé. L’étudiant doit choisir son sujet pour ouvrir son cycle.'
-                  : 'Demande validée. L’accès court sur 30 jours.'}
+                  ? 'Renouvellement validé. Le nouveau cycle de 30 séries est ouvert.'
+                  : 'Demande validée. L’étudiant dispose d’un cycle de 30 séries.'}
               </p>
             )}
             {current.status === 'rejected' && (
@@ -239,8 +239,8 @@ export function RequestReview({
 
             {isPending && isRenewal && (
               <p className="mt-3 bg-cloud px-3 py-2.5 text-[10px] leading-relaxed text-charcoal">
-                Après validation, l’étudiant choisira de reprendre son sujet ou de passer au
-                suivant. Son accès ne s’ouvrira qu’après ce choix.
+                Après validation, un nouveau cycle de 30 séries s’ouvre immédiatement. Aucun
+                choix de thème n’est nécessaire.
               </p>
             )}
           </div>
@@ -282,8 +282,8 @@ export function RequestReview({
       >
         <div className="space-y-4">
           <p className="text-[13px] leading-relaxed text-charcoal">
-            L’étudiant sera prévenu que son justificatif n’a pas été accepté. Il pourra
-            transmettre un nouveau document.
+            L’étudiant sera prévenu que sa demande n’a pas été acceptée. Il pourra ouvrir un
+            nouveau cycle depuis la page de renouvellement.
           </p>
           <div>
             <label htmlFor="rejection-note" className="form-label mb-2 block">
