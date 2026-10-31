@@ -5,7 +5,7 @@ import { Logo } from '@/components/Logo'
 import { fullName, initials } from '@/lib/utils'
 
 const navItems = [
-  { to: '/admin', label: 'Vue d’ensemble', icon: LayoutDashboard, end: true },
+  { to: '/admin', label: 'Page d’accueil', icon: LayoutDashboard, end: true },
   { to: '/admin/themes', label: 'Sujets', icon: BookOpen },
   { to: '/admin/etudiants', label: 'Étudiants', icon: Users },
 ]

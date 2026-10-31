@@ -90,7 +90,7 @@ export default function DashboardPage() {
                 Bonjour, {user?.firstName}.
               </h1>
               <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
-                Neuf thèmes PACES. Des séries de dix questions, à votre rythme.
+                Des séries de dix questions, à votre rythme.
               </p>
             </div>
             <StatusPill tone={reached ? 'warning' : 'success'} dot>
@@ -167,10 +167,10 @@ export default function DashboardPage() {
       <section className="mx-auto max-w-content px-5 pb-12 sm:px-8 lg:px-10">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
           <div>
-            <h2 className="font-display text-[1.6rem] leading-none text-ink">Les neuf thèmes</h2>
-            <p className="mt-2 text-[12px] text-mute">
-              Sélectionnez un thème pour lancer une série de {SERIES_SIZE} questions.
-            </p>
+            <h2 className="font-display text-[1.6rem] leading-none text-ink">
+              Matières et chapitres
+            </h2>
+            <p className="mt-2 text-[12px] text-mute">Sélectionner matière ou chapitre</p>
           </div>
           <p className="text-[11px] text-mute">
             {attemptedThemeIds.size} thème{attemptedThemeIds.size > 1 ? 's' : ''} travaillé
@@ -199,8 +199,10 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <h3 className="mt-4 min-h-[3.2rem] text-[15px] font-medium leading-snug text-ink">
-                  {theme.title}
+                <h3 className="mt-4 min-h-[3.2rem]">
+                  <span className="inline-block rounded-md bg-accent-soft px-2 py-1 text-[12px] font-semibold uppercase leading-snug tracking-[0.04em] text-accent">
+                    {theme.title}
+                  </span>
                 </h3>
                 <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-mute">
                   {subject?.description?.trim() || theme.description}

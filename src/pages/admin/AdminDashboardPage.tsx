@@ -25,7 +25,7 @@ function getStudentState(expiresAt?: string, status?: string): StudentState {
 
 export default function AdminDashboardPage() {
   const { user, db } = useAuth()
-  usePageTitle('Vue d’ensemble — Espace docteur')
+  usePageTitle('Page d’accueil — Espace docteur')
   const [searchParams, setSearchParams] = useSearchParams()
   const [preview, setPreview] = useState<AccessRequest | null>(null)
   const requestedId = searchParams.get('request')
@@ -77,7 +77,7 @@ export default function AdminDashboardPage() {
     <>
       <section className="border-b border-hairline-soft">
         <div className="mx-auto max-w-content px-4 py-8 sm:px-8 sm:py-9 lg:px-12">
-          <h1 className="display text-[clamp(2.75rem,6vw,4.5rem)]">Vue d’ensemble.</h1>
+          <h1 className="display text-[clamp(2.75rem,6vw,4.5rem)]">Page d’accueil.</h1>
           <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-mute">
             {user ? `Bonjour ${user.firstName}. ` : ''}
             {pending.length > 0

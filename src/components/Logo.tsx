@@ -16,7 +16,7 @@ export function Logo({
   return (
     <Link
       to={to}
-      aria-label="MEDQCM L1 — accueil"
+      aria-label="MEDQCM mada — accueil"
       className={cn('inline-flex items-center gap-2.5', className)}
     >
       <span
@@ -40,11 +40,11 @@ export function Logo({
         </span>
         <span
           className={cn(
-            'text-[9px] font-semibold tracking-[0.14em]',
+            'text-[9px] font-semibold lowercase tracking-[0.14em]',
             dark ? 'text-white/60' : 'text-accent',
           )}
         >
-          L1
+          mada
         </span>
       </span>
     </Link>

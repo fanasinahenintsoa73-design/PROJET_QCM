@@ -33,8 +33,8 @@ export function LandingPage() {
             Trente séries pour progresser.
           </h1>
           <p className="mt-6 max-w-[32rem] text-[16px] leading-[1.65] text-mute">
-            Neuf thèmes PACES. Des séries de dix questions, à votre rythme. Trente séries par
-            cycle, avec la correction détaillée après chaque envoi.
+            Des séries de dix questions, à votre rythme. Trente séries par cycle, avec la
+            correction détaillée après chaque envoi.
           </p>
           <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
             <ButtonLink to={startHref} size="lg" className="w-full sm:w-auto">
