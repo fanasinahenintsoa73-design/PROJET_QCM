@@ -590,7 +590,7 @@ const templateSheetNames = [
   'Biomolécules',
   'Physiologie',
   'Anatomie viscérale',
-  'Biomathématiques',
+  'Biochimie',
   'Médicaments',
   'Français médical',
   'UE spécifiques',

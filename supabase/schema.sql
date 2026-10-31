@@ -1132,15 +1132,15 @@ set search_path = public
 as $$
 declare
   v_titles constant text[] := array[
-    'Biologie cellulaire S1 et S2',
-    'Étude des tissus S1 et S2',
-    'Structure et fonction des biomolécules',
-    'Physiologie S1 et S2',
-    'Anatomie viscérale',
-    'Biomathématiques, Biophysique, Statistiques',
-    'Initiation à la connaissance des médicaments',
-    'Français médical',
-    'Unités d’enseignements spécifiques'
+    'UE1 — Biologie cellulaire S1 et S2',
+    'UE2 — Étude des tissus S1 et S2',
+    'UE3 — Structure et fonction des biomolécules',
+    'UE4 — Physiologie S1 et S2',
+    'UE5 — Anatomie viscérale',
+    'UE6 — Biochimie',
+    'UE7 — Initiation à la connaissance des médicaments',
+    'UE8 — Français médical',
+    'UE9 — Unités d’enseignements spécifiques'
   ];
   v_theme jsonb;
   v_subject_id uuid;
@@ -1333,15 +1333,15 @@ as $$
 declare
   v_series_size constant integer := 10;
   v_titles constant text[] := array[
-    'Biologie cellulaire S1 et S2',
-    'Étude des tissus S1 et S2',
-    'Structure et fonction des biomolécules',
-    'Physiologie S1 et S2',
-    'Anatomie viscérale',
-    'Biomathématiques, Biophysique, Statistiques',
-    'Initiation à la connaissance des médicaments',
-    'Français médical',
-    'Unités d’enseignements spécifiques'
+    'UE1 — Biologie cellulaire S1 et S2',
+    'UE2 — Étude des tissus S1 et S2',
+    'UE3 — Structure et fonction des biomolécules',
+    'UE4 — Physiologie S1 et S2',
+    'UE5 — Anatomie viscérale',
+    'UE6 — Biochimie',
+    'UE7 — Initiation à la connaissance des médicaments',
+    'UE8 — Français médical',
+    'UE9 — Unités d’enseignements spécifiques'
   ];
   v_title text := btrim(coalesce(p_title, ''));
   v_description text := coalesce(p_description, '');

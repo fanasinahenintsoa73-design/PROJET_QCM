@@ -1055,7 +1055,7 @@ export function createSeedDatabase(): Database {
   const subjects: Subject[] = PACE_THEMES.flatMap((theme, index) => {
     const chapters = chaptersForTheme(theme.id)
     if (chapters.length === 0) {
-      // Les UE sans chapitres gardent un sujet legacy lisible dans l'historique.
+      // Filet de sécurité si une UE n'a pas encore de chapitre.
       return [
         {
           id: theme.id,

@@ -22,10 +22,11 @@ export interface PaceThemeDefinition {
 export const PACE_THEMES: readonly PaceThemeDefinition[] = [
   {
     id: 'theme_biologie_cellulaire',
-    title: 'Biocel (Biologie Cellulaire)',
+    title: 'UE1 — Biologie cellulaire S1 et S2',
     description:
       'Membrane, organites, cycle cellulaire et mécanismes fondamentaux de la cellule eucaryote.',
     aliases: [
+      'biocel (biologie cellulaire)',
       'biologie cellulaire s1 et s2',
       'biologie cellulaire',
       'biologie de la cellule',
@@ -45,10 +46,16 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
   },
   {
     id: 'theme_etude_des_tissus',
-    title: 'Tissus (Histologie)',
+    title: 'UE2 — Étude des tissus S1 et S2',
     description:
       'Épithéliums, tissus conjonctifs, muscle, sang et organisation microscopique des organes.',
-    aliases: ['etude des tissus s1 et s2', 'etude des tissus', 'histologie', 'tissus'],
+    aliases: [
+      'tissus (histologie)',
+      'etude des tissus s1 et s2',
+      'etude des tissus',
+      'histologie',
+      'tissus',
+    ],
     chapters: [
       { id: 'tissus__epithelium_de_revetement', title: 'Épithélium de revêtement' },
       { id: 'tissus__epithelium_glandulaire', title: 'Épithélium glandulaire' },
@@ -56,15 +63,15 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
   },
   {
     id: 'theme_biomolecules',
-    title: 'Structure Biomolécules (Struct Bio)',
+    title: 'UE3 — Structure et fonction des biomolécules',
     description:
       'Glucides, lipides, protéines, acides nucléiques et grandes voies du métabolisme.',
     aliases: [
+      'structure biomolecules (struct bio)',
       'structure et fonction des biomolecules',
       'structure biomolecules',
       'struct bio',
       'biomolecules',
-      'biochimie',
     ],
     chapters: [
       { id: 'struct_bio__protides', title: 'Protides' },
@@ -78,10 +85,16 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
   },
   {
     id: 'theme_physiologie',
-    title: 'Physiologie (Physio)',
+    title: 'UE4 — Physiologie S1 et S2',
     description:
       'Fonctions cardiovasculaire, respiratoire, rénale, digestive et endocrine chez l’adulte.',
-    aliases: ['physiologie s1 et s2', 'physiologie', 'physio', 'physiologie humaine'],
+    aliases: [
+      'physiologie (physio)',
+      'physiologie s1 et s2',
+      'physiologie',
+      'physio',
+      'physiologie humaine',
+    ],
     chapters: [
       { id: 'physio__uro_renale', title: 'Uro-Rénale' },
       { id: 'physio__respiratoire', title: 'Respiratoire' },
@@ -97,7 +110,7 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
   },
   {
     id: 'theme_anatomie_viscerale',
-    title: 'Anatomie Viscérale',
+    title: 'UE5 — Anatomie viscérale',
     description:
       'Organes du thorax, de l’abdomen et du bassin, rapports anatomiques et vascularisation.',
     aliases: ['anatomie viscerale', 'anatomie des visceres'],
@@ -111,21 +124,23 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
   },
   {
     id: 'theme_biomathematiques',
-    title: 'Biochimie / Biophysique',
+    title: 'UE6 — Biochimie',
     description:
-      'Biochimie et biophysique appliquées à la médecine. Les chapitres seront ajoutés prochainement.',
+      'Biochimie et biophysique appliquées à la médecine. Cette UE constitue son propre chapitre.',
     aliases: [
+      'biochimie / biophysique',
+      'biochimie biophysique',
       'biomathematiques biophysique statistiques',
       'biomathematiques biophysique',
       'biomathematiques',
       'biostatistiques',
-      'biochimie biophysique',
+      'biochimie',
     ],
-    chapters: [],
+    chapters: [{ id: 'biochimie__biochimie', title: 'Biochimie' }],
   },
   {
     id: 'theme_medicaments',
-    title: 'Initiation à la connaissance des médicaments',
+    title: 'UE7 — Initiation à la connaissance des médicaments',
     description:
       'Pharmacocinétique, pharmacodynamie, classes thérapeutiques et effets indésirables.',
     aliases: [
@@ -134,22 +149,28 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
       'pharmacologie',
       'initiation aux medicaments',
     ],
-    chapters: [],
+    chapters: [
+      {
+        id: 'medicaments__initiation',
+        title: 'Initiation à la connaissance des médicaments',
+      },
+    ],
   },
   {
     id: 'theme_francais_medical',
-    title: 'Français médical',
+    title: 'UE8 — Français médical',
     description:
       'Vocabulaire clinique, terminologie, abréviations et communication avec le patient.',
     aliases: ['francais medical', 'francais medical et communication', 'terminologie medicale'],
-    chapters: [],
+    chapters: [{ id: 'francais_medical__francais_medical', title: 'Français médical' }],
   },
   {
     id: 'theme_ue_specifiques',
-    title: 'Spécifique (UE Spé)',
+    title: 'UE9 — Unités d’enseignements spécifiques',
     description:
       'Santé publique, éthique, droit de la santé, prévention et qualité des soins.',
     aliases: [
+      'specifique (ue spe)',
       'unites d enseignements specifiques',
       'unites d enseignements',
       'ue specifiques',

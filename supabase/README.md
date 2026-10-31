@@ -158,15 +158,15 @@ pack : rien n’est écrit, aucun thème n’est partiellement remplacé.
 La publication appelle `publish_theme_pack(p_pack jsonb)`. Le tableau doit
 contenir exactement les neuf titres officiels :
 
-1. Biologie cellulaire S1 et S2
-2. Étude des tissus S1 et S2
-3. Structure et fonction des biomolécules
-4. Physiologie S1 et S2
-5. Anatomie viscérale
-6. Biomathématiques, Biophysique, Statistiques
-7. Initiation à la connaissance des médicaments
-8. Français médical
-9. Unités d’enseignements spécifiques
+1. UE1 — Biologie cellulaire S1 et S2
+2. UE2 — Étude des tissus S1 et S2
+3. UE3 — Structure et fonction des biomolécules
+4. UE4 — Physiologie S1 et S2
+5. UE5 — Anatomie viscérale
+6. UE6 — Biochimie
+7. UE7 — Initiation à la connaissance des médicaments
+8. UE8 — Français médical
+9. UE9 — Unités d’enseignements spécifiques
 
 Chaque entrée porte `title`, `description`, `monthLabel` et `questions`
 (`number`, `matiere`, `statement`, `options`, `correctAnswers`, `explanation`).

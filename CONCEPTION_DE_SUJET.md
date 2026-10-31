@@ -45,25 +45,26 @@ Les 9 UE sont fixes : aucune UE n'est supprimée et aucune 10e UE n'est créée.
 
 ### 3.1 Liste officielle
 
-1. **Biocel (Biologie Cellulaire)** — 9 chapitres :
+1. **UE1 — Biologie cellulaire S1 et S2** — 9 chapitres :
    Méthodes d’étude, Membrane biologique, Noyau interphasique, Mitochondrie, Lysosome,
    Cytosquelette, Synthèse protéique (Protéine), Appareil de Golgi, Réticulum endoplasmique.
-2. **Tissus (Histologie)** — 2 chapitres :
+2. **UE2 — Étude des tissus S1 et S2** — 2 chapitres :
    Épithélium de revêtement, Épithélium glandulaire.
-3. **Structure Biomolécules (Struct Bio)** — 7 chapitres :
+3. **UE3 — Structure et fonction des biomolécules** — 7 chapitres :
    Protides, Chimie, Lipides, Glucides, Enzymes, Coenzymes, Acides Nucléiques.
-4. **Physiologie (Physio)** — 10 chapitres :
+4. **UE4 — Physiologie S1 et S2** — 10 chapitres :
    Uro-Rénale, Respiratoire, Digestif, Hormonal, Thermorégulation, Cardiaque, Vasculaire,
    Intégratif, Neurophysiologie, Sang.
-5. **Anatomie Viscérale** — 5 chapitres :
+5. **UE5 — Anatomie viscérale** — 5 chapitres :
    Digestif, Urologie, Système Nerveux, Thorax, Cœur.
-6. **Biochimie / Biophysique** — aucun chapitre pour l'instant.
-7. **Initiation à la connaissance des médicaments** — aucun chapitre pour l'instant.
-8. **Français médical** — aucun chapitre pour l'instant.
-9. **Spécifique (UE Spé)** — 5 chapitres :
+6. **UE6 — Biochimie** — 1 chapitre : Biochimie.
+7. **UE7 — Initiation à la connaissance des médicaments** — 1 chapitre :
+   Initiation à la connaissance des médicaments.
+8. **UE8 — Français médical** — 1 chapitre : Français médical.
+9. **UE9 — Unités d’enseignements spécifiques** — 5 chapitres :
    Médecine Humaine, Vétérinaire, Pharmacie, Sage-femme, Infirmière.
 
-Total : **38 chapitres** fournis.
+Total : **41 chapitres** fournis.
 
 ### 3.2 Règles de catalogue
 
@@ -71,10 +72,11 @@ Total : **38 chapitres** fournis.
   identique dans deux UE (par exemple « Digestif » en Anatomie et en Physiologie).
 - Aucun dédoublonnage entre UE.
 - Des chapitres peuvent être ajoutés plus tard dans une UE sans supprimer l'existant.
-- Les UE sans chapitre restent visibles mais ne permettent pas de lancer une série tant
-  qu'aucun chapitre n'a été ajouté.
-- Le libellé exact « Biochimie / Biophysique » reste à confirmer ; il pourra être changé
-  sans modifier les identifiants techniques.
+- Chaque UE possède au moins un chapitre. Pour les UE6, UE7 et UE8, le chapitre unique
+  porte le nom de l'UE et reste sélectionnable comme les autres.
+- Les noms des UE sont affichés en entier, avec la numérotation UE1 à UE9 ; aucune
+  abréviation n'est utilisée dans l'interface étudiante.
+- Les identifiants techniques des UE et des chapitres restent inchangés.
 
 ---
 
@@ -92,8 +94,8 @@ Chaque carte indique :
 - le nombre de questions disponibles ;
 - un lien vers la sélection des chapitres.
 
-Une UE sans chapitre, ou dont les chapitres ne totalisent pas au moins 10 questions,
-est affichée comme indisponible.
+Une UE dont les chapitres ne totalisent pas au moins 10 questions est affichée comme
+indisponible.
 
 ### 4.2 Sélection des chapitres
 
@@ -105,8 +107,7 @@ L'étudiant ouvre une UE puis voit ses chapitres dans l'ordre **alphabétique**.
 - Le nombre de sujets, de questions et le total sélectionné sont affichés.
 - Le bouton **Lancer la série** est désactivé si :
   - aucun chapitre n'est coché ;
-  - la sélection contient moins de 10 questions ;
-  - l'UE n'a aucun chapitre.
+  - la sélection contient moins de 10 questions.
 
 Message si aucun chapitre n'est coché :
 
@@ -173,7 +174,8 @@ Règles d'interface :
 
 - Le chapitre ne peut être choisi qu'après une UE.
 - Quand l'UE change, le chapitre sélectionné est réinitialisé.
-- Une UE sans chapitre est désactivée avec un message explicite.
+- Toutes les UE proposent au moins un chapitre ; les UE6, UE7 et UE8 n'en proposent
+  qu'un seul, portant le nom de l'UE.
 - Plusieurs sujets peuvent être enregistrés dans le même chapitre.
 - Le bouton Enregistrer reste désactivé tant que l'UE, le chapitre, le titre et les deux
   fichiers ne sont pas valides.
@@ -218,7 +220,7 @@ modifiables tant qu'ils n'ont pas été re-rattachés à un chapitre.
 
 ### 7.1 Catalogue
 
-- Les 9 UE et les 38 chapitres sont définis dans `src/lib/themes.ts` (`PACE_THEMES`).
+- Les 9 UE et les 41 chapitres sont définis dans `src/lib/themes.ts` (`PACE_THEMES`).
 - Les identifiants de chapitre sont stables, par exemple :
   - `anatomie_viscerale__digestif`
   - `physio__cardiaque`
@@ -285,7 +287,7 @@ avec les anciennes tentatives et l'historique.
 
 | Cas | Comportement |
 |---|---|
-| UE sans chapitre | Cartes visibles, lancement impossible, message explicite. |
+| UE à chapitre unique (UE6, UE7, UE8) | Le chapitre porte le nom de l'UE et se sélectionne comme les autres. |
 | Chapitre sans sujet | Affiché avec 0 question ; il ne peut pas être la seule sélection. |
 | Sélection < 10 questions | Bouton désactivé et message. |
 | Aucun chapitre coché | Message : « Veuillez sélectionner au moins un chapitre avant de lancer la série. » |
@@ -345,12 +347,9 @@ avec les anciennes tentatives et l'historique.
 
 ## 12. Points en attente
 
-1. Confirmer le libellé exact de l'UE **Biochimie / Biophysique**.
-2. Fournir les chapitres des UE **Initiation à la connaissance des médicaments** et
-   **Français médical**.
-3. Décider si l'étudiant doit pouvoir choisir un sujet précis à l'intérieur d'un chapitre,
+1. Décider si l'étudiant doit pouvoir choisir un sujet précis à l'intérieur d'un chapitre,
    ou si le tirage doit continuer à utiliser tous les sujets des chapitres cochés.
-4. Décider du sort des anciens sujets sans chapitre : les rattacher manuellement ou les
+2. Décider du sort des anciens sujets sans chapitre : les rattacher manuellement ou les
    laisser en lecture seule.
-5. Appliquer la migration SQL sur le projet Supabase de production et vérifier les RPC
-   avec un compte étudiant et un compte docteur.
+3. Créer en production des sujets rattachés aux chapitres : les deux sujets existants
+   n'ont pas encore de `chapter_id`.
