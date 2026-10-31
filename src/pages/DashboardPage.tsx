@@ -7,8 +7,16 @@ import {
   getSeriesUsage,
   getUsableQuestions,
 } from '@/lib/db'
-import { PACE_THEMES, findPaceTheme, sortThemes } from '@/lib/themes'
-import { findThemeSubject } from '@/lib/subjects'
+import {
+  PACE_THEMES,
+  chaptersForTheme,
+  findPaceTheme,
+  findThemeForChapter,
+} from '@/lib/themes'
+import {
+  findChapterSelectionSubjects,
+  findLegacyThemeSubjects,
+} from '@/lib/subjects'
 import { ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { usePageTitle } from '@/components/Layouts'
@@ -21,11 +29,20 @@ import {
   SERIES_LIMIT_MESSAGE,
   SERIES_SIZE,
 } from '@/lib/utils'
-import type { Subject } from '@/types'
+import type { Attempt } from '@/types'
 
 function formatTen(value: number) {
   const rounded = Math.round(value * 10) / 10
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace('.', ',')
+}
+
+function attemptThemeId(attempt: Attempt, subjectTitleById: Map<string, string>): string | undefined {
+  if (attempt.ueId) return attempt.ueId
+  const chapterTheme = attempt.chapterIds?.[0]
+    ? findThemeForChapter(attempt.chapterIds[0])
+    : undefined
+  if (chapterTheme) return chapterTheme.id
+  return findPaceTheme(subjectTitleById.get(attempt.subjectId) ?? attempt.subjectId)?.id
 }
 
 export default function DashboardPage() {
@@ -35,43 +52,74 @@ export default function DashboardPage() {
 
   const usage = user ? getSeriesUsage(user.id, db) : undefined
   const assignment = usage?.assignment
-  const attempts = useMemo(
+  const cycleAttempts = useMemo(
     () => (user ? getCurrentCycleAttempts(user.id, db, assignment) : []),
     [assignment, db, user],
+  )
+  const completedAttempts = useMemo(
+    () => cycleAttempts.filter((attempt) => !attempt.status || attempt.status === 'completed'),
+    [cycleAttempts],
+  )
+
+  const subjectTitleById = useMemo(
+    () => new Map(db.subjects.map((subject) => [subject.id, subject.title])),
+    [db.subjects],
   )
 
   const themes = useMemo(
     () =>
       PACE_THEMES.map((theme, index) => {
-        const subject = findThemeSubject(theme.id, db.subjects)
-        const usable = subject
-          ? db.questions.length > 0
-            ? getUsableQuestions(subject.id, db).length
-            : subject.questionCount
-          : 0
-        return { theme, subject, usable, number: index + 1 }
+        const chapters = chaptersForTheme(theme.id)
+        const chapterIds = chapters.map((chapter) => chapter.id)
+        const chapterSubjects = findChapterSelectionSubjects(chapterIds, db.subjects)
+        const legacySubjects = findLegacyThemeSubjects(theme.id, db.subjects)
+        const subjects = [...chapterSubjects, ...legacySubjects]
+        const usable = subjects.reduce(
+          (total, subject) =>
+            total +
+            (db.questions.length > 0
+              ? getUsableQuestions(subject.id, db).length
+              : subject.questionCount),
+          0,
+        )
+        return {
+          theme,
+          chapters,
+          subjects,
+          usable,
+          number: index + 1,
+          available: chapters.length > 0 && usable >= SERIES_SIZE,
+        }
       }),
     [db.questions, db.subjects],
   )
 
   const attemptedThemeIds = useMemo(
-    () => new Set(attempts.map((attempt) => attempt.subjectId)),
-    [attempts],
+    () =>
+      new Set(
+        completedAttempts
+          .map((attempt) => attemptThemeId(attempt, subjectTitleById))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    [completedAttempts, subjectTitleById],
   )
 
-  const subjectById = useMemo(
-    () => new Map(db.subjects.map((candidate) => [candidate.id, candidate])),
-    [db.subjects],
+  const triedThemes = useMemo(
+    () => PACE_THEMES.filter((theme) => attemptedThemeIds.has(theme.id)),
+    [attemptedThemeIds],
   )
 
   const visibleAttempts =
-    filter === 'all' ? attempts : attempts.filter((attempt) => attempt.subjectId === filter)
-  const showTheme = attempts.length > 0
-  const best = attempts.reduce(
+    filter === 'all'
+      ? completedAttempts
+      : completedAttempts.filter(
+          (attempt) => attemptThemeId(attempt, subjectTitleById) === filter,
+        )
+  const best = completedAttempts.reduce(
     (max, attempt) => Math.max(max, scoreOnTen(attempt.score, attempt.total)),
     0,
   )
-  const average = averageScoreOnTen(attempts)
+  const average = averageScoreOnTen(completedAttempts)
   const used = usage?.used ?? 0
   const remainingSeries = usage?.remaining ?? SERIES_LIMIT
   const reached = usage?.reached ?? false
@@ -107,7 +155,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Mon cycle</p>
                 <p className="mt-2 text-[15px] font-medium text-ink">
-                  Séries faites : {used} / {SERIES_LIMIT}
+                  Séries lancées : {used} / {SERIES_LIMIT}
                 </p>
               </div>
               <p className="text-[12px] text-mute">
@@ -125,16 +173,16 @@ export default function DashboardPage() {
             </div>
 
             <dl className="mt-6 grid grid-cols-3 gap-3">
-                {[
-                  ['Séries', String(attempts.length)],
-                  ['Moyenne', attempts.length ? `${formatTen(average)}/10` : '—'],
-                  ['Meilleur', attempts.length ? `${formatTen(best)}/10` : '—'],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-[10px] uppercase tracking-[0.1em] text-mute">{label}</dt>
-                    <dd className="mt-1 text-[14px] font-medium tabular-nums text-ink">{value}</dd>
-                  </div>
-                ))}
+              {[
+                ['Lancées', String(used)],
+                ['Moyenne', completedAttempts.length ? `${formatTen(average)}/10` : '—'],
+                ['Meilleur', completedAttempts.length ? `${formatTen(best)}/10` : '—'],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-[10px] uppercase tracking-[0.1em] text-mute">{label}</dt>
+                  <dd className="mt-1 text-[14px] font-medium tabular-nums text-ink">{value}</dd>
+                </div>
+              ))}
             </dl>
           </div>
 
@@ -148,12 +196,14 @@ export default function DashboardPage() {
               {reached ? 'Renouvellement' : 'Votre rythme'}
             </p>
             <p className="mt-3 font-display text-[1.7rem] leading-[1.15] tracking-[-0.02em] text-ink">
-              {reached ? 'Vos 30 séries sont terminées.' : `${remainingSeries} séries vous attendent.`}
+              {reached
+                ? 'Vos 30 séries ont été lancées.'
+                : `${remainingSeries} séries vous attendent.`}
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-ash">
               {reached
                 ? SERIES_LIMIT_MESSAGE
-                : 'Choisissez librement un thème. Chaque série compte 10 questions et ne peut être envoyée qu’une fois.'}
+                : 'Choisissez une UE, puis un ou plusieurs chapitres. Chaque série compte 10 questions et toute série lancée est comptée.'}
             </p>
             {reached ? (
               <ButtonLink to="/reinscription" size="lg" className="mt-5 w-full justify-center">
@@ -168,21 +218,21 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
           <div>
             <h2 className="font-display text-[1.6rem] leading-none text-ink">
-              Matières et chapitres
+              Unités d’enseignement
             </h2>
-            <p className="mt-2 text-[12px] text-mute">Sélectionner matière ou chapitre</p>
+            <p className="mt-2 text-[12px] text-mute">
+              Sélectionnez une UE, puis un ou plusieurs chapitres.
+            </p>
           </div>
           <p className="text-[11px] text-mute">
-            {attemptedThemeIds.size} thème{attemptedThemeIds.size > 1 ? 's' : ''} travaillé
-            {attemptedThemeIds.size > 1 ? 's' : ''}
+            {triedThemes.length} UE travaillée{triedThemes.length > 1 ? 's' : ''}
           </p>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {themes.map(({ theme, subject, usable, number }) => {
-            const available = usable >= SERIES_SIZE
+          {themes.map(({ theme, chapters, usable, number, available }) => {
             const blocked = reached
-            const href = `/app/entrainement?theme=${encodeURIComponent(theme.id)}`
+            const href = `/app/ue/${encodeURIComponent(theme.id)}`
             const content = (
               <>
                 <div className="flex items-start justify-between gap-3">
@@ -191,11 +241,11 @@ export default function DashboardPage() {
                   </span>
                   {available ? (
                     <span className="rounded-full bg-accent-soft px-2.5 py-1 text-[10px] font-medium text-accent">
-                      {subject?.questionCount ?? usable} questions
+                      {usable} questions
                     </span>
                   ) : (
                     <span className="rounded-full bg-cloud px-2.5 py-1 text-[10px] font-medium text-mute">
-                      Bientôt disponible
+                      {chapters.length === 0 ? 'Chapitres à venir' : 'Bientôt disponible'}
                     </span>
                   )}
                 </div>
@@ -205,17 +255,26 @@ export default function DashboardPage() {
                   </span>
                 </h3>
                 <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-mute">
-                  {subject?.description?.trim() || theme.description}
+                  {theme.description}
                 </p>
-                <div className="mt-5 flex items-center justify-between border-t border-line pt-3 text-[11px]">
+                <div className="mt-4 flex gap-2 text-[10px] text-mute">
+                  <span>
+                    {chapters.length} chapitre{chapters.length > 1 ? 's' : ''}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>10 questions par série</span>
+                </div>
+                <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[11px]">
                   <span className={cn('font-medium', available && !blocked ? 'text-accent' : 'text-mute')}>
                     {blocked
                       ? 'Renouvelez pour continuer'
                       : available
-                        ? attemptedThemeIds.has(subject?.id ?? theme.id)
+                        ? attemptedThemeIds.has(theme.id)
                           ? 'Refaire une série'
-                          : 'Commencer une série'
-                        : 'Le docteur prépare les questions'}
+                          : 'Choisir mes chapitres'
+                        : chapters.length === 0
+                          ? 'Les chapitres arrivent bientôt'
+                          : 'Le docteur prépare les questions'}
                   </span>
                   {available && !blocked ? (
                     <ArrowUpRight size={14} className="text-mute" />
@@ -251,7 +310,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {attempts.length > 0 && (
+        {completedAttempts.length > 0 && (
           <div className="no-scrollbar mt-5 flex gap-2 overflow-x-auto pb-1">
             <button
               type="button"
@@ -263,25 +322,21 @@ export default function DashboardPage() {
                   : 'border-line bg-surface text-mute hover:border-accent hover:text-accent',
               )}
             >
-              Tous les thèmes
+              Toutes les UE
             </button>
-            {sortThemes(
-              [...new Set(attempts.map((attempt) => attempt.subjectId))]
-                .map((id) => subjectById.get(id))
-                .filter((subject): subject is Subject => Boolean(subject)),
-            ).map((candidate) => (
+            {triedThemes.map((theme) => (
               <button
-                key={candidate.id}
+                key={theme.id}
                 type="button"
-                onClick={() => setFilter(candidate.id)}
+                onClick={() => setFilter(theme.id)}
                 className={cn(
                   'h-10 max-w-[260px] shrink-0 truncate rounded-full border px-4 text-[12px] font-medium transition',
-                  filter === candidate.id
+                  filter === theme.id
                     ? 'border-accent bg-accent-soft text-accent'
                     : 'border-line bg-surface text-mute hover:border-accent hover:text-accent',
                 )}
               >
-                {candidate.title}
+                {theme.title}
               </button>
             ))}
           </div>
@@ -290,7 +345,8 @@ export default function DashboardPage() {
         {visibleAttempts.length > 0 ? (
           <div>
             {visibleAttempts.map((attempt) => {
-              const rowSubject = subjectById.get(attempt.subjectId)
+              const theme = findPaceTheme(attempt.ueId ?? '') ??
+                findPaceTheme(subjectTitleById.get(attempt.subjectId) ?? attempt.subjectId)
               return (
                 <Link
                   key={attempt.id}
@@ -298,12 +354,10 @@ export default function DashboardPage() {
                   className="group flex items-center justify-between gap-4 border-b border-line py-4 transition-colors hover:bg-surface"
                 >
                   <div className="min-w-0 flex-1">
-                    {showTheme && (
-                      <p className="truncate text-[14px] font-medium text-ink">
-                        {rowSubject?.title ?? findPaceTheme(attempt.subjectId)?.title ?? 'Thème'}
-                      </p>
-                    )}
-                    <p className={showTheme ? 'mt-1 text-[11px] text-mute' : 'text-[13px] text-ink'}>
+                    <p className="truncate text-[14px] font-medium text-ink">
+                      {theme?.title ?? 'Série'}
+                    </p>
+                    <p className="mt-1 text-[11px] text-mute">
                       {formatDate(attempt.createdAt)}
                       <span className="text-mute"> · Série de {attempt.total} questions</span>
                     </p>

@@ -1962,3 +1962,643 @@ create policy "receipts_read_owner_or_professor"
 -- 3. Le bucket est privé ; le frontend doit appeler createSignedUrl() pour
 --    afficher un reçu. Ne jamais exposer la clé service_role.
 -- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 18. Migration : UE, chapitres et séries multi-chapitres
+-- ---------------------------------------------------------------------------
+
+alter table public.subjects
+  add column if not exists chapter_id text;
+
+create index if not exists subjects_chapter_idx
+  on public.subjects (chapter_id)
+  where chapter_id is not null;
+
+alter table public.attempts
+  add column if not exists ue_id text,
+  add column if not exists chapter_ids text[] not null default '{}',
+  add column if not exists status text not null default 'completed',
+  add column if not exists completed_at timestamptz;
+
+create index if not exists attempts_ue_status_idx
+  on public.attempts (ue_id, status, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- 18.1 Démarrer une série sur une sélection de chapitres
+-- ---------------------------------------------------------------------------
+create or replace function public.start_chapter_quiz(
+  p_ue_id text,
+  p_chapter_ids text[],
+  p_count integer default 10
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_assignment public.subject_assignments%rowtype;
+  v_attempt public.attempts%rowtype;
+  v_used integer;
+  v_snapshot jsonb;
+  v_questions jsonb;
+  v_subject_id uuid;
+  v_attempt_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  if p_ue_id is null or btrim(p_ue_id) = ''
+     or p_chapter_ids is null or cardinality(p_chapter_ids) = 0 then
+    raise exception 'INVALID_CHAPTER' using errcode = 'P0001';
+  end if;
+
+  if p_count is null or p_count < 1 or p_count > 100 then
+    raise exception 'INVALID_COUNT' using errcode = 'P0001';
+  end if;
+
+  if not public.has_active_access() then
+    raise exception 'ACCESS_EXPIRED' using errcode = 'P0001';
+  end if;
+
+  select a.*
+  into v_assignment
+  from public.subject_assignments a
+  where a.user_id = auth.uid()
+    and a.started_at <= now()
+    and a.expires_at > now()
+  order by a.started_at desc
+  limit 1;
+
+  if not found then
+    raise exception 'ACCESS_EXPIRED' using errcode = 'P0001';
+  end if;
+
+  -- Reprise après rafraîchissement : le brouillon existant est renvoyé avant
+  -- le contrôle du quota, pour ne pas bloquer la 30e série déjà ouverte.
+  select a.*
+  into v_attempt
+  from public.attempts a
+  where a.user_id = auth.uid()
+    and a.ue_id = p_ue_id
+    and a.status = 'in_progress'
+    and a.chapter_ids = p_chapter_ids
+  order by a.created_at desc
+  limit 1;
+
+  if found then
+    select jsonb_agg(
+             elem - 'correctAnswers' - 'explanation'
+             order by ordinality
+           )
+    into v_questions
+    from jsonb_array_elements(v_attempt.question_snapshot)
+         with ordinality as t(elem, ordinality);
+
+    return jsonb_build_object(
+      'attemptId', v_attempt.id,
+      'assignmentId', v_assignment.id,
+      'assignmentExpiresAt', v_assignment.expires_at,
+      'ueId', v_attempt.ue_id,
+      'chapterIds', to_jsonb(v_attempt.chapter_ids),
+      'questions', coalesce(v_questions, '[]'::jsonb)
+    );
+  end if;
+
+  select count(*)
+  into v_used
+  from public.attempts a
+  where a.user_id = auth.uid()
+    and a.created_at >= v_assignment.started_at;
+
+  if v_used >= 30 then
+    raise exception 'SERIES_LIMIT_REACHED' using errcode = 'P0001';
+  end if;
+
+  with available as (
+    select q.id,
+           q.subject_id,
+           q.number,
+           q.matiere,
+           q.statement,
+           q.options,
+           q.correct_answers,
+           q.explanation
+    from public.questions q
+    join public.subjects s on s.id = q.subject_id
+    where s.archived = false
+      and s.chapter_id = any (p_chapter_ids)
+      and cardinality(q.correct_answers) = 1
+  ),
+  selected as (
+    select *
+    from available
+    order by random()
+    limit p_count
+  )
+  select jsonb_agg(
+           jsonb_build_object(
+             'id', selected.id,
+             'subjectId', selected.subject_id,
+             'number', selected.number,
+             'matiere', selected.matiere,
+             'statement', selected.statement,
+             'options', selected.options,
+             'correctAnswers', to_jsonb(selected.correct_answers),
+             'explanation', selected.explanation
+           )
+           order by selected.number
+         ),
+         (array_agg(selected.subject_id))[1]
+  into v_snapshot, v_subject_id
+  from selected;
+
+  if v_snapshot is null or jsonb_array_length(v_snapshot) < p_count then
+    raise exception 'CHAPTER_UNAVAILABLE' using errcode = 'P0001';
+  end if;
+
+  select jsonb_agg(
+           elem - 'correctAnswers' - 'explanation'
+           order by ordinality
+         )
+  into v_questions
+  from jsonb_array_elements(v_snapshot)
+       with ordinality as t(elem, ordinality);
+
+  insert into public.attempts (
+    user_id,
+    subject_id,
+    question_ids,
+    answers,
+    question_snapshot,
+    score,
+    total,
+    ue_id,
+    chapter_ids,
+    status
+  )
+  values (
+    auth.uid(),
+    v_subject_id,
+    array(
+      select (elem ->> 'id')::uuid
+      from jsonb_array_elements(v_snapshot) as snapshot(elem)
+    ),
+    '{}'::jsonb,
+    v_snapshot,
+    0,
+    p_count,
+    p_ue_id,
+    p_chapter_ids,
+    'in_progress'
+  )
+  returning id into v_attempt_id;
+
+  return jsonb_build_object(
+    'attemptId', v_attempt_id,
+    'assignmentId', v_assignment.id,
+    'assignmentExpiresAt', v_assignment.expires_at,
+    'ueId', p_ue_id,
+    'chapterIds', to_jsonb(p_chapter_ids),
+    'questions', v_questions
+  );
+end;
+$$;
+
+revoke all on function public.start_chapter_quiz(text, text[], integer) from public, anon;
+grant execute on function public.start_chapter_quiz(text, text[], integer) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 18.2 Terminer une série multi-chapitres
+-- ---------------------------------------------------------------------------
+create or replace function public.submit_chapter_attempt(
+  p_attempt_id uuid,
+  p_answers jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_attempt public.attempts%rowtype;
+  v_assignment public.subject_assignments%rowtype;
+  v_score integer := 0;
+  v_total integer;
+begin
+  if auth.uid() is null then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  if p_answers is null or jsonb_typeof(p_answers) <> 'object' then
+    raise exception 'INVALID_ANSWERS' using errcode = 'P0001';
+  end if;
+
+  select a.*
+  into v_attempt
+  from public.attempts a
+  where a.id = p_attempt_id
+  for update;
+
+  if not found then
+    raise exception 'ATTEMPT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  if v_attempt.user_id <> auth.uid() then
+    raise exception 'ATTEMPT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  if v_attempt.status <> 'in_progress' then
+    raise exception 'ATTEMPT_CLOSED' using errcode = 'P0001';
+  end if;
+
+  if jsonb_typeof(v_attempt.question_snapshot) <> 'array'
+     or jsonb_array_length(v_attempt.question_snapshot) = 0 then
+    raise exception 'ATTEMPT_INVALID' using errcode = 'P0001';
+  end if;
+
+  v_total := jsonb_array_length(v_attempt.question_snapshot);
+
+  select count(*)
+  into v_score
+  from jsonb_array_elements(v_attempt.question_snapshot) as snapshot(item)
+  where (
+    select coalesce(array_agg(upper(value) order by upper(value)), array[]::text[])
+    from jsonb_array_elements_text(
+      coalesce(p_answers -> (snapshot.item ->> 'id'), '[]'::jsonb)
+    ) as answer(value)
+  ) = (
+    select coalesce(array_agg(upper(value) order by upper(value)), array[]::text[])
+    from jsonb_array_elements_text(
+      coalesce(snapshot.item -> 'correctAnswers', '[]'::jsonb)
+    ) as correct(value)
+  );
+
+  select a.*
+  into v_assignment
+  from public.subject_assignments a
+  where a.user_id = auth.uid()
+    and a.started_at <= now()
+    and a.expires_at > now()
+  order by a.started_at desc
+  limit 1;
+
+  update public.attempts
+  set answers = p_answers,
+      score = v_score,
+      status = 'completed',
+      completed_at = now()
+  where id = v_attempt.id;
+
+  return jsonb_build_object(
+    'attemptId', v_attempt.id,
+    'score', v_score,
+    'total', v_total,
+    'subjectId', v_attempt.subject_id,
+    'assignmentExpiresAt', v_assignment.expires_at,
+    'ueId', v_attempt.ue_id,
+    'chapterIds', to_jsonb(v_attempt.chapter_ids)
+  );
+end;
+$$;
+
+revoke all on function public.submit_chapter_attempt(uuid, jsonb) from public, anon;
+grant execute on function public.submit_chapter_attempt(uuid, jsonb) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 18.3 Abandonner une série (elle reste comptée dans le quota)
+-- ---------------------------------------------------------------------------
+create or replace function public.abandon_series(p_attempt_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  update public.attempts
+  set status = 'abandoned',
+      completed_at = coalesce(completed_at, now())
+  where id = p_attempt_id
+    and user_id = auth.uid()
+    and status = 'in_progress';
+end;
+$$;
+
+revoke all on function public.abandon_series(uuid) from public, anon;
+grant execute on function public.abandon_series(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 18.4 Enregistrer un sujet rattaché à un chapitre
+-- ---------------------------------------------------------------------------
+create or replace function public.save_chapter_subject(
+  p_subject_id uuid default null,
+  p_ue_id text default '',
+  p_chapter_id text default '',
+  p_title text default '',
+  p_description text default '',
+  p_month_label text default '',
+  p_questions jsonb default null,
+  p_question_file_name text default null,
+  p_answer_file_name text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_series_size constant integer := 10;
+  v_subject_id uuid := p_subject_id;
+  v_ue_id text := btrim(coalesce(p_ue_id, ''));
+  v_chapter_id text := btrim(coalesce(p_chapter_id, ''));
+  v_title text := btrim(coalesce(p_title, ''));
+  v_description text := coalesce(p_description, '');
+  v_month_label text := coalesce(nullif(btrim(p_month_label), ''), to_char(now(), 'YYYY-MM'));
+  v_result jsonb;
+begin
+  if not public.is_professor() then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+
+  if v_ue_id = '' or v_chapter_id = '' then
+    raise exception 'INVALID_CHAPTER' using errcode = 'P0001';
+  end if;
+
+  if v_title = '' then
+    raise exception 'INVALID_SUBJECT' using errcode = 'P0001';
+  end if;
+
+  if p_questions is not null then
+    if jsonb_typeof(p_questions) <> 'array'
+       or jsonb_array_length(p_questions) < v_series_size then
+      raise exception 'INVALID_CORRECTION' using errcode = 'P0001';
+    end if;
+
+    if exists (
+      select 1
+      from jsonb_array_elements(p_questions) as q(item)
+      where case
+              when coalesce(q.item ->> 'number', '') ~ '^[0-9]+$'
+                then (q.item ->> 'number')::integer < 1
+              else true
+            end
+         or btrim(coalesce(q.item ->> 'statement', '')) = ''
+         or jsonb_typeof(q.item -> 'options') is distinct from 'object'
+         or btrim(coalesce(q.item -> 'options' ->> 'A', '')) = ''
+         or btrim(coalesce(q.item -> 'options' ->> 'B', '')) = ''
+         or btrim(coalesce(q.item -> 'options' ->> 'C', '')) = ''
+         or btrim(coalesce(q.item -> 'options' ->> 'D', '')) = ''
+         or jsonb_typeof(q.item -> 'correctAnswers') is distinct from 'array'
+         or case
+              when jsonb_typeof(q.item -> 'correctAnswers') = 'array'
+                then jsonb_array_length(q.item -> 'correctAnswers') <> 1
+              else true
+            end
+         or coalesce(q.item -> 'correctAnswers' ->> 0, '') not in ('A', 'B', 'C', 'D', 'E')
+         or (
+              coalesce(q.item -> 'correctAnswers' ->> 0, '') = 'E'
+              and btrim(coalesce(q.item -> 'options' ->> 'E', '')) = ''
+            )
+         or btrim(coalesce(q.item ->> 'explanation', '')) = ''
+    ) then
+      raise exception 'INVALID_CORRECTION' using errcode = 'P0001';
+    end if;
+
+    if exists (
+      select 1
+      from jsonb_array_elements(p_questions) as q(item)
+      group by q.item ->> 'number'
+      having count(*) > 1
+    ) then
+      raise exception 'INVALID_CORRECTION' using errcode = 'P0001';
+    end if;
+  elsif p_subject_id is null then
+    raise exception 'EMPTY_SUBJECT' using errcode = 'P0001';
+  end if;
+
+  if v_subject_id is not null then
+    select s.id
+    into v_subject_id
+    from public.subjects s
+    where s.id = p_subject_id
+    for update;
+
+    if not found then
+      raise exception 'SUBJECT_NOT_FOUND' using errcode = 'P0001';
+    end if;
+
+    update public.subjects
+    set title = v_title,
+        description = v_description,
+        month_label = v_month_label,
+        chapter_id = v_chapter_id,
+        published_at = now(),
+        archived = false,
+        question_count = case
+          when p_questions is null then question_count
+          else jsonb_array_length(p_questions)
+        end,
+        question_file_name = coalesce(
+          nullif(btrim(p_question_file_name), ''),
+          question_file_name
+        ),
+        answer_file_name = coalesce(
+          nullif(btrim(p_answer_file_name), ''),
+          answer_file_name
+        ),
+        published_by = auth.uid()
+    where id = v_subject_id;
+  else
+    insert into public.subjects (
+      title,
+      description,
+      month_label,
+      chapter_id,
+      published_at,
+      archived,
+      question_count,
+      question_file_name,
+      answer_file_name,
+      published_by
+    )
+    values (
+      v_title,
+      v_description,
+      v_month_label,
+      v_chapter_id,
+      now(),
+      false,
+      jsonb_array_length(p_questions),
+      coalesce(nullif(btrim(p_question_file_name), ''), ''),
+      coalesce(nullif(btrim(p_answer_file_name), ''), ''),
+      auth.uid()
+    )
+    returning id into v_subject_id;
+  end if;
+
+  if p_questions is not null then
+    insert into public.questions (
+      subject_id,
+      number,
+      matiere,
+      statement,
+      options,
+      correct_answers,
+      explanation
+    )
+    select
+      v_subject_id,
+      (q.item ->> 'number')::integer,
+      coalesce(nullif(btrim(q.item ->> 'matiere'), ''), v_title),
+      q.item ->> 'statement',
+      q.item -> 'options',
+      array(select jsonb_array_elements_text(q.item -> 'correctAnswers')),
+      q.item ->> 'explanation'
+    from jsonb_array_elements(p_questions) as q(item)
+    on conflict (subject_id, number) do update
+    set matiere = excluded.matiere,
+        statement = excluded.statement,
+        options = excluded.options,
+        correct_answers = excluded.correct_answers,
+        explanation = excluded.explanation;
+
+    delete from public.questions
+    where subject_id = v_subject_id
+      and number not in (
+        select (q.item ->> 'number')::integer
+        from jsonb_array_elements(p_questions) as q(item)
+      );
+  end if;
+
+  select jsonb_build_object(
+           'id', s.id,
+           'title', s.title,
+           'description', s.description,
+           'monthLabel', s.month_label,
+           'publishedAt', s.published_at,
+           'archived', s.archived,
+           'questionCount', s.question_count,
+           'chapterId', s.chapter_id,
+           'questionFileName', s.question_file_name,
+           'answerFileName', s.answer_file_name
+         )
+  into v_result
+  from public.subjects s
+  where s.id = v_subject_id;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.save_chapter_subject(
+  uuid, text, text, text, text, text, jsonb, text, text
+) from public, anon;
+grant execute on function public.save_chapter_subject(
+  uuid, text, text, text, text, text, jsonb, text, text
+) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 18.5 Corrigé : refuser les brouillons et exposer UE/chapitres
+-- ---------------------------------------------------------------------------
+create or replace function public.get_attempt_review(p_attempt_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_attempt public.attempts%rowtype;
+  v_active_started_at timestamptz;
+  v_result jsonb;
+begin
+  select * into v_attempt
+  from public.attempts
+  where id = p_attempt_id;
+
+  if not found then
+    raise exception 'ATTEMPT_NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  if not public.is_professor() then
+    if v_attempt.user_id <> auth.uid() then
+      raise exception 'ATTEMPT_NOT_FOUND' using errcode = 'P0001';
+    end if;
+
+    select a.started_at
+    into v_active_started_at
+    from public.subject_assignments a
+    where a.user_id = auth.uid()
+      and a.started_at <= now()
+      and a.expires_at > now()
+    order by a.started_at desc
+    limit 1;
+
+    if v_active_started_at is null
+       or v_attempt.created_at < v_active_started_at then
+      raise exception 'ATTEMPT_OUT_OF_CYCLE' using errcode = 'P0001';
+    end if;
+  end if;
+
+  if coalesce(v_attempt.status, 'completed') <> 'completed' then
+    raise exception 'ATTEMPT_NOT_COMPLETED' using errcode = 'P0001';
+  end if;
+
+  select jsonb_build_object(
+           'attempt', jsonb_build_object(
+             'id', a.id,
+             'userId', a.user_id,
+             'subjectId', a.subject_id,
+             'score', a.score,
+             'total', a.total,
+             'createdAt', a.created_at,
+             'ueId', a.ue_id,
+             'chapterIds', to_jsonb(coalesce(a.chapter_ids, '{}'::text[])),
+             'status', a.status,
+             'completedAt', a.completed_at
+           ),
+           'questions', case
+             when jsonb_typeof(a.question_snapshot) = 'array'
+                  and jsonb_array_length(a.question_snapshot) > 0 then (
+               select jsonb_agg(
+                        elem || jsonb_build_object(
+                          'selected',
+                          coalesce(a.answers -> (elem ->> 'id'), '[]'::jsonb)
+                        )
+                        order by array_position(a.question_ids, (elem ->> 'id')::uuid)
+                      )
+               from jsonb_array_elements(a.question_snapshot) as snapshot(elem)
+             )
+             else (
+               select jsonb_agg(
+                        jsonb_build_object(
+                          'id', q.id,
+                          'number', q.number,
+                          'matiere', q.matiere,
+                          'statement', q.statement,
+                          'options', q.options,
+                          'correctAnswers', q.correct_answers,
+                          'explanation', q.explanation,
+                          'selected', coalesce(a.answers -> q.id::text, '[]'::jsonb)
+                        )
+                        order by array_position(a.question_ids, q.id)
+                      )
+               from public.questions q
+               where q.id = any (a.question_ids)
+             )
+           end
+         )
+  into v_result
+  from public.attempts a
+  where a.id = v_attempt.id;
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.get_attempt_review(uuid) from public, anon;
+grant execute on function public.get_attempt_review(uuid) to authenticated;

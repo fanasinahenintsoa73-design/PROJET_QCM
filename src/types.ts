@@ -54,11 +54,15 @@ export interface Subject {
   publishedAt: string
   archived: boolean
   questionCount: number
+  /** Chapitre auquel le sujet est rattaché (absent pour les anciens sujets). */
+  chapterId?: string
   /** Nom du dernier fichier de questions enregistré (vide pour les anciens sujets). */
   questionFileName?: string
   /** Nom du dernier fichier de correction enregistré (vide pour les anciens sujets). */
   answerFileName?: string
 }
+
+export type AttemptStatus = 'in_progress' | 'completed' | 'abandoned'
 
 export interface SubjectAssignment {
   id: string
@@ -98,6 +102,11 @@ export interface Attempt {
   score: number
   total: number
   createdAt: string
+  /** UE et chapitres de la série (absents pour les anciennes tentatives). */
+  ueId?: string
+  chapterIds?: string[]
+  status?: AttemptStatus
+  completedAt?: string
   /**
    * Copie figée des questions et du corrigé au moment du passage.
    * Elle garantit que les anciens résultats ne changent pas si le sujet est

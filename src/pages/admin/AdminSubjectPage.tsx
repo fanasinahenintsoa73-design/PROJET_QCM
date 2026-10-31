@@ -15,19 +15,21 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import { getPublishedSubjects } from '@/lib/db'
 import { parseSubjectFiles, type ParseResult } from '@/lib/excel'
-import { PACE_THEMES, findPaceTheme, type ThemeQuestionInput } from '@/lib/themes'
+import {
+  PACE_THEMES,
+  chaptersForTheme,
+  chapterTitle,
+  findPaceTheme,
+  findThemeForChapter,
+  type ChapterDefinition,
+  type ThemeQuestionInput,
+} from '@/lib/themes'
 import { Button } from '@/components/ui/Button'
 import { Field, Textarea } from '@/components/ui/Field'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
-import {
-  cn,
-  formatBytes,
-  formatDate,
-  monthLabel,
-  SERIES_SIZE,
-} from '@/lib/utils'
+import { cn, formatBytes, formatDate, monthLabel, SERIES_SIZE } from '@/lib/utils'
 import type { Subject } from '@/types'
 
 const importAccept =
@@ -47,15 +49,27 @@ interface SaveNotice {
   metadataOnly: boolean
 }
 
-/** Une seule entrée par thème, même si d'anciens doublons existent en base. */
-function uniqueSubjectsByTheme(subjects: Subject[]) {
-  const seen = new Set<string>()
-  return subjects.filter((subject) => {
-    const theme = findPaceTheme(subject.title)
-    if (!theme) return false
-    if (seen.has(theme.id)) return false
-    seen.add(theme.id)
-    return true
+function subjectTheme(subject: Subject) {
+  return subject.chapterId ? findThemeForChapter(subject.chapterId) : findPaceTheme(subject.title)
+}
+
+function subjectChapter(subject: Subject) {
+  return subject.chapterId ? chapterTitle(subject.chapterId) : 'Ancien format'
+}
+
+function sortSubjects(subjects: Subject[]) {
+  const themeOrder = new Map(PACE_THEMES.map((theme, index) => [theme.id, index] as const))
+  return [...subjects].sort((left, right) => {
+    const leftTheme = subjectTheme(left)
+    const rightTheme = subjectTheme(right)
+    const byTheme =
+      (themeOrder.get(leftTheme?.id ?? '') ?? 99) - (themeOrder.get(rightTheme?.id ?? '') ?? 99)
+    if (byTheme !== 0) return byTheme
+    const byChapter = subjectChapter(left).localeCompare(subjectChapter(right), 'fr', {
+      sensitivity: 'base',
+    })
+    if (byChapter !== 0) return byChapter
+    return left.title.localeCompare(right.title, 'fr', { sensitivity: 'base' })
   })
 }
 
@@ -64,32 +78,38 @@ export default function AdminSubjectPage() {
   const { db, refresh } = useAuth()
   const { toast } = useToast()
 
-  const subjects = uniqueSubjectsByTheme(getPublishedSubjects(db))
+  const subjects = sortSubjects(getPublishedSubjects(db))
 
-  const [themeId, setThemeId] = useState('')
+  const [ueId, setUeId] = useState('')
+  const [chapterId, setChapterId] = useState('')
+  const [subjectTitle, setSubjectTitle] = useState('')
+  const [editingSubjectId, setEditingSubjectId] = useState<string | undefined>()
   const [description, setDescription] = useState('')
   const [questionsFile, setQuestionsFile] = useState<File | null>(null)
   const [answersFile, setAnswersFile] = useState<File | null>(null)
   const [parsing, setParsing] = useState(false)
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
   const [parseError, setParseError] = useState('')
-  const [themeError, setThemeError] = useState('')
+  const [ueError, setUeError] = useState('')
+  const [chapterError, setChapterError] = useState('')
+  const [titleError, setTitleError] = useState('')
   const [fileErrors, setFileErrors] = useState<FileErrors>({})
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<SaveNotice | null>(null)
 
   const formRef = useRef<HTMLElement>(null)
-  const themeSelectRef = useRef<HTMLSelectElement>(null)
+  const ueSelectRef = useRef<HTMLSelectElement>(null)
 
-  const selectedTheme = PACE_THEMES.find((theme) => theme.id === themeId)
-  const existingForTheme = selectedTheme
-    ? subjects.find(
-        (subject) =>
-          subject.id === selectedTheme.id ||
-          findPaceTheme(subject.title)?.id === selectedTheme.id,
-      )
+  const selectedTheme = PACE_THEMES.find((theme) => theme.id === ueId)
+  const chapters = ueId ? chaptersForTheme(ueId) : []
+  const selectedChapter = chapters.find((chapter) => chapter.id === chapterId)
+  const existingSubject = editingSubjectId
+    ? subjects.find((subject) => subject.id === editingSubjectId)
     : undefined
+  const subjectsInChapter = chapterId
+    ? subjects.filter((subject) => subject.chapterId === chapterId)
+    : []
 
   useEffect(() => {
     if (!questionsFile || !answersFile) {
@@ -126,24 +146,26 @@ export default function AdminSubjectPage() {
   }, [answersFile, questionsFile])
 
   const parsedQuestions = parseResult?.questions ?? []
-  const parseIssues = [
-    ...(parseError ? [parseError] : []),
-    ...(parseResult?.errors ?? []),
-  ]
+  const parseIssues = [...(parseError ? [parseError] : []), ...(parseResult?.errors ?? [])]
   const warnings = parseResult?.warnings ?? []
   const hasAnyFile = Boolean(questionsFile || answersFile)
   const enoughQuestions = parsedQuestions.length >= SERIES_SIZE
   const parsedReady = Boolean(parseResult) && !parseIssues.length && !parsing
-  const canReuseContent = Boolean(existingForTheme) && !hasAnyFile
+  const canReuseContent = Boolean(existingSubject) && !hasAnyFile
 
   const clearForm = () => {
-    setThemeId('')
+    setUeId('')
+    setChapterId('')
+    setSubjectTitle('')
+    setEditingSubjectId(undefined)
     setDescription('')
     setQuestionsFile(null)
     setAnswersFile(null)
     setParseResult(null)
     setParseError('')
-    setThemeError('')
+    setUeError('')
+    setChapterError('')
+    setTitleError('')
     setFileErrors({})
     setFormError('')
   }
@@ -153,9 +175,15 @@ export default function AdminSubjectPage() {
     setNotice(null)
   }
 
-  const chooseTheme = (nextThemeId: string) => {
-    setThemeId(nextThemeId)
-    setThemeError('')
+  const chooseUe = (nextUeId: string) => {
+    setUeId(nextUeId)
+    setChapterId('')
+    setSubjectTitle('')
+    setEditingSubjectId(undefined)
+    setDescription('')
+    setUeError('')
+    setChapterError('')
+    setTitleError('')
     setFormError('')
     setNotice(null)
     setQuestionsFile(null)
@@ -163,27 +191,51 @@ export default function AdminSubjectPage() {
     setParseResult(null)
     setParseError('')
     setFileErrors({})
+  }
 
-    const theme = PACE_THEMES.find((candidate) => candidate.id === nextThemeId)
-    const existing = theme
-      ? subjects.find(
-          (subject) =>
-            subject.id === theme.id || findPaceTheme(subject.title)?.id === theme.id,
-        )
-      : undefined
-    setDescription(existing?.description ?? '')
+  const chooseChapter = (nextChapterId: string) => {
+    setChapterId(nextChapterId)
+    setEditingSubjectId(undefined)
+    setSubjectTitle(chapters.find((chapter) => chapter.id === nextChapterId)?.title ?? '')
+    setDescription('')
+    setChapterError('')
+    setTitleError('')
+    setFormError('')
+    setNotice(null)
+    setQuestionsFile(null)
+    setAnswersFile(null)
+    setParseResult(null)
+    setParseError('')
+    setFileErrors({})
   }
 
   const startEdit = (subject: Subject) => {
-    const theme = findPaceTheme(subject.title)
-    if (!theme) {
-      toast('Ce sujet n’est rattaché à aucun des neuf thèmes PACES.', 'error')
+    const theme = subject.chapterId ? findThemeForChapter(subject.chapterId) : undefined
+    if (!theme || !subject.chapterId) {
+      toast(
+        'Ce sujet utilise l’ancien format sans chapitre. Il reste disponible aux étudiants mais ne peut pas être modifié dans le nouveau formulaire.',
+        'error',
+      )
       return
     }
-    chooseTheme(theme.id)
+    setUeId(theme.id)
+    setChapterId(subject.chapterId)
+    setEditingSubjectId(subject.id)
+    setSubjectTitle(subject.title)
+    setDescription(subject.description)
+    setUeError('')
+    setChapterError('')
+    setTitleError('')
+    setFormError('')
+    setNotice(null)
+    setQuestionsFile(null)
+    setAnswersFile(null)
+    setParseResult(null)
+    setParseError('')
+    setFileErrors({})
     window.setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      themeSelectRef.current?.focus({ preventScroll: true })
+      ueSelectRef.current?.focus({ preventScroll: true })
     }, 0)
   }
 
@@ -238,10 +290,17 @@ export default function AdminSubjectPage() {
     setFormError('')
     setNotice(null)
 
-    const theme = PACE_THEMES.find((candidate) => candidate.id === themeId)
-    if (!theme) {
-      setThemeError('Sélectionnez la matière du sujet.')
-      themeSelectRef.current?.focus()
+    if (!selectedTheme) {
+      setUeError('Sélectionnez l’UE du sujet.')
+      ueSelectRef.current?.focus()
+      return
+    }
+    if (!selectedChapter) {
+      setChapterError('Sélectionnez le chapitre du sujet.')
+      return
+    }
+    if (!subjectTitle.trim()) {
+      setTitleError('Donnez un titre au sujet.')
       return
     }
 
@@ -253,7 +312,7 @@ export default function AdminSubjectPage() {
       if (!answersFile) {
         nextFileErrors.answers = 'Choisissez aussi le fichier de correction pour remplacer le contenu.'
       }
-    } else if (!existingForTheme) {
+    } else if (!existingSubject) {
       nextFileErrors.questions = 'Le fichier du sujet est obligatoire.'
       nextFileErrors.answers = 'Le fichier de correction est obligatoire.'
     }
@@ -286,7 +345,7 @@ export default function AdminSubjectPage() {
     }
 
     const metadataOnly = !hasAnyFile
-    const updated = Boolean(existingForTheme)
+    const updated = Boolean(existingSubject)
 
     setSaving(true)
     try {
@@ -294,14 +353,16 @@ export default function AdminSubjectPage() {
         ? undefined
         : parsedQuestions.map((question) => ({
             ...question,
-            matiere: theme.title,
+            matiere: selectedChapter.title,
           }))
 
-      const subject = await api.saveSubject({
-        themeId: theme.id,
-        title: theme.title,
+      const subject = await api.saveChapterSubject({
+        subjectId: editingSubjectId,
+        themeId: selectedTheme.id,
+        chapterId: selectedChapter.id,
+        title: subjectTitle.trim(),
         description: description.trim(),
-        monthLabel: existingForTheme?.monthLabel?.trim() || monthLabel(),
+        monthLabel: existingSubject?.monthLabel?.trim() || monthLabel(),
         questions,
         questionFileName: questionsFile?.name,
         answerFileName: answersFile?.name,
@@ -340,20 +401,17 @@ export default function AdminSubjectPage() {
               <p className="eyebrow text-mute">Parcours QCM</p>
               <h1 className="display mt-3 text-[clamp(2.8rem,6vw,4.5rem)]">Sujets.</h1>
               <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-mute">
-                Choisissez un thème PACES, joignez le fichier des questions et celui de la
-                correction, puis enregistrez. Chaque sujet est immédiatement proposé aux
-                étudiants qui disposent d’un accès actif.
+                Choisissez une UE puis un chapitre, donnez un titre au sujet, joignez le fichier
+                des questions et celui de la correction. Un chapitre peut contenir plusieurs
+                sujets.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusPill
-                tone={subjects.length > 0 ? 'success' : 'neutral'}
-                dot
-              >
+              <StatusPill tone={subjects.length > 0 ? 'success' : 'neutral'} dot>
                 {subjects.length} sujet{subjects.length > 1 ? 's' : ''} en ligne
               </StatusPill>
               <StatusPill tone="neutral" dot>
-                {PACE_THEMES.length} thèmes PACES
+                {PACE_THEMES.length} UE
               </StatusPill>
             </div>
           </div>
@@ -373,16 +431,16 @@ export default function AdminSubjectPage() {
                   id="subject-form-title"
                   className="text-[18px] font-medium tracking-[-0.01em]"
                 >
-                  {existingForTheme ? 'Modifier le sujet' : 'Enregistrer un sujet'}
+                  {existingSubject ? 'Modifier le sujet' : 'Enregistrer un sujet'}
                 </h2>
                 <p className="mt-1 max-w-md text-[11px] leading-relaxed text-mute">
-                  Un seul sujet par thème. Enregistrer à nouveau un thème met à jour son
-                  contenu sans créer de doublon.
+                  Les sujets sont rangés par UE et par chapitre. Enregistrer un nouveau sujet ne
+                  remplace pas les autres sujets du même chapitre.
                 </p>
               </div>
-              {existingForTheme && (
+              {existingSubject && (
                 <StatusPill tone="info" dot>
-                  Thème déjà enregistré
+                  Sujet en modification
                 </StatusPill>
               )}
             </div>
@@ -419,31 +477,28 @@ export default function AdminSubjectPage() {
 
             <form className="mt-5 space-y-5" onSubmit={handleSubmit} noValidate>
               <Field
-                label="Matière / sujet"
-                htmlFor="subject-theme"
+                label="UE"
+                htmlFor="subject-ue"
                 required
-                error={themeError}
+                error={ueError}
                 hint={
                   selectedTheme
                     ? selectedTheme.description
-                    : 'Sélectionnez l’un des neuf thèmes PACES officiels.'
+                    : 'Sélectionnez l’une des neuf UE officielles.'
                 }
               >
                 <div className="relative">
                   <select
-                    ref={themeSelectRef}
-                    id="subject-theme"
-                    className={cn(
-                      'form-input appearance-none pr-10',
-                      themeError && 'border-sale',
-                    )}
-                    value={themeId}
-                    onChange={(event) => chooseTheme(event.target.value)}
-                    aria-invalid={Boolean(themeError)}
+                    ref={ueSelectRef}
+                    id="subject-ue"
+                    className={cn('form-input appearance-none pr-10', ueError && 'border-sale')}
+                    value={ueId}
+                    onChange={(event) => chooseUe(event.target.value)}
+                    aria-invalid={Boolean(ueError)}
                     aria-required="true"
                   >
                     <option value="" disabled>
-                      Sélectionner un thème PACES
+                      Sélectionner une UE
                     </option>
                     {PACE_THEMES.map((theme, index) => (
                       <option key={theme.id} value={theme.id}>
@@ -456,6 +511,75 @@ export default function AdminSubjectPage() {
                     aria-hidden="true"
                   />
                 </div>
+              </Field>
+
+              <Field
+                label="Chapitre"
+                htmlFor="subject-chapter"
+                required
+                error={chapterError}
+                hint={
+                  selectedTheme && chapters.length === 0
+                    ? 'Les chapitres de cette UE ne sont pas encore disponibles.'
+                    : 'Les chapitres sont affichés par ordre alphabétique.'
+                }
+              >
+                <div className="relative">
+                  <select
+                    id="subject-chapter"
+                    className={cn(
+                      'form-input appearance-none pr-10',
+                      chapterError && 'border-sale',
+                    )}
+                    value={chapterId}
+                    onChange={(event) => chooseChapter(event.target.value)}
+                    disabled={!selectedTheme || chapters.length === 0}
+                    aria-invalid={Boolean(chapterError)}
+                    aria-required="true"
+                  >
+                    <option value="" disabled>
+                      {selectedTheme ? 'Sélectionner un chapitre' : 'Choisissez d’abord une UE'}
+                    </option>
+                    {chapters.map((chapter: ChapterDefinition) => (
+                      <option key={chapter.id} value={chapter.id}>
+                        {chapter.title}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-mute"
+                    aria-hidden="true"
+                  />
+                </div>
+              </Field>
+
+              {selectedTheme && chapters.length === 0 && (
+                <p className="border-l-2 border-[#b26b00] bg-[#fff8ec] px-3.5 py-3 text-[10px] leading-relaxed text-charcoal">
+                  Les chapitres de « {selectedTheme.title} » seront ajoutés prochainement. En
+                  attendant, cette UE ne peut pas recevoir de nouveau sujet.
+                </p>
+              )}
+
+              <Field
+                label="Titre du sujet"
+                htmlFor="subject-title"
+                required
+                error={titleError}
+                hint="Par défaut, le titre du chapitre est proposé. Vous pouvez le préciser."
+              >
+                <input
+                  id="subject-title"
+                  className={cn('form-input', titleError && 'border-sale')}
+                  value={subjectTitle}
+                  onChange={(event) => {
+                    setSubjectTitle(event.target.value)
+                    setTitleError('')
+                    setNotice(null)
+                  }}
+                  placeholder={selectedChapter?.title ?? 'Ex. Digestif — sujet 1'}
+                  aria-invalid={Boolean(titleError)}
+                  aria-required="true"
+                />
               </Field>
 
               <Field
@@ -475,14 +599,22 @@ export default function AdminSubjectPage() {
                 />
               </Field>
 
+              {subjectsInChapter.length > 0 && !editingSubjectId && (
+                <p className="border-l-2 border-accent bg-accent-soft/60 px-3.5 py-3 text-[10px] leading-relaxed text-charcoal">
+                  Ce chapitre contient déjà {subjectsInChapter.length} sujet
+                  {subjectsInChapter.length > 1 ? 's' : ''}. Vous pouvez en ajouter un autre ou
+                  modifier un sujet existant avec le crayon dans la liste.
+                </p>
+              )}
+
               <div className="space-y-4">
                 <SubjectFileField
                   id="subject-questions-file"
                   label="Fichier du sujet (modèle QCM)"
                   hint="Excel (.xlsx/.xls) ou PDF — une ligne par question avec les options A à D."
                   file={questionsFile}
-                  existing={Boolean(existingForTheme)}
-                  existingName={existingForTheme?.questionFileName}
+                  existing={Boolean(existingSubject)}
+                  existingName={existingSubject?.questionFileName}
                   error={fileErrors.questions}
                   onChoose={(file) => chooseFile('questions', file)}
                   onClear={() => clearFile('questions')}
@@ -492,21 +624,21 @@ export default function AdminSubjectPage() {
                   label="Fichier de correction"
                   hint="Excel (.xlsx/.xls) ou PDF — réponse exacte et explication pour chaque question."
                   file={answersFile}
-                  existing={Boolean(existingForTheme)}
-                  existingName={existingForTheme?.answerFileName}
+                  existing={Boolean(existingSubject)}
+                  existingName={existingSubject?.answerFileName}
                   error={fileErrors.answers}
                   onChoose={(file) => chooseFile('answers', file)}
                   onClear={() => clearFile('answers')}
                 />
               </div>
 
-              {canReuseContent && (
+              {canReuseContent && existingSubject && (
                 <p className="border-l-2 border-accent bg-accent-soft/60 px-3.5 py-3 text-[10px] leading-relaxed text-charcoal">
-                  Le contenu actuel de « {existingForTheme?.title} » (
-                  {existingForTheme?.questionCount ?? 0} question
-                  {(existingForTheme?.questionCount ?? 0) > 1 ? 's' : ''}) et son corrigé seront
-                  conservés. Choisissez les deux nouveaux fichiers uniquement pour remplacer
-                  les questions.
+                  Le contenu actuel de « {existingSubject.title} » (
+                  {existingSubject.questionCount} question
+                  {existingSubject.questionCount > 1 ? 's' : ''}) et son corrigé seront
+                  conservés. Choisissez les deux nouveaux fichiers uniquement pour remplacer les
+                  questions.
                 </p>
               )}
 
@@ -579,10 +711,7 @@ export default function AdminSubjectPage() {
                   role="alert"
                   className="flex items-start gap-2 border-l-2 border-sale bg-[#fdf0f0] px-3.5 py-3 text-[11px] leading-relaxed text-sale"
                 >
-                  <AlertCircle
-                    className="mt-0.5 size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
+                  <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                   {formError}
                 </div>
               )}
@@ -591,13 +720,13 @@ export default function AdminSubjectPage() {
                 <Button
                   type="submit"
                   loading={saving}
-                  disabled={parsing}
+                  disabled={parsing || !selectedTheme || chapters.length === 0}
                   className="min-w-[150px] gap-2"
                 >
                   {!saving && <Save className="size-3.5" aria-hidden="true" />}
                   Enregistrer
                 </Button>
-                {(themeId || description || hasAnyFile) && (
+                {(ueId || chapterId || subjectTitle || description || hasAnyFile) && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -612,45 +741,40 @@ export default function AdminSubjectPage() {
             </form>
           </section>
 
-          <section
-            aria-labelledby="saved-subjects-title"
-            className="border border-hairline bg-white"
-          >
+          <section aria-labelledby="saved-subjects-title" className="border border-hairline bg-white">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-hairline-soft p-5 sm:p-6">
               <div>
-                <h2
-                  id="saved-subjects-title"
-                  className="text-[18px] font-medium tracking-[-0.01em]"
-                >
+                <h2 id="saved-subjects-title" className="text-[18px] font-medium tracking-[-0.01em]">
                   Sujets enregistrés
                 </h2>
                 <p className="mt-1 max-w-md text-[11px] leading-relaxed text-mute">
-                  Chaque sujet disponible côté étudiant. Utilisez le crayon pour recharger son
-                  thème et sa description dans le formulaire.
+                  Tous les sujets disponibles côté étudiant, classés par UE et par chapitre.
+                  Utilisez le crayon pour recharger un sujet dans le formulaire.
                 </p>
               </div>
               <StatusPill tone={subjects.length > 0 ? 'success' : 'neutral'} dot>
-                {subjects.length} / {PACE_THEMES.length}
+                {subjects.length} sujet{subjects.length > 1 ? 's' : ''}
               </StatusPill>
             </div>
 
             {subjects.length === 0 ? (
               <p className="m-5 border border-dashed border-hairline bg-cloud/30 px-4 py-10 text-center text-[12px] text-mute sm:m-6">
-                Aucun sujet enregistré. Choisissez un thème et déposez les deux fichiers pour
-                publier le premier sujet.
+                Aucun sujet enregistré. Choisissez une UE et un chapitre, puis déposez les deux
+                fichiers pour publier le premier sujet.
               </p>
             ) : (
               <ul className="divide-y divide-hairline-soft">
                 {subjects.map((subject) => {
-                  const theme = findPaceTheme(subject.title)
+                  const theme = subjectTheme(subject)
                   const themeIndex = theme
                     ? PACE_THEMES.findIndex((candidate) => candidate.id === theme.id)
                     : -1
-                  const loaded = Boolean(theme && theme.id === themeId)
+                  const loaded = subject.id === editingSubjectId
                   const fileNames = [subject.questionFileName, subject.answerFileName]
                     .filter((name): name is string => Boolean(name?.trim()))
                     .join(' · ')
                   const hasDescription = Boolean(subject.description.trim())
+                  const editable = Boolean(subject.chapterId)
 
                   return (
                     <li
@@ -661,28 +785,33 @@ export default function AdminSubjectPage() {
                       )}
                     >
                       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-cloud text-[10px] font-semibold tabular-nums text-mute">
-                        {themeIndex >= 0
-                          ? String(themeIndex + 1).padStart(2, '0')
-                          : '—'}
+                        {themeIndex >= 0 ? String(themeIndex + 1).padStart(2, '0') : '—'}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-[13px] font-medium leading-snug text-ink">
-                            {subject.title}
-                          </h3>
-                          <button
-                            type="button"
-                            onClick={() => startEdit(subject)}
-                            aria-label={`Modifier ${subject.title}`}
-                            title="Modifier ce sujet"
-                            className="-mr-1 grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-cloud hover:text-accent"
-                          >
-                            <PencilLine
-                              className="size-3.5"
-                              strokeWidth={1.8}
-                              aria-hidden="true"
-                            />
-                          </button>
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-[0.1em] text-mute">
+                              {theme?.title ?? 'Ancien format'} · {subjectChapter(subject)}
+                            </p>
+                            <h3 className="mt-1 text-[13px] font-medium leading-snug text-ink">
+                              {subject.title}
+                            </h3>
+                          </div>
+                          {editable ? (
+                            <button
+                              type="button"
+                              onClick={() => startEdit(subject)}
+                              aria-label={`Modifier ${subject.title}`}
+                              title="Modifier ce sujet"
+                              className="-mr-1 grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-cloud hover:text-accent"
+                            >
+                              <PencilLine
+                                className="size-3.5"
+                                strokeWidth={1.8}
+                                aria-hidden="true"
+                              />
+                            </button>
+                          ) : null}
                         </div>
                         {hasDescription && (
                           <p className="mt-1.5 text-[11px] leading-relaxed text-charcoal">
@@ -767,11 +896,7 @@ function SubjectFileField({
       <div
         className={cn(
           'flex items-stretch overflow-hidden rounded-[10px] border bg-surface transition',
-          error
-            ? 'border-sale'
-            : file
-              ? 'border-accent'
-              : 'border-line',
+          error ? 'border-sale' : file ? 'border-accent' : 'border-line',
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3 px-3.5 py-3">
@@ -784,25 +909,16 @@ function SubjectFileField({
             {isPdf ? (
               <FileText className="size-4" strokeWidth={1.6} aria-hidden="true" />
             ) : (
-              <FileSpreadsheet
-                className="size-4"
-                strokeWidth={1.6}
-                aria-hidden="true"
-              />
+              <FileSpreadsheet className="size-4" strokeWidth={1.6} aria-hidden="true" />
             )}
           </span>
           <span className="min-w-0">
             {displayName ? (
-              <span
-                className="block truncate text-[13px] font-medium text-ink"
-                title={displayName}
-              >
+              <span className="block truncate text-[13px] font-medium text-ink" title={displayName}>
                 {displayName}
               </span>
             ) : (
-              <span className="block text-[13px] text-mute">
-                Aucun fichier sélectionné
-              </span>
+              <span className="block text-[13px] text-mute">Aucun fichier sélectionné</span>
             )}
             <span className="mt-0.5 block text-[10px] text-mute">
               {file

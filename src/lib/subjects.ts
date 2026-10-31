@@ -1,5 +1,5 @@
 import type { Subject } from '@/types'
-import { findPaceTheme } from '@/lib/themes'
+import { findPaceTheme, findThemeForChapter } from '@/lib/themes'
 import { SERIES_SIZE } from '@/lib/utils'
 
 /** Ordre du catalogue : publication, puis identifiant pour départager. */
@@ -34,6 +34,58 @@ export function findThemeSubject(
         ? byDate
         : right.id.localeCompare(left.id)
     })[0]
+}
+
+/** Sujets actifs et exploitables d'un chapitre. */
+export function findChapterSubjects(
+  chapterId: string,
+  subjects: Subject[],
+  minimumQuestions = 1,
+): Subject[] {
+  return sortSubjectsByPublication(
+    subjects.filter(
+      (subject) =>
+        !subject.archived &&
+        subject.chapterId === chapterId &&
+        subject.questionCount >= minimumQuestions,
+    ),
+  )
+}
+
+/** Sujets actifs et exploitables pour une sélection de chapitres. */
+export function findChapterSelectionSubjects(
+  chapterIds: readonly string[],
+  subjects: Subject[],
+  minimumQuestions = 1,
+): Subject[] {
+  const selected = new Set(chapterIds)
+  return sortSubjectsByPublication(
+    subjects.filter(
+      (subject) =>
+        !subject.archived &&
+        Boolean(subject.chapterId) &&
+        selected.has(subject.chapterId as string) &&
+        subject.questionCount >= minimumQuestions,
+    ),
+  )
+}
+
+/** Sujets legacy rattachés à une UE mais sans chapitre. */
+export function findLegacyThemeSubjects(themeId: string, subjects: Subject[]): Subject[] {
+  return sortSubjectsByPublication(
+    subjects.filter(
+      (subject) =>
+        !subject.archived &&
+        !subject.chapterId &&
+        findPaceTheme(subject.title)?.id === themeId,
+    ),
+  )
+}
+
+/** Libellé lisible d'un sujet, avec son chapitre si disponible. */
+export function subjectChapterLabel(subject: Subject): string {
+  const chapter = subject.chapterId ? findThemeForChapter(subject.chapterId) : undefined
+  return chapter?.title ?? subject.title
 }
 
 export function getSubjectNumber(subjectId: string, subjects: Subject[]): number | undefined {

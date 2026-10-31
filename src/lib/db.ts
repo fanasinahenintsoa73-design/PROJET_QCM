@@ -13,8 +13,10 @@ import {
   PACE_THEMES,
   canonicalizeThemePack,
   findPaceTheme,
+  findThemeForChapter,
   sortThemes,
   validateThemePackInput,
+  type SaveChapterSubjectInput,
   type SaveSubjectInput,
   type ThemePackInput,
 } from '@/lib/themes'
@@ -924,6 +926,103 @@ export function saveSubject(input: SaveSubjectInput): Subject {
   return subject
 }
 
+/**
+ * Enregistre un sujet rattaché à un chapitre. Plusieurs sujets peuvent vivre
+ * dans le même chapitre : `subjectId` identifie une modification, son absence
+ * crée un nouveau sujet.
+ */
+export function saveChapterSubject(input: SaveChapterSubjectInput): Subject {
+  const theme =
+    PACE_THEMES.find((candidate) => candidate.id === input.themeId) ??
+    findThemeForChapter(input.chapterId)
+  if (!theme) {
+    throw new AppError('INVALID_THEME', 'Cette UE est introuvable.')
+  }
+  const chapter = theme.chapters.find((candidate) => candidate.id === input.chapterId)
+  if (!chapter) {
+    throw new AppError('INVALID_CHAPTER', 'Ce chapitre ne correspond pas à l’UE sélectionnée.')
+  }
+
+  const db = getDB()
+  const existing = input.subjectId
+    ? db.subjects.find((subject) => subject.id === input.subjectId)
+    : undefined
+  if (input.subjectId && !existing) {
+    throw new AppError('SUBJECT_NOT_FOUND', 'Ce sujet est introuvable.')
+  }
+
+  const hasQuestions = Boolean(input.questions?.length)
+  if (!hasQuestions && !existing) {
+    throw new AppError(
+      'EMPTY_SUBJECT',
+      'Ajoutez le fichier des questions et celui de la correction avant d’enregistrer le sujet.',
+    )
+  }
+  if (hasQuestions && input.questions) {
+    if (input.questions.length < SERIES_SIZE) {
+      throw new AppError(
+        'INVALID_CORRECTION',
+        `Une série comporte ${SERIES_SIZE} questions : ajoutez au moins ${SERIES_SIZE} questions valides.`,
+      )
+    }
+    const seenNumbers = new Set<number>()
+    input.questions.forEach((question, index) => {
+      validateQuestion(question, `Question ${question.number || index + 1}`, true)
+      if (seenNumbers.has(question.number)) {
+        throw new AppError(
+          'INVALID_CORRECTION',
+          `Question ${question.number} : ce numéro apparaît plusieurs fois.`,
+        )
+      }
+      seenNumbers.add(question.number)
+    })
+  }
+
+  const title = input.title.trim()
+  if (!title) {
+    throw new AppError('INVALID_TITLE', 'Le titre du sujet est obligatoire.')
+  }
+
+  const subject: Subject = {
+    id: existing?.id ?? uid('subject'),
+    title,
+    description: input.description.trim(),
+    monthLabel: input.monthLabel.trim() || existing?.monthLabel || monthLabel(),
+    publishedAt: new Date().toISOString(),
+    archived: false,
+    chapterId: chapter.id,
+    questionCount: hasQuestions ? input.questions!.length : existing!.questionCount,
+    questionFileName:
+      input.questionFileName?.trim() || existing?.questionFileName || '',
+    answerFileName: input.answerFileName?.trim() || existing?.answerFileName || '',
+  }
+
+  const subjects = existing
+    ? db.subjects.map((candidate) => (candidate.id === subject.id ? subject : candidate))
+    : [...db.subjects, subject]
+
+  let questions = db.questions
+  if (hasQuestions && input.questions) {
+    const previousById = new Map(
+      db.questions
+        .filter((question) => question.subjectId === subject.id)
+        .map((question) => [question.number, question.id]),
+    )
+    questions = [
+      ...db.questions.filter((question) => question.subjectId !== subject.id),
+      ...input.questions.map((question) => ({
+        ...question,
+        id: previousById.get(question.number) ?? uid('q'),
+        subjectId: subject.id,
+        matiere: question.matiere?.trim() || title,
+      })),
+    ]
+  }
+
+  commit({ ...db, subjects, questions })
+  return subject
+}
+
 export function removeSubject(subjectId: string) {
   const db = getDB()
   const subject = db.subjects.find((item) => item.id === subjectId)
@@ -1015,6 +1114,197 @@ export function startSeries(
   }
 }
 
+export interface StartedChapterSeries {
+  assignment: SubjectAssignment
+  attempt: Attempt
+  ueId: string
+  chapterIds: string[]
+  questions: Question[]
+}
+
+function sanitized(question: Question): Question {
+  return { ...question, correctAnswers: [], explanation: '' }
+}
+
+/** Évite qu'un même énoncé soit tiré deux fois dans une série. */
+function uniqueQuestionBank(questions: Question[]): Question[] {
+  const seen = new Set<string>()
+  return questions.filter((question) => {
+    const key = question.statement
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** Ouvre une série multi-chapitres et crée immédiatement le brouillon compté. */
+export function startChapterSeries(
+  userId: string,
+  ueId: string,
+  chapterIds: string[],
+  count = SERIES_SIZE,
+): StartedChapterSeries {
+  const db = getDB()
+  const assignment = getCurrentAssignment(userId, db)
+  if (!assignment) {
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+  }
+
+  const theme = PACE_THEMES.find((candidate) => candidate.id === ueId)
+  if (!theme) {
+    throw new AppError('THEME_NOT_FOUND', 'Cette UE est introuvable.')
+  }
+  const selected = [...new Set(chapterIds)].filter(Boolean)
+  if (!selected.length) {
+    throw new AppError('NO_CHAPTER', 'Veuillez sélectionner au moins un chapitre avant de lancer la série.')
+  }
+  if (selected.some((chapterId) => !theme.chapters.some((chapter) => chapter.id === chapterId))) {
+    throw new AppError('INVALID_CHAPTER', 'Un chapitre sélectionné n’appartient pas à cette UE.')
+  }
+
+  // Reprend le brouillon identique après un rafraîchissement : la série ne doit
+  // pas être comptée deux fois.
+  const draft = db.attempts.find(
+    (attempt) =>
+      attempt.userId === userId &&
+      attempt.status === 'in_progress' &&
+      attempt.ueId === ueId &&
+      (attempt.chapterIds ?? []).length === selected.length &&
+      (attempt.chapterIds ?? []).every((chapterId) => selected.includes(chapterId)),
+  )
+  if (draft) {
+    return {
+      assignment,
+      attempt: draft,
+      ueId,
+      chapterIds: selected,
+      questions: (draft.questionSnapshot ?? []).map(sanitized),
+    }
+  }
+
+  if (getSeriesUsage(userId, db).reached) {
+    throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
+  }
+
+  const subjectIds = new Set(
+    db.subjects
+      .filter(
+        (subject) =>
+          !subject.archived && Boolean(subject.chapterId) && selected.includes(subject.chapterId as string),
+      )
+      .map((subject) => subject.id),
+  )
+  const bank = uniqueQuestionBank(
+    db.questions.filter(
+      (question) =>
+        subjectIds.has(question.subjectId) && question.correctAnswers.length === 1,
+    ),
+  )
+  if (bank.length < SERIES_SIZE) {
+    throw new AppError(
+      'THEME_UNAVAILABLE',
+      `Cette sélection sera bientôt disponible : il faut au moins ${SERIES_SIZE} questions dans les chapitres choisis.`,
+    )
+  }
+
+  const size = Math.max(1, Math.min(count, SERIES_SIZE))
+  const ids = randomQuestionIds(bank, size)
+  const questions = ids
+    .map((id) => bank.find((question) => question.id === id))
+    .filter((question): question is Question => Boolean(question))
+
+  const now = new Date().toISOString()
+  const attempt: Attempt = {
+    id: uid('attempt'),
+    userId,
+    subjectId: questions[0]?.subjectId ?? '',
+    questionIds: questions.map((question) => question.id),
+    answers: {},
+    score: 0,
+    total: questions.length,
+    createdAt: now,
+    ueId,
+    chapterIds: selected,
+    status: 'in_progress',
+    questionSnapshot: questions.map((question) => ({
+      ...question,
+      options: { ...question.options },
+      correctAnswers: [...question.correctAnswers],
+    })),
+  }
+  commit({ ...db, attempts: [attempt, ...db.attempts] })
+  return {
+    assignment,
+    attempt,
+    ueId,
+    chapterIds: selected,
+    questions: questions.map(sanitized),
+  }
+}
+
+export function saveChapterAttempt(input: {
+  userId: string
+  attemptId: string
+  answers: Record<string, string[]>
+}): Attempt {
+  const db = getDB()
+  const assignment = getCurrentAssignment(input.userId, db)
+  if (!assignment) {
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+  }
+  const attempt = db.attempts.find((candidate) => candidate.id === input.attemptId)
+  if (!attempt || attempt.userId !== input.userId) {
+    throw new AppError('ATTEMPT_NOT_FOUND', 'Cette série est introuvable.')
+  }
+  if (attempt.status && attempt.status !== 'in_progress') {
+    throw new AppError('ATTEMPT_CLOSED', 'Cette série est déjà terminée.')
+  }
+  const snapshot = attempt.questionSnapshot ?? []
+  if (snapshot.length !== SERIES_SIZE) {
+    throw new AppError('INVALID_QUESTION_SET', 'Cette série est incomplète.')
+  }
+  const score = snapshot.reduce(
+    (total, question) =>
+      total + (sameAnswer(input.answers[question.id] ?? [], question.correctAnswers) ? 1 : 0),
+    0,
+  )
+  const updated: Attempt = {
+    ...attempt,
+    answers: input.answers,
+    score,
+    total: snapshot.length,
+    status: 'completed',
+    completedAt: new Date().toISOString(),
+  }
+  commit({
+    ...db,
+    attempts: db.attempts.map((candidate) =>
+      candidate.id === updated.id ? updated : candidate,
+    ),
+  })
+  return updated
+}
+
+export function abandonSeries(attemptId: string, userId?: string): void {
+  const db = getDB()
+  const attempt = db.attempts.find((candidate) => candidate.id === attemptId)
+  if (!attempt || (userId && attempt.userId !== userId)) return
+  if (attempt.status && attempt.status !== 'in_progress') return
+  commit({
+    ...db,
+    attempts: db.attempts.map((candidate) =>
+      candidate.id === attemptId
+        ? { ...candidate, status: 'abandoned', completedAt: new Date().toISOString() }
+        : candidate,
+    ),
+  })
+}
+
 export function saveAttempt(input: {
   userId: string
   subjectId: string
@@ -1098,6 +1388,9 @@ export function getAttemptForReview(
   const attempt = getAttempt(attemptId, db)
   if (!attempt) {
     throw new AppError('ATTEMPT_NOT_FOUND', 'Ce résultat est introuvable.')
+  }
+  if (attempt.status && attempt.status !== 'completed') {
+    throw new AppError('ATTEMPT_NOT_COMPLETED', 'Cette série n’est pas encore terminée.')
   }
 
   if (viewerId) {

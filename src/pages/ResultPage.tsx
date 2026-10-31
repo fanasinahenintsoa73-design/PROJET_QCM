@@ -7,6 +7,7 @@ import type { AttemptReview } from '@/lib/supabaseData'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { answerLetters, cn, formatDateTime, scoreTone } from '@/lib/utils'
+import { chapterTitle, findPaceTheme, findThemeForChapter } from '@/lib/themes'
 
 export default function ResultPage() {
   usePageTitle('Résultat de la série — MEDQCM mada')
@@ -46,6 +47,19 @@ export default function ResultPage() {
   const attempt = review?.attempt
   const ownsAttempt = attempt && userIdMatches(attempt.userId, user?.id)
   const subject = attempt ? db.subjects.find((item) => item.id === attempt.subjectId) : undefined
+  const ue = attempt?.ueId
+    ? findPaceTheme(attempt.ueId)
+    : subject?.chapterId
+      ? findThemeForChapter(subject.chapterId)
+      : undefined
+  const chapters =
+    attempt?.chapterIds?.length
+      ? attempt.chapterIds.map((id) => chapterTitle(id)).filter(Boolean)
+      : subject?.chapterId
+        ? [chapterTitle(subject.chapterId)].filter(Boolean)
+        : []
+  const originLabel = ue?.title ?? subject?.title ?? 'UE de QCM'
+  const chapterLabel = chapters.length ? chapters.join(' · ') : 'Chapitre non précisé'
   const questions = review?.questions ?? []
 
   if (loading) {
@@ -97,7 +111,8 @@ export default function ResultPage() {
     const rows: string[][] = [
       ['MEDQCM — résultat de série'],
       ['Étudiant', user ? `${user.firstName} ${user.lastName}` : ''],
-      ['Thème', subject?.title ?? 'Thème de QCM'],
+      ['UE', originLabel],
+      ['Chapitres', chapterLabel],
       ['Date', new Date(attempt.createdAt).toLocaleString('fr-FR')],
       ['Score', `${score} / ${total}`, `${percent} %`],
       ['Correctes', String(score), 'Incorrectes', String(incorrect), 'Sans réponse', String(unanswered)],
@@ -148,7 +163,7 @@ export default function ResultPage() {
           <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_260px] lg:items-end lg:p-10">
             <div>
               <p className="text-[12px] text-mute">
-                {subject?.monthLabel ?? 'Thème de QCM'} · {formatDateTime(attempt.createdAt)}
+                {originLabel} · {formatDateTime(attempt.createdAt)}
               </p>
               <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.8rem)] leading-[1.02] tracking-[-0.03em] text-ink">
                 {verdict}.
@@ -182,7 +197,14 @@ export default function ResultPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
-          <ButtonLink to={`/app/entrainement?theme=${encodeURIComponent(attempt.subjectId)}`} size="lg">
+          <ButtonLink
+            to={
+              ue
+                ? `/app/ue/${encodeURIComponent(ue.id)}`
+                : `/app/entrainement?theme=${encodeURIComponent(attempt.subjectId)}`
+            }
+            size="lg"
+          >
             <RotateCcw size={15} /> Refaire une série
           </ButtonLink>
           <Link to="/app" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:text-accent-deep">
@@ -202,7 +224,7 @@ export default function ResultPage() {
         <div className="border-b border-line pb-4">
           <h2 className="text-[18px] font-medium text-ink">Corrigé détaillé</h2>
           <p className="mt-1 text-[12px] text-mute">
-            {subject?.title ?? 'Thème de QCM'} · {total} questions · chaque question compte un point.
+            {originLabel} · {chapterLabel} · {total} questions · chaque question compte un point.
           </p>
         </div>
 

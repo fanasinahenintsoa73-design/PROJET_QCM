@@ -24,6 +24,7 @@ import { PendingPage } from '@/pages/PendingPage'
 import { ExpirationPage } from '@/pages/ExpirationPage'
 import { RenewalPage } from '@/pages/RenewalPage'
 import DashboardPage from '@/pages/DashboardPage'
+import ChapterSelectionPage from '@/pages/ChapterSelectionPage'
 import QuizPage from '@/pages/QuizPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
@@ -97,6 +98,7 @@ function StudentRoutes() {
         <Route path="/app/historique" element={<Navigate to="/app" replace />} />
         <Route element={<StudentLayout />}>
           <Route path="/app" element={<DashboardPage />} />
+          <Route path="/app/ue/:ueId" element={<ChapterSelectionPage />} />
           <Route path="/app/entrainement" element={<QuizPage />} />
         </Route>
       </Route>

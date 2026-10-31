@@ -1,64 +1,127 @@
 import type { QuestionOptions } from '@/types'
 
 /**
- * Les neuf thèmes PACES publiés ensemble par le docteur.
- * L'ordre de ce tableau est l'ordre officiel affiché aux étudiants.
+ * Les neuf UE fixes. L'ordre de ce tableau est l'ordre officiel affiché aux
+ * étudiants et au docteur.
  */
+export interface ChapterDefinition {
+  id: string
+  title: string
+}
+
 export interface PaceThemeDefinition {
   id: string
   title: string
   description: string
   /** Noms de feuilles Excel acceptés en plus du titre complet. */
   aliases: readonly string[]
+  /** Chapitres de l'UE. Vide lorsque la liste n'a pas encore été fournie. */
+  chapters: readonly ChapterDefinition[]
 }
 
 export const PACE_THEMES: readonly PaceThemeDefinition[] = [
   {
     id: 'theme_biologie_cellulaire',
-    title: 'Biologie cellulaire S1 et S2',
+    title: 'Biocel (Biologie Cellulaire)',
     description:
       'Membrane, organites, cycle cellulaire et mécanismes fondamentaux de la cellule eucaryote.',
-    aliases: ['biologie cellulaire', 'biologie de la cellule'],
+    aliases: [
+      'biologie cellulaire s1 et s2',
+      'biologie cellulaire',
+      'biologie de la cellule',
+      'biocel',
+    ],
+    chapters: [
+      { id: 'biocel__methodes_etude', title: 'Méthodes d’étude' },
+      { id: 'biocel__membrane_biologique', title: 'Membrane biologique' },
+      { id: 'biocel__noyau_interphasique', title: 'Noyau interphasique' },
+      { id: 'biocel__mitochondrie', title: 'Mitochondrie' },
+      { id: 'biocel__lysosome', title: 'Lysosome' },
+      { id: 'biocel__cytosquelette', title: 'Cytosquelette' },
+      { id: 'biocel__synthese_proteique', title: 'Synthèse protéique (Protéine)' },
+      { id: 'biocel__appareil_de_golgi', title: 'Appareil de Golgi' },
+      { id: 'biocel__reticulum_endoplasmique', title: 'Réticulum endoplasmique' },
+    ],
   },
   {
     id: 'theme_etude_des_tissus',
-    title: 'Étude des tissus S1 et S2',
+    title: 'Tissus (Histologie)',
     description:
       'Épithéliums, tissus conjonctifs, muscle, sang et organisation microscopique des organes.',
-    aliases: ['etude des tissus', 'histologie', 'tissus'],
+    aliases: ['etude des tissus s1 et s2', 'etude des tissus', 'histologie', 'tissus'],
+    chapters: [
+      { id: 'tissus__epithelium_de_revetement', title: 'Épithélium de revêtement' },
+      { id: 'tissus__epithelium_glandulaire', title: 'Épithélium glandulaire' },
+    ],
   },
   {
     id: 'theme_biomolecules',
-    title: 'Structure et fonction des biomolécules',
+    title: 'Structure Biomolécules (Struct Bio)',
     description:
       'Glucides, lipides, protéines, acides nucléiques et grandes voies du métabolisme.',
-    aliases: ['structure et fonction des biomolecules', 'biomolecules', 'biochimie'],
+    aliases: [
+      'structure et fonction des biomolecules',
+      'structure biomolecules',
+      'struct bio',
+      'biomolecules',
+      'biochimie',
+    ],
+    chapters: [
+      { id: 'struct_bio__protides', title: 'Protides' },
+      { id: 'struct_bio__chimie', title: 'Chimie' },
+      { id: 'struct_bio__lipides', title: 'Lipides' },
+      { id: 'struct_bio__glucides', title: 'Glucides' },
+      { id: 'struct_bio__enzymes', title: 'Enzymes' },
+      { id: 'struct_bio__coenzymes', title: 'Coenzymes' },
+      { id: 'struct_bio__acides_nucleiques', title: 'Acides Nucléiques' },
+    ],
   },
   {
     id: 'theme_physiologie',
-    title: 'Physiologie S1 et S2',
+    title: 'Physiologie (Physio)',
     description:
       'Fonctions cardiovasculaire, respiratoire, rénale, digestive et endocrine chez l’adulte.',
-    aliases: ['physiologie', 'physiologie humaine'],
+    aliases: ['physiologie s1 et s2', 'physiologie', 'physio', 'physiologie humaine'],
+    chapters: [
+      { id: 'physio__uro_renale', title: 'Uro-Rénale' },
+      { id: 'physio__respiratoire', title: 'Respiratoire' },
+      { id: 'physio__digestif', title: 'Digestif' },
+      { id: 'physio__hormonal', title: 'Hormonal' },
+      { id: 'physio__thermoregulation', title: 'Thermorégulation' },
+      { id: 'physio__cardiaque', title: 'Cardiaque' },
+      { id: 'physio__vasculaire', title: 'Vasculaire' },
+      { id: 'physio__integratif', title: 'Intégratif' },
+      { id: 'physio__neurophysiologie', title: 'Neurophysiologie' },
+      { id: 'physio__sang', title: 'Sang' },
+    ],
   },
   {
     id: 'theme_anatomie_viscerale',
-    title: 'Anatomie viscérale',
+    title: 'Anatomie Viscérale',
     description:
       'Organes du thorax, de l’abdomen et du bassin, rapports anatomiques et vascularisation.',
     aliases: ['anatomie viscerale', 'anatomie des visceres'],
+    chapters: [
+      { id: 'anatomie_viscerale__digestif', title: 'Digestif' },
+      { id: 'anatomie_viscerale__urologie', title: 'Urologie' },
+      { id: 'anatomie_viscerale__systeme_nerveux', title: 'Système Nerveux' },
+      { id: 'anatomie_viscerale__thorax', title: 'Thorax' },
+      { id: 'anatomie_viscerale__coeur', title: 'Cœur' },
+    ],
   },
   {
     id: 'theme_biomathematiques',
-    title: 'Biomathématiques, Biophysique, Statistiques',
+    title: 'Biochimie / Biophysique',
     description:
-      'Calculs biologiques, unités, probabilités, statistiques descriptives et biophysique.',
+      'Biochimie et biophysique appliquées à la médecine. Les chapitres seront ajoutés prochainement.',
     aliases: [
       'biomathematiques biophysique statistiques',
       'biomathematiques biophysique',
       'biomathematiques',
       'biostatistiques',
+      'biochimie biophysique',
     ],
+    chapters: [],
   },
   {
     id: 'theme_medicaments',
@@ -71,6 +134,7 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
       'pharmacologie',
       'initiation aux medicaments',
     ],
+    chapters: [],
   },
   {
     id: 'theme_francais_medical',
@@ -78,10 +142,11 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
     description:
       'Vocabulaire clinique, terminologie, abréviations et communication avec le patient.',
     aliases: ['francais medical', 'francais medical et communication', 'terminologie medicale'],
+    chapters: [],
   },
   {
     id: 'theme_ue_specifiques',
-    title: 'Unités d’enseignements spécifiques',
+    title: 'Spécifique (UE Spé)',
     description:
       'Santé publique, éthique, droit de la santé, prévention et qualité des soins.',
     aliases: [
@@ -89,6 +154,15 @@ export const PACE_THEMES: readonly PaceThemeDefinition[] = [
       'unites d enseignements',
       'ue specifiques',
       'ue specifique',
+      'specifique',
+      'ue spe',
+    ],
+    chapters: [
+      { id: 'specifique__medecine_humaine', title: 'Médecine Humaine' },
+      { id: 'specifique__veterinaire', title: 'Vétérinaire' },
+      { id: 'specifique__pharmacie', title: 'Pharmacie' },
+      { id: 'specifique__sage_femme', title: 'Sage-femme' },
+      { id: 'specifique__infirmiere', title: 'Infirmière' },
     ],
   },
 ]
@@ -126,6 +200,59 @@ export interface SaveSubjectInput {
   questions?: ThemeQuestionInput[]
   questionFileName?: string
   answerFileName?: string
+}
+
+/**
+ * Enregistrement d'un sujet rattaché à un chapitre. `subjectId` est fourni
+ * lors d'une modification ; il est absent pour une création.
+ */
+export interface SaveChapterSubjectInput {
+  subjectId?: string
+  themeId: string
+  chapterId: string
+  title: string
+  description: string
+  monthLabel: string
+  questions?: ThemeQuestionInput[]
+  questionFileName?: string
+  answerFileName?: string
+}
+
+/** Chapitre à partir de son identifiant stable. */
+export function findChapter(chapterId: string): ChapterDefinition | undefined {
+  return PACE_THEMES.flatMap((theme) => theme.chapters).find(
+    (chapter) => chapter.id === chapterId,
+  )
+}
+
+/** UE qui contient un chapitre donné. */
+export function findThemeForChapter(chapterId: string): PaceThemeDefinition | undefined {
+  return PACE_THEMES.find((theme) =>
+    theme.chapters.some((chapter) => chapter.id === chapterId),
+  )
+}
+
+/** Chapitres d'une UE, triés alphabétiquement pour l'étudiant. */
+export function chaptersForTheme(themeId: string): ChapterDefinition[] {
+  const theme = PACE_THEMES.find((candidate) => candidate.id === themeId)
+  return [...(theme?.chapters ?? [])].sort((left, right) =>
+    left.title.localeCompare(right.title, 'fr', { sensitivity: 'base' }),
+  )
+}
+
+/** Tous les chapitres, dans l'ordre officiel des UE puis alphabétique. */
+export function allChapters(): Array<ChapterDefinition & { themeId: string; themeTitle: string }> {
+  return PACE_THEMES.flatMap((theme) =>
+    chaptersForTheme(theme.id).map((chapter) => ({
+      ...chapter,
+      themeId: theme.id,
+      themeTitle: theme.title,
+    })),
+  )
+}
+
+export function chapterTitle(chapterId?: string): string {
+  return (chapterId && findChapter(chapterId)?.title) || ''
 }
 
 function normalizeSpaces(value: string) {

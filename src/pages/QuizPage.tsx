@@ -4,11 +4,11 @@ import { ArrowLeft, ArrowRight, Check, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import { getSeriesUsage } from '@/lib/db'
-import type { QuizPayload } from '@/lib/supabaseData'
+import type { Question, Subject } from '@/types'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { usePageTitle } from '@/components/Layouts'
-import { findPaceTheme } from '@/lib/themes'
+import { chapterTitle, findPaceTheme } from '@/lib/themes'
 import { findThemeSubject } from '@/lib/subjects'
 import {
   answerLetters,
@@ -22,26 +22,40 @@ import {
 
 type BlockReason = 'limit' | 'access' | null
 
+interface ActiveQuiz {
+  attemptId?: string
+  subject?: Subject
+  ueId?: string
+  chapterIds?: string[]
+  questions: Question[]
+}
+
 export default function QuizPage() {
   usePageTitle('Série en cours — MEDQCM mada')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user, db } = useAuth()
   const themeParam = searchParams.get('theme') ?? ''
-  const theme = findPaceTheme(themeParam)
-  const subject = theme
-    ? findThemeSubject(theme.id, db.subjects)
-    : db.subjects.find(
-        (candidate) =>
-          candidate.id === themeParam &&
-          !candidate.archived &&
-          candidate.questionCount >= SERIES_SIZE,
-      )
+  const ueParam = searchParams.get('ue') ?? ''
+  const chaptersParam = searchParams.get('chapters') ?? ''
+  const chapterIds = chaptersParam.split(',').map((id) => id.trim()).filter(Boolean)
+  const isChapterMode = Boolean(ueParam)
+  const theme = findPaceTheme(isChapterMode ? ueParam : themeParam)
+  const subject = !isChapterMode
+    ? theme
+      ? findThemeSubject(theme.id, db.subjects)
+      : db.subjects.find(
+          (candidate) =>
+            candidate.id === themeParam &&
+            !candidate.archived &&
+            candidate.questionCount >= SERIES_SIZE,
+        )
+    : undefined
   const subjectId = subject?.id ?? null
+  const chapterKey = [...chapterIds].sort().join(',')
   const usage = user ? getSeriesUsage(user.id, db) : undefined
-  const seriesNumber = Math.min(SERIES_LIMIT, (usage?.used ?? 0) + 1)
 
-  const [payload, setPayload] = useState<QuizPayload | null>(null)
+  const [payload, setPayload] = useState<ActiveQuiz | null>(null)
   const [loading, setLoading] = useState(true)
   const [blocked, setBlocked] = useState<BlockReason>(null)
   const [unavailable, setUnavailable] = useState('')
@@ -51,6 +65,12 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [saving, setSaving] = useState(false)
   const finished = useRef(false)
+  // Le brouillon est déjà compté dans le cycle : une fois la série chargée,
+  // le numéro affiché est le compteur courant, pas le suivant.
+  const seriesNumber = Math.min(
+    SERIES_LIMIT,
+    (usage?.used ?? 0) + (payload ? 0 : 1),
+  )
 
   const questions = payload?.questions ?? []
   const current = questions[index]
@@ -61,7 +81,7 @@ export default function QuizPage() {
   // La session recharge la base toutes les 20 s. On ne dépend que de
   // l'identifiant du sujet pour ne pas relancer la série en cours.
   useEffect(() => {
-    if (!user || !themeParam) {
+    if (!user || (!isChapterMode && !themeParam)) {
       setLoading(false)
       return
     }
@@ -72,7 +92,14 @@ export default function QuizPage() {
     setLoadError('')
     setPayload(null)
 
-    if (!subjectId) {
+    if (isChapterMode && (!theme || chapterIds.length === 0)) {
+      setUnavailable(
+        'Cette UE ou cette sélection de chapitres est introuvable. Revenez au tableau de bord pour choisir vos chapitres.',
+      )
+      setLoading(false)
+      return
+    }
+    if (!isChapterMode && !subjectId) {
       setUnavailable(
         'Ce thème sera bientôt disponible : le docteur prépare encore ses questions.',
       )
@@ -80,17 +107,32 @@ export default function QuizPage() {
       return
     }
 
-    api
-      .startQuiz(user.id, subjectId, SERIES_SIZE)
+    const request = isChapterMode
+      ? api.startChapterQuiz(user.id, ueParam, chapterIds, SERIES_SIZE)
+      : api.startQuiz(user.id, subjectId as string, SERIES_SIZE)
+
+    request
       .then((quiz) => {
         if (!active) return
         if (quiz.questions.length < SERIES_SIZE) {
           setUnavailable(
-            'Ce thème ne contient pas encore assez de questions pour une série complète.',
+            'Cette sélection ne contient pas encore assez de questions pour une série complète.',
           )
           return
         }
-        setPayload(quiz)
+        setPayload(
+          'attemptId' in quiz
+            ? {
+                attemptId: quiz.attemptId,
+                ueId: quiz.ueId,
+                chapterIds: quiz.chapterIds,
+                questions: quiz.questions,
+              }
+            : {
+                subject: quiz.subject,
+                questions: quiz.questions,
+              },
+        )
         setIndex(0)
         setAnswers({})
         finished.current = false
@@ -108,6 +150,8 @@ export default function QuizPage() {
             return
           case 'THEME_UNAVAILABLE':
           case 'THEME_NOT_FOUND':
+          case 'NO_CHAPTER':
+          case 'INVALID_CHAPTER':
             setUnavailable(message)
             return
           default:
@@ -123,7 +167,7 @@ export default function QuizPage() {
     return () => {
       active = false
     }
-  }, [subjectId, themeParam, user?.id])
+  }, [chapterKey, isChapterMode, subjectId, themeParam, ueParam, user?.id])
 
   function toggleAnswer(letter: AnswerLetter) {
     if (!current) return
@@ -156,12 +200,18 @@ export default function QuizPage() {
     setSubmitError('')
     finished.current = true
     try {
-      const result = await api.saveAttempt({
-        userId: user.id,
-        subjectId: payload.subject.id,
-        questionIds: questions.map((question) => question.id),
-        answers,
-      })
+      const result = payload.attemptId
+        ? await api.saveChapterAttempt({
+            userId: user.id,
+            attemptId: payload.attemptId,
+            answers,
+          })
+        : await api.saveAttempt({
+            userId: user.id,
+            subjectId: payload.subject!.id,
+            questionIds: questions.map((question) => question.id),
+            answers,
+          })
       navigate(`/app/resultat/${result.attemptId}`, { replace: true })
     } catch (error) {
       finished.current = false
@@ -178,10 +228,14 @@ export default function QuizPage() {
 
   function quit() {
     if (
-      answeredCount > 0 &&
-      !window.confirm('Quitter cette série ? Vos réponses ne seront pas enregistrées.')
+      !window.confirm(
+        'Quitter cette série ? Elle sera comptée dans votre quota et vos réponses ne seront pas enregistrées.',
+      )
     ) {
       return
+    }
+    if (payload?.attemptId && user) {
+      void api.abandonSeries(user.id, payload.attemptId)
     }
     navigate('/app')
   }
@@ -197,27 +251,28 @@ export default function QuizPage() {
             Dix questions arrivent.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            Le thème est chargé de façon sécurisée. La correction restera masquée jusqu’à l’envoi.
+            La sélection est chargée de façon sécurisée. La correction restera masquée jusqu’à
+            l’envoi.
           </p>
         </div>
       </div>
     )
   }
 
-  if (!themeParam) {
+  if (!isChapterMode && !themeParam) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
         <div className="max-w-lg">
-          <p className="text-[12px] text-mute">Aucun thème sélectionné</p>
+          <p className="text-[12px] text-mute">Aucune UE sélectionnée</p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
-            Choisissez un thème.
+            Choisissez une UE.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            Les neuf thèmes PACES sont accessibles depuis votre tableau de bord. Chaque série
-            contient dix questions.
+            Choisissez une UE puis un ou plusieurs chapitres depuis votre tableau de bord. Chaque
+            série contient dix questions.
           </p>
           <ButtonLink to="/app" className="mt-6">
-            Voir les neuf thèmes
+            Voir les UE
           </ButtonLink>
         </div>
       </div>
@@ -230,7 +285,7 @@ export default function QuizPage() {
         <div className="max-w-lg">
           <p className="text-[12px] text-mute">Quota du cycle</p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
-            Vos 30 séries sont terminées.
+            Vos 30 séries ont été lancées.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
             {SERIES_LIMIT_MESSAGE}
@@ -255,8 +310,8 @@ export default function QuizPage() {
             Le cycle est terminé.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            Votre accès n’est plus actif. Renouvelez votre abonnement pour retrouver les neuf
-            thèmes et vos 30 séries.
+            Votre accès n’est plus actif. Renouvelez votre abonnement pour retrouver vos UE, vos
+            chapitres et vos 30 séries.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <ButtonLink to="/reinscription">Renouveler mon accès</ButtonLink>
@@ -273,7 +328,7 @@ export default function QuizPage() {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
         <div className="max-w-lg">
-          <p className="text-[12px] text-mute">Thème en préparation</p>
+          <p className="text-[12px] text-mute">Série en préparation</p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
             Bientôt disponible.
           </h1>
@@ -295,7 +350,7 @@ export default function QuizPage() {
             Aucune question à afficher.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            {loadError || 'Ce thème n’a pas encore ses dix questions. Contactez votre docteur.'}
+            {loadError || 'Cette sélection n’a pas encore ses dix questions. Contactez votre docteur.'}
           </p>
           <ButtonLink to="/app" className="mt-6">
             Retour au tableau de bord
@@ -331,7 +386,17 @@ export default function QuizPage() {
 
       <div className="mx-auto max-w-[900px] px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
         <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-mute">
-          <span className="font-medium text-ink">{payload.subject.title}</span>
+          <span className="font-medium text-ink">
+            {isChapterMode ? theme?.title : payload.subject?.title}
+          </span>
+          {isChapterMode && chapterIds.length > 0 ? (
+            <>
+              <span className="h-1 w-1 rounded-full bg-line" />
+              <span className="max-w-[28rem] truncate">
+                {chapterIds.map((id) => chapterTitle(id)).filter(Boolean).join(' · ')}
+              </span>
+            </>
+          ) : null}
           <span className="h-1 w-1 rounded-full bg-line" />
           <span>Une seule réponse</span>
           <span className="ml-auto rounded-full bg-cloud px-2.5 py-1">

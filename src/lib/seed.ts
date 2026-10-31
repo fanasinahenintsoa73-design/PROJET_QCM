@@ -1,6 +1,6 @@
 import type { Attempt, Database, Question, Subject, SubjectAssignment } from '@/types'
 import { addDays, monthLabel, SERIES_SIZE, shuffle, sameAnswer } from '@/lib/utils'
-import { PACE_THEMES } from '@/lib/themes'
+import { PACE_THEMES, chaptersForTheme } from '@/lib/themes'
 
 interface SeedQuestion {
   statement: string
@@ -13,13 +13,15 @@ function toSeedQuestion(
   question: SeedQuestion,
   theme: (typeof PACE_THEMES)[number],
   index: number,
+  chapter?: { id: string; title: string },
 ): Question {
   const [A, B, C, D] = question.options
+  const subjectId = chapter ? `sub_${chapter.id}` : theme.id
   return {
-    id: `q_${theme.id}_${index + 1}`,
-    subjectId: theme.id,
+    id: `q_${chapter?.id ?? theme.id}_${index + 1}`,
+    subjectId,
     number: index + 1,
-    matiere: theme.title,
+    matiere: chapter?.title ?? theme.title,
     statement: question.statement,
     options: { A, B, C, D },
     correctAnswers: [question.correct],
@@ -1002,9 +1004,14 @@ function seedAttempt(input: {
   offset?: number
 }): Attempt {
   const theme = PACE_THEMES[input.themeIndex]
+  const chapters = chaptersForTheme(theme.id)
+  const chapter = chapters.length
+    ? chapters[(input.offset ?? 0) % chapters.length]
+    : undefined
   const questions = THEME_BANKS[input.themeIndex].map((question, index) =>
-    toSeedQuestion(question, theme, index),
+    toSeedQuestion(question, theme, index, chapter),
   )
+  const subjectId = chapter ? `sub_${chapter.id}` : theme.id
   const offset = input.offset ?? 0
   const rotated = [...questions.slice(offset), ...questions.slice(0, offset)]
   const picked = rotated.slice(0, SERIES_SIZE)
@@ -1024,15 +1031,20 @@ function seedAttempt(input: {
     (sum, question) => sum + (sameAnswer(answers[question.id], question.correctAnswers) ? 1 : 0),
     0,
   )
+  const createdAt = addDays(new Date(), -input.daysAgo).toISOString()
   return {
     id: '',
     userId: input.userId,
-    subjectId: theme.id,
+    subjectId,
     questionIds: picked.map((question) => question.id),
     answers,
     score,
     total: picked.length,
-    createdAt: addDays(new Date(), -input.daysAgo).toISOString(),
+    createdAt,
+    ueId: theme.id,
+    chapterIds: chapter ? [chapter.id] : [],
+    status: 'completed',
+    completedAt: createdAt,
   }
 }
 
@@ -1040,19 +1052,47 @@ export function createSeedDatabase(): Database {
   const now = new Date()
   const currentMonth = monthLabel(now)
 
-  const subjects: Subject[] = PACE_THEMES.map((theme, index) => ({
-    id: theme.id,
-    title: theme.title,
-    description: theme.description,
-    monthLabel: currentMonth,
-    publishedAt: addDays(now, -12).toISOString(),
-    archived: false,
-    questionCount: THEME_BANKS[index].length,
-  }))
+  const subjects: Subject[] = PACE_THEMES.flatMap((theme, index) => {
+    const chapters = chaptersForTheme(theme.id)
+    if (chapters.length === 0) {
+      // Les UE sans chapitres gardent un sujet legacy lisible dans l'historique.
+      return [
+        {
+          id: theme.id,
+          title: theme.title,
+          description: theme.description,
+          monthLabel: currentMonth,
+          publishedAt: addDays(now, -12).toISOString(),
+          archived: false,
+          questionCount: THEME_BANKS[index].length,
+        },
+      ]
+    }
+    return chapters.map((chapter) => ({
+      id: `sub_${chapter.id}`,
+      title: chapter.title,
+      description: theme.description,
+      monthLabel: currentMonth,
+      publishedAt: addDays(now, -12).toISOString(),
+      archived: false,
+      questionCount: THEME_BANKS[index].length,
+      chapterId: chapter.id,
+    }))
+  })
 
-  const questions: Question[] = PACE_THEMES.flatMap((theme, themeIndex) =>
-    THEME_BANKS[themeIndex].map((question, index) => toSeedQuestion(question, theme, index)),
-  )
+  const questions: Question[] = PACE_THEMES.flatMap((theme, themeIndex) => {
+    const chapters = chaptersForTheme(theme.id)
+    if (chapters.length === 0) {
+      return THEME_BANKS[themeIndex].map((question, index) =>
+        toSeedQuestion(question, theme, index),
+      )
+    }
+    return chapters.flatMap((chapter) =>
+      THEME_BANKS[themeIndex].map((question, index) =>
+        toSeedQuestion(question, theme, index, chapter),
+      ),
+    )
+  })
 
   const jeanReceipt = receiptSvg(
     'Jean Dupont',

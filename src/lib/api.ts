@@ -4,9 +4,14 @@ import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
 import * as remote from '@/lib/supabaseData'
 import { AppError, SERIES_SIZE } from '@/lib/utils'
-import type { SaveSubjectInput, ThemePackInput } from '@/lib/themes'
+import type {
+  SaveChapterSubjectInput,
+  SaveSubjectInput,
+  ThemePackInput,
+} from '@/lib/themes'
 import type {
   AttemptReview,
+  ChapterQuizPayload,
   PublishSubjectInput,
   QuizPayload,
   SubmitAttemptResult,
@@ -147,6 +152,11 @@ export const api = {
     return demo.saveSubject(input)
   },
 
+  async saveChapterSubject(input: SaveChapterSubjectInput): Promise<Subject> {
+    if (isSupabaseConfigured) return remote.saveChapterSubject(input)
+    return demo.saveChapterSubject(input)
+  },
+
   async removeSubject(subjectId: string): Promise<void> {
     if (isSupabaseConfigured) {
       await remote.removeSubject(subjectId)
@@ -171,6 +181,54 @@ export const api = {
       // avant la soumission, même en mode démonstration.
       questions: started.questions,
     }
+  },
+
+  async startChapterQuiz(
+    userId: string,
+    ueId: string,
+    chapterIds: string[],
+    count = SERIES_SIZE,
+  ): Promise<ChapterQuizPayload> {
+    if (isSupabaseConfigured) return remote.startChapterQuiz(ueId, chapterIds, count)
+
+    const started = demo.startChapterSeries(userId, ueId, chapterIds, count)
+    return {
+      attemptId: started.attempt.id,
+      assignmentId: started.assignment.id,
+      assignmentExpiresAt: started.assignment.expiresAt,
+      ueId: started.ueId,
+      chapterIds: started.chapterIds,
+      questions: started.questions,
+    }
+  },
+
+  async saveChapterAttempt(input: {
+    userId: string
+    attemptId: string
+    answers: Record<string, string[]>
+  }): Promise<SubmitAttemptResult> {
+    if (isSupabaseConfigured) {
+      return remote.saveChapterAttempt({ attemptId: input.attemptId, answers: input.answers })
+    }
+    const attempt = demo.saveChapterAttempt(input)
+    const active = demo.getActiveAssignment(input.userId)
+    return {
+      attemptId: attempt.id,
+      score: attempt.score,
+      total: attempt.total,
+      subjectId: attempt.subjectId,
+      assignmentExpiresAt: active?.expiresAt ?? '',
+      ueId: attempt.ueId,
+      chapterIds: attempt.chapterIds,
+    }
+  },
+
+  async abandonSeries(userId: string, attemptId: string): Promise<void> {
+    if (isSupabaseConfigured) {
+      await remote.abandonSeries(attemptId)
+      return
+    }
+    demo.abandonSeries(attemptId, userId)
   },
 
   async saveAttempt(input: {

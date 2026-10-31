@@ -14,7 +14,11 @@ import type {
 } from '@/types'
 import { requireSupabase } from '@/lib/supabase'
 import { AppError, SERIES_LIMIT_MESSAGE, SERIES_SIZE } from '@/lib/utils'
-import type { SaveSubjectInput, ThemePackInput } from '@/lib/themes'
+import type {
+  SaveChapterSubjectInput,
+  SaveSubjectInput,
+  ThemePackInput,
+} from '@/lib/themes'
 
 /* ------------------------------------------------------------------ */
 /* Lignes Supabase                                                     */
@@ -61,6 +65,7 @@ interface SubjectRow {
   published_at: string
   archived: boolean
   question_count: number
+  chapter_id?: string | null
   question_file_name?: string | null
   answer_file_name?: string | null
 }
@@ -83,10 +88,15 @@ interface AttemptRow {
   score: number
   total: number
   created_at: string
+  ue_id?: string | null
+  chapter_ids?: string[] | null
+  status?: 'in_progress' | 'completed' | 'abandoned' | null
+  completed_at?: string | null
 }
 
 interface QuestionPayload {
   id: string
+  subjectId?: string
   number: number
   matiere: string
   statement: string
@@ -129,6 +139,7 @@ function mapSubject(row: SubjectRow): Subject {
     publishedAt: row.published_at,
     archived: row.archived,
     questionCount: row.question_count,
+    chapterId: row.chapter_id ?? undefined,
     questionFileName: row.question_file_name ?? '',
     answerFileName: row.answer_file_name ?? '',
   }
@@ -155,6 +166,10 @@ function mapAttempt(row: AttemptRow): Attempt {
     score: row.score,
     total: row.total,
     createdAt: row.created_at,
+    ueId: row.ue_id ?? undefined,
+    chapterIds: row.chapter_ids ?? undefined,
+    status: row.status ?? undefined,
+    completedAt: row.completed_at ?? undefined,
   }
 }
 
@@ -650,6 +665,48 @@ export async function saveSubject(input: SaveSubjectInput): Promise<Subject> {
   }
 }
 
+export async function saveChapterSubject(input: SaveChapterSubjectInput): Promise<Subject> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('save_chapter_subject', {
+    p_subject_id: input.subjectId ?? null,
+    p_ue_id: input.themeId,
+    p_chapter_id: input.chapterId,
+    p_title: input.title.trim(),
+    p_description: input.description.trim(),
+    p_month_label: input.monthLabel.trim(),
+    p_questions: input.questions ?? null,
+    p_question_file_name: input.questionFileName?.trim() || null,
+    p_answer_file_name: input.answerFileName?.trim() || null,
+  })
+  if (error) throw asFrenchError(error)
+  const payload = data as {
+    id: string
+    title?: string
+    description?: string
+    monthLabel?: string
+    publishedAt?: string
+    archived?: boolean
+    questionCount?: number
+    chapterId?: string | null
+    questionFileName?: string | null
+    answerFileName?: string | null
+  }
+  return {
+    id: String(payload.id),
+    title: payload.title ?? input.title.trim(),
+    description: payload.description ?? input.description.trim(),
+    monthLabel: payload.monthLabel ?? input.monthLabel.trim(),
+    publishedAt: payload.publishedAt ?? new Date().toISOString(),
+    archived: payload.archived ?? false,
+    questionCount: payload.questionCount ?? input.questions?.length ?? 0,
+    chapterId: payload.chapterId ?? input.chapterId,
+    questionFileName:
+      payload.questionFileName ?? input.questionFileName?.trim() ?? '',
+    answerFileName:
+      payload.answerFileName ?? input.answerFileName?.trim() ?? '',
+  }
+}
+
 export async function publishSubject(input: PublishSubjectInput): Promise<Subject> {
   const client = requireSupabase()
   const { data, error } = await client.rpc('publish_subject', {
@@ -685,6 +742,54 @@ export interface QuizPayload {
   assignmentExpiresAt: string
   subject: Subject
   questions: Question[]
+}
+
+export interface ChapterQuizPayload {
+  attemptId: string
+  assignmentId: string
+  assignmentExpiresAt: string
+  ueId: string
+  chapterIds: string[]
+  questions: Question[]
+}
+
+export async function startChapterQuiz(
+  ueId: string,
+  chapterIds: string[],
+  count = SERIES_SIZE,
+): Promise<ChapterQuizPayload> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('start_chapter_quiz', {
+    p_ue_id: ueId,
+    p_chapter_ids: chapterIds,
+    p_count: count,
+  })
+  if (error) throw asFrenchError(error)
+  const payload = data as {
+    attemptId: string
+    assignmentId: string
+    assignmentExpiresAt: string
+    ueId: string
+    chapterIds: string[]
+    questions: QuestionPayload[]
+  }
+  return {
+    attemptId: payload.attemptId,
+    assignmentId: payload.assignmentId,
+    assignmentExpiresAt: payload.assignmentExpiresAt,
+    ueId: payload.ueId ?? ueId,
+    chapterIds: payload.chapterIds ?? chapterIds,
+    questions: (payload.questions ?? []).map((question) => ({
+      id: question.id,
+      subjectId: question.subjectId ?? '',
+      number: question.number,
+      matiere: question.matiere,
+      statement: question.statement,
+      options: question.options,
+      correctAnswers: [],
+      explanation: '',
+    })),
+  }
 }
 
 export async function startQuiz(
@@ -741,6 +846,36 @@ export interface SubmitAttemptResult {
   total: number
   subjectId: string
   assignmentExpiresAt: string
+  ueId?: string
+  chapterIds?: string[]
+}
+
+export async function saveChapterAttempt(input: {
+  attemptId: string
+  answers: Record<string, string[]>
+}): Promise<SubmitAttemptResult> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('submit_chapter_attempt', {
+    p_attempt_id: input.attemptId,
+    p_answers: input.answers,
+  })
+  if (error) throw asFrenchError(error)
+  const payload = data as SubmitAttemptResult
+  return {
+    attemptId: payload.attemptId,
+    score: payload.score,
+    total: payload.total,
+    subjectId: payload.subjectId,
+    assignmentExpiresAt: payload.assignmentExpiresAt,
+    ueId: payload.ueId,
+    chapterIds: payload.chapterIds,
+  }
+}
+
+export async function abandonSeries(attemptId: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('abandon_series', { p_attempt_id: attemptId })
+  if (error) throw asFrenchError(error)
 }
 
 export async function saveAttempt(input: {
@@ -762,6 +897,8 @@ export async function saveAttempt(input: {
     total: payload.total,
     subjectId: payload.subjectId,
     assignmentExpiresAt: payload.assignmentExpiresAt,
+    ueId: payload.ueId,
+    chapterIds: payload.chapterIds,
   }
 }
 
@@ -784,6 +921,10 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
       score: number
       total: number
       createdAt: string
+      ueId?: string | null
+      chapterIds?: string[] | null
+      status?: 'in_progress' | 'completed' | 'abandoned' | null
+      completedAt?: string | null
     }
     questions: QuestionPayload[]
   }
@@ -811,6 +952,10 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
       score: payload.attempt.score,
       total: payload.attempt.total,
       createdAt: payload.attempt.createdAt,
+      ueId: payload.attempt.ueId ?? undefined,
+      chapterIds: payload.attempt.chapterIds ?? undefined,
+      status: payload.attempt.status ?? undefined,
+      completedAt: payload.attempt.completedAt ?? undefined,
     },
     questions,
   }
