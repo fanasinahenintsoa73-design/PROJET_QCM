@@ -68,7 +68,7 @@ export default function DashboardPage() {
 
   const themes = useMemo(
     () =>
-      PACE_THEMES.map((theme, index) => {
+      PACE_THEMES.map((theme) => {
         const chapters = chaptersForTheme(theme.id)
         const chapterIds = chapters.map((chapter) => chapter.id)
         const chapterSubjects = findChapterSelectionSubjects(chapterIds, db.subjects)
@@ -87,7 +87,6 @@ export default function DashboardPage() {
           chapters,
           subjects,
           usable,
-          number: index + 1,
           available: chapters.length > 0 && usable >= SERIES_SIZE,
         }
       }),
@@ -230,15 +229,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {themes.map(({ theme, chapters, usable, number, available }) => {
+          {themes.map(({ theme, chapters, usable, available }) => {
             const blocked = reached
             const href = `/app/ue/${encodeURIComponent(theme.id)}`
             const content = (
               <>
-                <div className="flex items-start justify-between gap-3">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cloud text-[11px] font-medium tabular-nums text-mute">
-                    {String(number).padStart(2, '0')}
-                  </span>
+                <div className="flex items-start justify-end gap-3">
                   {available ? (
                     <span className="rounded-full bg-accent-soft px-2.5 py-1 text-[10px] font-medium text-accent">
                       {usable} questions
