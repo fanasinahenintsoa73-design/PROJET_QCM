@@ -211,8 +211,9 @@ L'historique affiche :
 - les noms des fichiers ;
 - l'action **modifier** avec l'icône crayon.
 
-Les anciens sujets sans chapitre restent visibles dans l'historique, mais ne sont pas
-modifiables tant qu'ils n'ont pas été re-rattachés à un chapitre.
+Les anciens sujets sans chapitre restent visibles dans l'historique. Le crayon permet de
+les recharger dans le formulaire : le docteur choisit une UE et un chapitre pour les
+rattacher, puis enregistre. Leur titre, description, fichiers et questions sont conservés.
 
 ---
 
@@ -295,7 +296,7 @@ avec les anciennes tentatives et l'historique.
 | Série quittée | Statut `abandoned`, 1 série consommée. |
 | Rafraîchissement | Reprise du brouillon, pas de nouvelle série. |
 | 30/30 | QCM bloqué, renouvellement proposé. |
-| Ancien sujet sans chapitre | Lisible, non éditable dans le nouveau formulaire. |
+| Ancien sujet sans chapitre | Lisible et modifiable en le rattachant à une UE et un chapitre. |
 | Ancienne tentative | Affichage de secours par sujet, sans UE/chapitres. |
 
 ---

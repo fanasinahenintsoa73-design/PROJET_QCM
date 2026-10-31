@@ -176,11 +176,14 @@ export default function AdminSubjectPage() {
   }
 
   const chooseUe = (nextUeId: string) => {
+    const keepLegacySubject = Boolean(existingSubject && !existingSubject.chapterId)
     setUeId(nextUeId)
     setChapterId('')
-    setSubjectTitle('')
-    setEditingSubjectId(undefined)
-    setDescription('')
+    if (!keepLegacySubject) {
+      setSubjectTitle('')
+      setEditingSubjectId(undefined)
+      setDescription('')
+    }
     setUeError('')
     setChapterError('')
     setTitleError('')
@@ -195,9 +198,14 @@ export default function AdminSubjectPage() {
 
   const chooseChapter = (nextChapterId: string) => {
     setChapterId(nextChapterId)
-    setEditingSubjectId(undefined)
-    setSubjectTitle(chapters.find((chapter) => chapter.id === nextChapterId)?.title ?? '')
-    setDescription('')
+    if (existingSubject && !existingSubject.chapterId) {
+      setSubjectTitle(existingSubject.title)
+      setDescription(existingSubject.description)
+    } else {
+      setEditingSubjectId(undefined)
+      setSubjectTitle(chapters.find((chapter) => chapter.id === nextChapterId)?.title ?? '')
+      setDescription('')
+    }
     setChapterError('')
     setTitleError('')
     setFormError('')
@@ -210,16 +218,11 @@ export default function AdminSubjectPage() {
   }
 
   const startEdit = (subject: Subject) => {
-    const theme = subject.chapterId ? findThemeForChapter(subject.chapterId) : undefined
-    if (!theme || !subject.chapterId) {
-      toast(
-        'Ce sujet utilise l’ancien format sans chapitre. Il reste disponible aux étudiants mais ne peut pas être modifié dans le nouveau formulaire.',
-        'error',
-      )
-      return
-    }
-    setUeId(theme.id)
-    setChapterId(subject.chapterId)
+    const theme = subject.chapterId
+      ? findThemeForChapter(subject.chapterId)
+      : findPaceTheme(subject.title)
+    setUeId(theme?.id ?? '')
+    setChapterId(subject.chapterId ?? '')
     setEditingSubjectId(subject.id)
     setSubjectTitle(subject.title)
     setDescription(subject.description)
@@ -476,6 +479,12 @@ export default function AdminSubjectPage() {
             )}
 
             <form className="mt-5 space-y-5" onSubmit={handleSubmit} noValidate>
+              {existingSubject && !existingSubject.chapterId && (
+                <div className="border border-accent/25 bg-accent-soft/50 px-4 py-3 text-[12px] leading-relaxed text-charcoal">
+                  Ancien sujet sans chapitre : choisissez une UE et un chapitre pour le rattacher,
+                  puis enregistrez. Son titre, sa description et ses fichiers sont conservés.
+                </div>
+              )}
               <Field
                 label="UE"
                 htmlFor="subject-ue"
@@ -500,9 +509,9 @@ export default function AdminSubjectPage() {
                     <option value="" disabled>
                       Sélectionner une UE
                     </option>
-                    {PACE_THEMES.map((theme, index) => (
+                    {PACE_THEMES.map((theme) => (
                       <option key={theme.id} value={theme.id}>
-                        {String(index + 1).padStart(2, '0')} — {theme.title}
+                        {theme.title}
                       </option>
                     ))}
                   </select>
@@ -766,15 +775,11 @@ export default function AdminSubjectPage() {
               <ul className="divide-y divide-hairline-soft">
                 {subjects.map((subject) => {
                   const theme = subjectTheme(subject)
-                  const themeIndex = theme
-                    ? PACE_THEMES.findIndex((candidate) => candidate.id === theme.id)
-                    : -1
                   const loaded = subject.id === editingSubjectId
                   const fileNames = [subject.questionFileName, subject.answerFileName]
                     .filter((name): name is string => Boolean(name?.trim()))
                     .join(' · ')
                   const hasDescription = Boolean(subject.description.trim())
-                  const editable = Boolean(subject.chapterId)
 
                   return (
                     <li
@@ -784,9 +789,6 @@ export default function AdminSubjectPage() {
                         loaded && 'bg-accent-soft/40',
                       )}
                     >
-                      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-cloud text-[10px] font-semibold tabular-nums text-mute">
-                        {themeIndex >= 0 ? String(themeIndex + 1).padStart(2, '0') : '—'}
-                      </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -797,21 +799,19 @@ export default function AdminSubjectPage() {
                               {subject.title}
                             </h3>
                           </div>
-                          {editable ? (
-                            <button
-                              type="button"
-                              onClick={() => startEdit(subject)}
-                              aria-label={`Modifier ${subject.title}`}
-                              title="Modifier ce sujet"
-                              className="-mr-1 grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-cloud hover:text-accent"
-                            >
-                              <PencilLine
-                                className="size-3.5"
-                                strokeWidth={1.8}
-                                aria-hidden="true"
-                              />
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => startEdit(subject)}
+                            aria-label={`Modifier ${subject.title}`}
+                            title="Modifier ce sujet"
+                            className="-mr-1 grid size-8 shrink-0 place-items-center rounded-lg text-mute transition-colors hover:bg-cloud hover:text-accent"
+                          >
+                            <PencilLine
+                              className="size-3.5"
+                              strokeWidth={1.8}
+                              aria-hidden="true"
+                            />
+                          </button>
                         </div>
                         {hasDescription && (
                           <p className="mt-1.5 text-[11px] leading-relaxed text-charcoal">
