@@ -968,7 +968,7 @@ function receiptSvg(name: string, reference: string, date: string, amount = DEMO
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="900" viewBox="0 0 640 900">
   <rect width="640" height="900" fill="#ffffff"/>
   <rect x="0" y="0" width="640" height="108" fill="#111111"/>
-  <text x="48" y="66" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#ffffff" letter-spacing="2">MEDQCM L1</text>
+  <text x="48" y="66" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#ffffff" letter-spacing="2">MEDQCM mada</text>
   <text x="48" y="88" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="500" fill="#cacacb" letter-spacing="3">REÇU DE PAIEMENT — ACCÈS MENSUEL</text>
   <text x="48" y="158" font-family="Arial, Helvetica, sans-serif" font-size="11" fill="#707072" letter-spacing="2">REÇU N°</text>
   <text x="48" y="182" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111111">${reference}</text>

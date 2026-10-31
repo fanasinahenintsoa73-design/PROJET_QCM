@@ -29,7 +29,7 @@ function formatTen(value: number) {
 }
 
 export default function DashboardPage() {
-  usePageTitle('Mon cycle — MEDQCM L1')
+  usePageTitle('Mon cycle — MEDQCM mada')
   const { user, db } = useAuth()
   const [filter, setFilter] = useState('all')
 

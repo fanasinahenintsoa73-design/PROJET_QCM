@@ -10,7 +10,7 @@ import type { Receipt } from '@/types'
 import { formatBytes, formatDateTime, formatDateLong } from '@/lib/utils'
 
 export function PendingPage() {
-  usePageTitle('Dossier en vérification — MEDQCM L1')
+  usePageTitle('Dossier en vérification — MEDQCM mada')
   const { user, latestRequest, pendingRequest, access } = useAuth()
   const [receiptOpen, setReceiptOpen] = useState(false)
 

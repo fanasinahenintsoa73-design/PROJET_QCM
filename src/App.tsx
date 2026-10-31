@@ -40,7 +40,14 @@ function RouteFallback() {
         <span className="mx-auto grid h-10 w-10 place-items-center rounded-md bg-accent text-xl font-light text-white">
           +
         </span>
-        <p className="mt-5 text-sm font-medium text-ink">MEDQCM L1</p>
+        <p className="mt-5 flex items-baseline justify-center gap-1.5">
+          <span className="font-display text-[22px] leading-none tracking-[-0.02em] text-ink">
+            MEDQCM
+          </span>
+          <span className="text-[9px] font-semibold lowercase tracking-[0.14em] text-accent">
+            mada
+          </span>
+        </p>
         <p className="mt-1 text-sm text-mute">Chargement…</p>
       </div>
     </div>

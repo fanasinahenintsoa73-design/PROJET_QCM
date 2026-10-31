@@ -6,7 +6,7 @@ import { StatusPill } from '@/components/ui/StatusPill'
 import { formatDateLong, SERIES_LIMIT } from '@/lib/utils'
 
 export function ExpirationPage() {
-  usePageTitle('Accès terminé — MEDQCM L1')
+  usePageTitle('Accès terminé — MEDQCM mada')
   const { user, latestRequest, access } = useAuth()
   if (!user) return null
 

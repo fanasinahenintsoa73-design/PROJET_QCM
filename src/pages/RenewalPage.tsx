@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/Toast'
 import { SERIES_LIMIT, SERIES_SIZE } from '@/lib/utils'
 
 export function RenewalPage() {
-  usePageTitle('Renouveler mon accès — MEDQCM L1')
+  usePageTitle('Renouveler mon accès — MEDQCM mada')
   const { user, access, latestRequest, refresh } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()

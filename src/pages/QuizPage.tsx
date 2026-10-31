@@ -23,7 +23,7 @@ import {
 type BlockReason = 'limit' | 'access' | null
 
 export default function QuizPage() {
-  usePageTitle('Série en cours — MEDQCM L1')
+  usePageTitle('Série en cours — MEDQCM mada')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user, db } = useAuth()

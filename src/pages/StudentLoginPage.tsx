@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
 
 export function StudentLoginPage() {
-  usePageTitle('Connexion étudiant — MEDQCM L1')
+  usePageTitle('Connexion étudiant — MEDQCM mada')
   const { login } = useAuth()
   const { toast } = useToast()
   const [email, setEmail] = useState('')

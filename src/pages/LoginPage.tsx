@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
 
 export function LoginPage() {
-  usePageTitle('Connexion docteur — MEDQCM L1')
+  usePageTitle('Connexion docteur — MEDQCM mada')
   const { login } = useAuth()
   const { toast } = useToast()
   const [email, setEmail] = useState('')

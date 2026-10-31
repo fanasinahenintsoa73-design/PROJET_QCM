@@ -8,7 +8,7 @@ import { PACE_THEMES } from '@/lib/themes'
 import { formatDateLong, SERIES_LIMIT, SERIES_SIZE } from '@/lib/utils'
 
 export function LandingPage() {
-  usePageTitle('MEDQCM L1 — Les neuf thèmes PACES')
+  usePageTitle('MEDQCM mada — Les neuf thèmes PACES')
   const { db, user, homePath } = useAuth()
   const subjects = getPublishedSubjects(db)
   const open = subjects.length > 0

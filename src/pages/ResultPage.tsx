@@ -9,7 +9,7 @@ import { usePageTitle } from '@/components/Layouts'
 import { answerLetters, cn, formatDateTime, scoreTone } from '@/lib/utils'
 
 export default function ResultPage() {
-  usePageTitle('Résultat de la série — MEDQCM L1')
+  usePageTitle('Résultat de la série — MEDQCM mada')
   const { attemptId } = useParams<{ attemptId: string }>()
   const { user, db } = useAuth()
 

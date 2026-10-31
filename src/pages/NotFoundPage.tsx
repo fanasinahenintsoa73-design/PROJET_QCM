@@ -5,7 +5,7 @@ import { usePageTitle } from '@/components/Layouts'
 import { Logo } from '@/components/Logo'
 
 export default function NotFoundPage() {
-  usePageTitle('Page introuvable — MEDQCM L1')
+  usePageTitle('Page introuvable — MEDQCM mada')
   const { user, homePath } = useAuth()
   const fallback = isDoctorPortal ? '/' : '/'
   const target = user ? homePath : fallback
@@ -42,7 +42,12 @@ export default function NotFoundPage() {
               404
             </p>
             <div className="mt-4 border-t border-line pt-4">
-              <p className="text-[13px] font-medium text-ink">MEDQCM L1</p>
+              <p className="text-[13px] font-medium text-ink">
+                MEDQCM{' '}
+                <span className="text-[9px] font-semibold lowercase tracking-[0.14em] text-accent">
+                  mada
+                </span>
+              </p>
               <p className="mt-1 text-[12px] leading-relaxed text-mute">
                 Des séries de 10 questions. 30 séries. Aucune impasse.
               </p>

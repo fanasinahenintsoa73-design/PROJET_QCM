@@ -21,7 +21,7 @@ type Errors = Partial<
 >
 
 export function SignupPage() {
-  usePageTitle('Créer un compte — MEDQCM L1')
+  usePageTitle('Créer un compte — MEDQCM mada')
   const { toast } = useToast()
   const { refresh } = useAuth()
 

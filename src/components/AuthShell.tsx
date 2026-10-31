@@ -14,7 +14,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </main>
 
         <div className="flex items-center justify-between gap-3 border-t border-line pt-4 text-[11px] text-mute">
-          <span>© {new Date().getFullYear()} MEDQCM L1</span>
+          <span>© {new Date().getFullYear()} MEDQCM mada</span>
           <span>L1 santé</span>
         </div>
       </div>
