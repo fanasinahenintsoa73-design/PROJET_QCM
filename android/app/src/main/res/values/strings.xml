@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MEDQCM</string>
+    <string name="web_url">https://medecineqcm.vercel.app/</string>
+</resources>

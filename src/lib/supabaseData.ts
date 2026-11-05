@@ -291,7 +291,16 @@ export async function fetchProfile(userId: string, attempts = 4): Promise<User> 
       .eq('id', userId)
       .maybeSingle()
     if (error) lastError = error
-    if (data) return mapProfile(data as ProfileRow)
+    if (data) {
+      // Une connexion plus récente sur le même compte révoque cette session.
+      if (!(await isActiveSession())) {
+        throw new AppError(
+          'SESSION_REVOKED',
+          'Cette session a été déconnectée : une nouvelle connexion a été ouverte sur ce compte.',
+        )
+      }
+      return mapProfile(data as ProfileRow)
+    }
     if (attempt < attempts - 1) {
       await new Promise((resolve) => window.setTimeout(resolve, 350))
     }
@@ -439,6 +448,66 @@ export async function fetchDatabase(currentProfile?: User): Promise<Database> {
 /* Authentification                                                    */
 /* ------------------------------------------------------------------ */
 
+const APP_SESSION_KEY = 'medqcm.appSessionId'
+
+function createAppSessionId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+export function getAppSessionId(): string {
+  try {
+    const existing = localStorage.getItem(APP_SESSION_KEY)
+    if (existing) return existing
+    const created = createAppSessionId()
+    localStorage.setItem(APP_SESSION_KEY, created)
+    return created
+  } catch {
+    return createAppSessionId()
+  }
+}
+
+function clearAppSessionId() {
+  try {
+    localStorage.removeItem(APP_SESSION_KEY)
+  } catch {
+    /* noop */
+  }
+}
+
+/**
+ * Enregistre la session courante côté serveur et révoque les anciennes
+ * sessions du même compte. Si la migration n'est pas encore appliquée, on
+ * ignore l'erreur pour ne pas bloquer la connexion.
+ */
+export async function registerActiveSession(): Promise<void> {
+  const client = requireSupabase()
+  const sessionId = getAppSessionId()
+  const { error } = await client.rpc('register_active_session', {
+    p_session_id: sessionId,
+  })
+  if (error) return
+}
+
+export async function isActiveSession(): Promise<boolean> {
+  const client = requireSupabase()
+  const sessionId = getAppSessionId()
+  const { data, error } = await client.rpc('is_active_session', {
+    p_session_id: sessionId,
+  })
+  if (error) return true // Migration absente : on ne déconnecte pas.
+  return data !== false
+}
+
+export async function revokeActiveSession(): Promise<void> {
+  const client = requireSupabase()
+  const sessionId = getAppSessionId()
+  await client.rpc('revoke_active_session', { p_session_id: sessionId })
+  clearAppSessionId()
+}
+
 export async function signIn(email: string, password: string): Promise<User> {
   const client = requireSupabase()
   const { data, error } = await client.auth.signInWithPassword({
@@ -447,11 +516,13 @@ export async function signIn(email: string, password: string): Promise<User> {
   })
   if (error) throw asFrenchError(error)
   if (!data.user) throw new Error('Connexion impossible. Réessayez.')
+  await registerActiveSession()
   return fetchProfile(data.user.id)
 }
 
 export async function signOut() {
   const client = requireSupabase()
+  await revokeActiveSession()
   await client.auth.signOut()
 }
 
@@ -521,6 +592,7 @@ export async function registerStudent(input: StudentRegistration): Promise<User>
       'La confirmation d’email est encore activée dans Supabase. Désactivez-la (Authentication → Providers → Email) pour que l’inscription puisse déposer le reçu.',
     )
   }
+  await registerActiveSession()
   const profile = await fetchProfile(data.user.id)
   await insertRequest(profile.id, 'initial', input.receipt)
   return profile

@@ -45,3 +45,8 @@ supabase/.temp/
 
 # Identifiants locaux générés (ne jamais committer)
 .secrets/
+
+# Build Android local (APK et keystore de debug)
+android/build/
+android/output/
+*.keystore

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useBlocker, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
@@ -21,6 +21,27 @@ import {
 } from '@/lib/utils'
 
 type BlockReason = 'limit' | 'access' | null
+
+const QUIT_MESSAGE =
+  'Voulez-vous vraiment quitter ? Ce QCM compte une série même si vous revenez.'
+
+/** Filigrane visible mais discret : il trace une fuite sans empêcher le passage. */
+function QuizWatermark({ text }: { text: string }) {
+  const items = Array.from({ length: 24 }, (_, index) => index)
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-10 select-none overflow-hidden">
+      {items.map((index) => (
+        <span
+          key={index}
+          className="absolute left-[-10%] top-[6%] w-[120%] whitespace-nowrap text-[13px] font-semibold uppercase tracking-[0.18em] text-ink/10"
+          style={{ transform: `rotate(-24deg) translateY(${index * 72}px)` }}
+        >
+          {text}
+        </span>
+      ))}
+    </div>
+  )
+}
 
 interface ActiveQuiz {
   attemptId?: string
@@ -64,7 +85,43 @@ export default function QuizPage() {
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [saving, setSaving] = useState(false)
+  const [showQuit, setShowQuit] = useState(false)
+  const [quitting, setQuitting] = useState(false)
   const finished = useRef(false)
+  const allowExit = useRef(false)
+
+  // Une navigation hors du QCM (bouton retour, lien, app Android) demande une
+  // confirmation : la série ouverte reste comptée même si l'étudiant revient.
+  const blocker = useBlocker(({ nextLocation }) => {
+    if (!payload || finished.current || allowExit.current) return false
+    return !nextLocation.pathname.startsWith('/app/resultat')
+  })
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') setShowQuit(true)
+  }, [blocker.state])
+
+  // L'app Android envoie cet événement quand le bouton retour est pressé sans
+  // historique WebView : la même fenêtre de confirmation s'affiche.
+  useEffect(() => {
+    const onAndroidBack = () => {
+      if (payload && !finished.current) setShowQuit(true)
+    }
+    window.addEventListener('medqcm:request-exit', onAndroidBack)
+    return () => window.removeEventListener('medqcm:request-exit', onAndroidBack)
+  }, [payload])
+
+  // Fermeture d'onglet ou refresh : le navigateur n'autorise qu'un avertissement
+  // générique. Après refresh, start_chapter_quiz reprend le brouillon existant.
+  useEffect(() => {
+    if (!payload || finished.current) return
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [payload])
   // Le brouillon est déjà compté dans le cycle : une fois la série chargée,
   // le numéro affiché est le compteur courant, pas le suivant.
   const seriesNumber = Math.min(
@@ -77,6 +134,13 @@ export default function QuizPage() {
   const selected = current ? answers[current.id] ?? [] : []
   const answeredCount = questions.filter((question) => (answers[question.id] ?? []).length > 0).length
   const isLast = index === questions.length - 1
+  const watermarkText = user
+    ? `${user.firstName} ${user.lastName} — ${user.email} — ${new Intl.DateTimeFormat('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date())} — ${payload?.attemptId?.slice(0, 8) ?? subjectId?.slice(0, 8) ?? ''}`
+    : ''
 
   // La session recharge la base toutes les 20 s. On ne dépend que de
   // l'identifiant du sujet pour ne pas relancer la série en cours.
@@ -227,17 +291,33 @@ export default function QuizPage() {
   }
 
   function quit() {
-    if (
-      !window.confirm(
-        'Quitter cette série ? Elle sera comptée dans votre quota et vos réponses ne seront pas enregistrées.',
-      )
-    ) {
-      return
+    if (payload && !finished.current) setShowQuit(true)
+  }
+
+  function cancelQuit() {
+    if (blocker.state === 'blocked') blocker.reset()
+    setShowQuit(false)
+  }
+
+  async function confirmQuit() {
+    if (!payload || quitting) return
+    setQuitting(true)
+    try {
+      // La série a déjà été comptée au lancement ; on la marque seulement
+      // comme abandonnée pour que le retour crée une nouvelle série.
+      if (payload.attemptId && user) {
+        await api.abandonSeries(user.id, payload.attemptId)
+      }
+    } catch {
+      // Même sans réponse serveur, l'étudiant a confirmé : on le fait sortir.
+    } finally {
+      allowExit.current = true
+      finished.current = true
+      setShowQuit(false)
+      setQuitting(false)
+      if (blocker.state === 'blocked') blocker.proceed()
+      else navigate('/app', { replace: true })
     }
-    if (payload?.attemptId && user) {
-      void api.abandonSeries(user.id, payload.attemptId)
-    }
-    navigate('/app')
   }
 
   if (loading) {
@@ -361,7 +441,9 @@ export default function QuizPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-68px)] bg-canvas">
+    <>
+      {payload && current && watermarkText ? <QuizWatermark text={watermarkText} /> : null}
+      <div className="min-h-[calc(100vh-68px)] bg-canvas">
       <div className="border-b border-line bg-surface">
         <div className="mx-auto max-w-content px-5 py-4 sm:px-8 lg:px-10">
           <div className="flex items-center justify-between gap-4">
@@ -498,6 +580,31 @@ export default function QuizPage() {
           La correction et les bonnes réponses apparaîtront uniquement après l’envoi de la série.
         </p>
       </div>
-    </div>
+      </div>
+
+      {showQuit ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmation de sortie du QCM"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-2xl">
+            <h2 className="font-display text-2xl text-ink">Quitter cette série ?</h2>
+            <p className="mt-3 text-[14px] leading-relaxed text-mute">
+              {QUIT_MESSAGE} Vos réponses en cours ne seront pas enregistrées.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+              <Button variant="secondary" onClick={cancelQuit} disabled={quitting} className="flex-1">
+                Rester dans le QCM
+              </Button>
+              <Button variant="danger" onClick={confirmQuit} loading={quitting} className="flex-1">
+                Quitter et compter la série
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }
