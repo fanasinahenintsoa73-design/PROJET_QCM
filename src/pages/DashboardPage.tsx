@@ -1,12 +1,26 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  GraduationCap,
+  Star,
+  Sun,
+  Trophy,
+} from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import {
   getCurrentCycleAttempts,
   getSeriesUsage,
   getUsableQuestions,
 } from '@/lib/db'
+import {
+  attemptsOnDay,
+  DAILY_SERIES_GOAL,
+  dailyGoalMessage,
+  isCompletedAttempt,
+} from '@/lib/engagement'
 import {
   PACE_THEMES,
   chaptersForTheme,
@@ -17,7 +31,7 @@ import {
   findChapterSelectionSubjects,
   findLegacyThemeSubjects,
 } from '@/lib/subjects'
-import { ButtonLink } from '@/components/ui/Button'
+import { buttonClasses, ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { usePageTitle } from '@/components/Layouts'
 import {
@@ -57,9 +71,12 @@ export default function DashboardPage() {
     [assignment, db, user],
   )
   const completedAttempts = useMemo(
-    () => cycleAttempts.filter((attempt) => !attempt.status || attempt.status === 'completed'),
+    () => cycleAttempts.filter(isCompletedAttempt),
     [cycleAttempts],
   )
+  const todayAttempts = useMemo(() => attemptsOnDay(cycleAttempts), [cycleAttempts])
+  const todayCount = todayAttempts.length
+  const dailyGoalReached = todayCount >= DAILY_SERIES_GOAL
 
   const subjectTitleById = useMemo(
     () => new Map(db.subjects.map((subject) => [subject.id, subject.title])),
@@ -108,6 +125,58 @@ export default function DashboardPage() {
     [attemptedThemeIds],
   )
 
+  const completedChapterIds = useMemo(() => {
+    const ids = new Set<string>()
+    completedAttempts.forEach((attempt) => {
+      ;(attempt.chapterIds ?? []).forEach((chapterId) => ids.add(chapterId))
+    })
+    return ids
+  }, [completedAttempts])
+
+  const completedThemes = useMemo(
+    () =>
+      themes.filter(
+        ({ chapters }) =>
+          chapters.length > 0 &&
+          chapters.every((chapter) => completedChapterIds.has(chapter.id)),
+      ),
+    [completedChapterIds, themes],
+  )
+
+  const badges = [
+    {
+      id: 'day',
+      label: 'Série du jour',
+      description: 'Une série lancée aujourd’hui',
+      earned: todayCount > 0,
+      icon: Sun,
+    },
+    {
+      id: 'five',
+      label: '5 séries',
+      description: 'Cinq séries terminées',
+      earned: completedAttempts.length >= 5,
+      icon: Star,
+    },
+    {
+      id: 'ten',
+      label: '10 séries',
+      description: 'Dix séries terminées',
+      earned: completedAttempts.length >= 10,
+      icon: Trophy,
+    },
+    {
+      id: 'ue',
+      label: 'UE terminée',
+      description: completedThemes.length
+        ? `${completedThemes.length} UE parcourue${completedThemes.length > 1 ? 's' : ''}`
+        : 'Tous les chapitres d’une UE',
+      earned: completedThemes.length > 0,
+      icon: GraduationCap,
+    },
+  ]
+  const earnedBadges = badges.filter((badge) => badge.earned).length
+
   const visibleAttempts =
     filter === 'all'
       ? completedAttempts
@@ -150,23 +219,34 @@ export default function DashboardPage() {
       <section className="mx-auto max-w-content px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
         <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
           <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Mon cycle</p>
-                <p className="mt-2 text-[15px] font-medium text-ink">
-                  Séries lancées : {used} / {SERIES_LIMIT}
-                </p>
-              </div>
-              <p className="text-[12px] text-mute">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Mon cycle</p>
+              <p className="mt-2 flex items-baseline gap-2">
+                <span className="font-display text-[2.6rem] leading-none tracking-[-0.02em] text-ink">
+                  {used}
+                </span>
+                <span className="text-[14px] text-mute">/ {SERIES_LIMIT} séries</span>
+              </p>
+              <p className="mt-2 text-[12px] text-mute">
                 {remainingSeries > 0
-                  ? `${remainingSeries} série${remainingSeries > 1 ? 's' : ''} restante${remainingSeries > 1 ? 's' : ''}`
-                  : 'Quota atteint'}
+                  ? `${remainingSeries} série${remainingSeries > 1 ? 's' : ''} restante${remainingSeries > 1 ? 's' : ''} sur ce cycle`
+                  : 'Quota atteint pour ce cycle'}
               </p>
             </div>
 
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-cloud">
+            <div
+              className="mt-5 h-2.5 overflow-hidden rounded-full bg-cloud"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={SERIES_LIMIT}
+              aria-valuenow={used}
+              aria-label={`${used} séries lancées sur ${SERIES_LIMIT}`}
+            >
               <div
-                className={cn('h-full rounded-full', reached ? 'bg-warning' : 'bg-accent')}
+                className={cn(
+                  'h-full rounded-full transition-[width] duration-500',
+                  reached ? 'bg-warning' : 'bg-accent',
+                )}
                 style={{ width: `${seriesProgress}%` }}
               />
             </div>
@@ -185,35 +265,144 @@ export default function DashboardPage() {
             </dl>
           </div>
 
-          <div
-            className={cn(
-              'rounded-2xl border p-6 sm:p-8',
-              reached ? 'border-warning/40 bg-warning-soft' : 'border-line bg-accent-soft',
-            )}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-mute">
-              {reached ? 'Renouvellement' : 'Votre rythme'}
-            </p>
-            <p className="mt-3 font-display text-[1.7rem] leading-[1.15] tracking-[-0.02em] text-ink">
-              {reached
-                ? 'Vos 30 séries ont été lancées.'
-                : `${remainingSeries} séries vous attendent.`}
-            </p>
-            <p className="mt-2 text-[12px] leading-relaxed text-ash">
-              {reached
-                ? SERIES_LIMIT_MESSAGE
-                : 'Choisissez une UE, puis un ou plusieurs chapitres. Chaque série compte 10 questions et toute série lancée est comptée.'}
-            </p>
-            {reached ? (
-              <ButtonLink to="/reinscription" size="lg" className="mt-5 w-full justify-center">
-                Renouveler mon accès <ArrowRight size={16} />
-              </ButtonLink>
-            ) : null}
+          <div className="relative overflow-hidden rounded-2xl bg-accent p-6 text-white sm:p-8">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full border border-white/15"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-24 -right-4 h-52 w-52 rounded-full border border-white/10"
+            />
+            <div className="relative">
+              {reached ? (
+                <>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">
+                    Renouvellement
+                  </p>
+                  <p className="mt-3 font-display text-[2.7rem] leading-none tracking-[-0.02em]">
+                    {SERIES_LIMIT}
+                    <span className="text-[1.3rem] text-white/65"> / {SERIES_LIMIT}</span>
+                  </p>
+                  <p className="mt-3 text-[13px] leading-relaxed text-white/80">
+                    {SERIES_LIMIT_MESSAGE}
+                  </p>
+                  <ButtonLink
+                    to="/reinscription"
+                    variant="white"
+                    size="lg"
+                    className="mt-6 w-full justify-center"
+                  >
+                    Renouveler mon accès <ArrowRight size={16} />
+                  </ButtonLink>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">
+                    Objectif du jour
+                  </p>
+                  <p className="mt-3 font-display text-[2.7rem] leading-none tracking-[-0.02em]">
+                    {todayCount}
+                    <span className="text-[1.3rem] text-white/65"> / {DAILY_SERIES_GOAL}</span>
+                  </p>
+                  <p className="mt-3 text-[13px] leading-relaxed text-white/80">
+                    {dailyGoalMessage(todayCount)}
+                  </p>
+                  <div className="mt-5 flex gap-2" aria-hidden>
+                    {Array.from({ length: DAILY_SERIES_GOAL }).map((_, index) => (
+                      <span
+                        key={index}
+                        className={cn(
+                          'h-2 flex-1 rounded-full transition-colors',
+                          index < todayCount ? 'bg-white' : 'bg-white/20',
+                        )}
+                      />
+                    ))}
+                  </div>
+                  {dailyGoalReached ? (
+                    <p className="mt-5 inline-flex items-center gap-2 text-[11px] font-medium text-white/80">
+                      <Check size={13} strokeWidth={2.5} /> Objectif du jour atteint
+                    </p>
+                  ) : null}
+                  <a
+                    href="#ues"
+                    className={buttonClasses('white', 'md', 'mt-6 w-full justify-center')}
+                  >
+                    Choisir une UE <ArrowRight size={16} />
+                  </a>
+                  <p className="mt-3 text-[10px] leading-relaxed text-white/70">
+                    Toute série lancée compte, même si vous quittez le QCM.
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-content px-5 pb-12 sm:px-8 lg:px-10">
+      <section className="mx-auto max-w-content px-5 pb-10 sm:px-8 lg:px-10">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
+          <div>
+            <h2 className="text-[13px] font-medium text-ink">Vos repères</h2>
+            <p className="mt-1 text-[11px] text-mute">Des jalons simples, sans pression.</p>
+          </div>
+          <p className="text-[11px] tabular-nums text-mute">
+            {earnedBadges} / {badges.length} obtenus
+          </p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {badges.map((badge) => {
+            const Icon = badge.icon
+            return (
+              <div
+                key={badge.id}
+                aria-label={`${badge.label}, ${badge.earned ? 'obtenu' : 'à débloquer'}`}
+                className={cn(
+                  'flex min-w-0 items-start gap-3 rounded-xl border px-4 py-3.5',
+                  badge.earned
+                    ? 'border-accent/25 bg-accent-soft/60'
+                    : 'border-line bg-surface',
+                )}
+              >
+                <span
+                  className={cn(
+                    'grid h-9 w-9 shrink-0 place-items-center rounded-full',
+                    badge.earned ? 'bg-accent text-white' : 'bg-cloud text-stone',
+                  )}
+                >
+                  <Icon size={15} strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0">
+                  <p
+                    className={cn(
+                      'text-[12px] font-medium',
+                      badge.earned ? 'text-ink' : 'text-mute',
+                    )}
+                  >
+                    {badge.label}
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-mute">
+                    {badge.description}
+                  </p>
+                </div>
+                {badge.earned ? (
+                  <Check
+                    size={12}
+                    strokeWidth={2.5}
+                    className="ml-auto mt-1 shrink-0 text-accent"
+                    aria-hidden
+                  />
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      <section
+        id="ues"
+        className="mx-auto max-w-content scroll-mt-24 px-5 pb-12 sm:px-8 lg:px-10"
+      >
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
           <div>
             <h2 className="font-display text-[1.6rem] leading-none text-ink">

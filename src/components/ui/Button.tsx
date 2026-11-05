@@ -2,7 +2,14 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
-type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'white'
+type Variant =
+  | 'primary'
+  | 'secondary'
+  | 'outline'
+  | 'ghost'
+  | 'danger'
+  | 'white'
+  | 'white-outline'
 type Size = 'sm' | 'md' | 'lg'
 
 export function buttonClasses(variant: Variant = 'primary', size: Size = 'md', className?: string) {
@@ -18,6 +25,8 @@ export function buttonClasses(variant: Variant = 'primary', size: Size = 'md', c
     variant === 'ghost' && 'bg-transparent text-ink hover:bg-cloud',
     variant === 'danger' && 'bg-sale text-white hover:bg-[#951d14]',
     variant === 'white' && 'bg-white text-ink hover:bg-cloud',
+    variant === 'white-outline' &&
+      'border border-white/40 bg-transparent text-white hover:border-white hover:bg-white/10',
     className,
   )
 }

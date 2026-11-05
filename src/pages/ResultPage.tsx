@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles, Star, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import type { AttemptReview } from '@/lib/supabaseData'
-import { ButtonLink } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
+import { resultEncouragement } from '@/lib/engagement'
+import { getSeriesFeedback, MAX_COMMENT_LENGTH, saveSeriesFeedback } from '@/lib/feedback'
 import { answerLetters, cn, formatDateTime, scoreTone } from '@/lib/utils'
 import { chapterTitle, findPaceTheme, findThemeForChapter } from '@/lib/themes'
+
+const RATING_LABELS = ['À revoir', 'Moyen', 'Bien', 'Très bien', 'Excellent']
 
 export default function ResultPage() {
   usePageTitle('Résultat de la série — MEDQCM mada')
@@ -17,6 +21,11 @@ export default function ResultPage() {
   const [review, setReview] = useState<AttemptReview | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [rating, setRating] = useState(0)
+  const [hoverRating, setHoverRating] = useState(0)
+  const [comment, setComment] = useState('')
+  const [feedbackSent, setFeedbackSent] = useState(false)
+  const [feedbackSkipped, setFeedbackSkipped] = useState(false)
 
   useEffect(() => {
     if (!attemptId) {
@@ -42,6 +51,21 @@ export default function ResultPage() {
     return () => {
       active = false
     }
+  }, [attemptId])
+
+  useEffect(() => {
+    if (!attemptId) return
+    const existing = getSeriesFeedback(attemptId)
+    if (!existing) {
+      setRating(0)
+      setComment('')
+      setFeedbackSent(false)
+      setFeedbackSkipped(false)
+      return
+    }
+    setRating(existing.rating)
+    setComment(existing.comment)
+    setFeedbackSent(true)
   }, [attemptId])
 
   const attempt = review?.attempt
@@ -107,41 +131,21 @@ export default function ResultPage() {
           ? 'Les notions clés sont là, mais elles doivent être stabilisées.'
           : 'Ce score est un point de départ. Reprenez les explications une par une.'
 
-  const exportResult = () => {
-    const rows: string[][] = [
-      ['MEDQCM — résultat de série'],
-      ['Étudiant', user ? `${user.firstName} ${user.lastName}` : ''],
-      ['UE', originLabel],
-      ['Chapitres', chapterLabel],
-      ['Date', new Date(attempt.createdAt).toLocaleString('fr-FR')],
-      ['Score', `${score} / ${total}`, `${percent} %`],
-      ['Correctes', String(score), 'Incorrectes', String(incorrect), 'Sans réponse', String(unanswered)],
-      [],
-      ['N°', 'Matière', 'Énoncé', 'Votre réponse', 'Réponse attendue', 'Résultat', 'Explication'],
-      ...questions.map((question, index) => {
-        const given = attempt.answers[question.id] ?? []
-        const correct = sameLetters(given, question.correctAnswers)
-        return [
-          String(index + 1),
-          question.matiere,
-          question.statement,
-          given.length ? given.join(', ') : 'Sans réponse',
-          question.correctAnswers.join(', '),
-          given.length === 0 ? 'Sans réponse' : correct ? 'Juste' : 'À revoir',
-          question.explanation,
-        ]
-      }),
-    ]
-    const csv = rows
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
-      .join('\r\n')
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `resultat-medqcm-${new Date(attempt.createdAt).toISOString().slice(0, 10)}.csv`
-    link.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  const redoHref = ue
+    ? `/app/ue/${encodeURIComponent(ue.id)}`
+    : `/app/entrainement?theme=${encodeURIComponent(attempt.subjectId)}`
+  const shownRating = hoverRating || rating
+
+  function submitFeedback(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!attemptId || rating < 1) return
+    saveSeriesFeedback({
+      attemptId,
+      userId: user?.id ?? attempt?.userId ?? 'unknown',
+      rating,
+      comment,
+    })
+    setFeedbackSent(true)
   }
 
   return (
@@ -165,6 +169,9 @@ export default function ResultPage() {
               <p className="text-[12px] text-mute">
                 {originLabel} · {formatDateTime(attempt.createdAt)}
               </p>
+              <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-soft px-3 py-1.5 text-[11px] font-medium text-accent">
+                <Sparkles size={12} /> {resultEncouragement(percent)}
+              </span>
               <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.8rem)] leading-[1.02] tracking-[-0.03em] text-ink">
                 {verdict}.
               </h1>
@@ -196,31 +203,26 @@ export default function ResultPage() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
-          <ButtonLink
-            to={
-              ue
-                ? `/app/ue/${encodeURIComponent(ue.id)}`
-                : `/app/entrainement?theme=${encodeURIComponent(attempt.subjectId)}`
-            }
-            size="lg"
-          >
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <ButtonLink to={redoHref} size="lg">
             <RotateCcw size={15} /> Refaire une série
           </ButtonLink>
-          <Link to="/app" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:text-accent-deep">
-            Retour au cycle <ArrowRight size={14} />
-          </Link>
-          <button
-            type="button"
-            onClick={exportResult}
-            className="ml-auto inline-flex items-center gap-2 text-[12px] text-mute transition hover:text-accent"
+          <ButtonLink to="/app#ues" variant="secondary" size="lg">
+            Choisir une autre UE <ArrowRight size={15} />
+          </ButtonLink>
+          <Link
+            to="/app"
+            className="ml-auto inline-flex items-center gap-1.5 text-[12px] text-mute transition hover:text-accent"
           >
-            <Download size={14} /> Télécharger le résultat
-          </button>
+            Retour au cycle
+          </Link>
         </div>
       </section>
 
-      <section className="mx-auto max-w-content px-5 pb-16 sm:px-8 lg:px-10">
+      <section
+        id="corrige"
+        className="mx-auto max-w-content scroll-mt-24 px-5 pb-10 sm:px-8 lg:px-10"
+      >
         <div className="border-b border-line pb-4">
           <h2 className="text-[18px] font-medium text-ink">Corrigé détaillé</h2>
           <p className="mt-1 text-[12px] text-mute">
@@ -318,6 +320,172 @@ export default function ResultPage() {
             </article>
           )
         })}
+      </section>
+
+      <section className="mx-auto max-w-content px-5 pb-10 sm:px-8 lg:px-10">
+        {feedbackSent ? (
+          <div className="rounded-2xl border border-accent/25 bg-accent-soft/60 p-6 sm:p-8">
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-accent">
+              Avis enregistré
+            </p>
+            <h2 className="mt-2 font-display text-[1.8rem] leading-tight text-ink">
+              Merci, votre avis compte.
+            </h2>
+            <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-mute">
+              Votre note aide à améliorer les prochaines séries. Vous pouvez relancer une série
+              quand vous le souhaitez.
+            </p>
+            <div
+              className="mt-4 flex items-center gap-1.5 text-accent"
+              aria-label={`${rating} étoiles sur 5`}
+            >
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  size={18}
+                  strokeWidth={1.8}
+                  fill={star <= rating ? 'currentColor' : 'none'}
+                  className={star <= rating ? '' : 'text-stone'}
+                />
+              ))}
+              <span className="ml-2 text-[12px] font-medium text-ink">
+                {RATING_LABELS[Math.max(0, rating - 1)]}
+              </span>
+            </div>
+            {comment ? (
+              <p className="mt-3 max-w-2xl rounded-lg bg-white/70 px-4 py-3 text-[13px] leading-relaxed text-ash">
+                « {comment} »
+              </p>
+            ) : null}
+          </div>
+        ) : feedbackSkipped ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-5">
+            <p className="text-[13px] text-mute">Avis passé pour cette série.</p>
+            <button
+              type="button"
+              onClick={() => setFeedbackSkipped(false)}
+              className="text-[12px] font-medium text-accent hover:text-accent-deep"
+            >
+              Donner mon avis
+            </button>
+          </div>
+        ) : (
+          <form
+            onSubmit={submitFeedback}
+            className="rounded-2xl border border-line bg-surface p-6 sm:p-8"
+          >
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-mute">
+              Votre avis
+            </p>
+            <h2 className="mt-2 font-display text-[1.8rem] leading-tight text-ink">
+              Cette série vous a-t-elle aidé ?
+            </h2>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-mute">
+              Une note rapide, un mot si vous voulez. Le commentaire est facultatif.
+            </p>
+            <div
+              className="mt-5 flex flex-wrap items-center gap-2"
+              role="group"
+              aria-label="Note de la série sur 5 étoiles"
+            >
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const active = star <= shownRating
+                  return (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      aria-label={`${star} étoile${star > 1 ? 's' : ''}`}
+                      aria-pressed={rating === star}
+                      className="rounded-md p-1.5 transition hover:text-accent focus-visible:text-accent"
+                    >
+                      <Star
+                        size={25}
+                        strokeWidth={1.6}
+                        fill={active ? 'currentColor' : 'none'}
+                        className={active ? 'text-accent' : 'text-stone'}
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+              <span className="text-[12px] font-medium text-mute">
+                {shownRating ? RATING_LABELS[shownRating - 1] : 'Touchez une étoile'}
+              </span>
+            </div>
+            <textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value.slice(0, MAX_COMMENT_LENGTH))}
+              maxLength={MAX_COMMENT_LENGTH}
+              rows={3}
+              aria-label="Votre commentaire, facultatif"
+              placeholder="Un mot sur les questions, le corrigé, ce qui vous a aidé… (facultatif)"
+              className="form-textarea mt-5"
+            />
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={rating < 1}>
+                Envoyer mon avis
+              </Button>
+              <button
+                type="button"
+                onClick={() => setFeedbackSkipped(true)}
+                className="text-[12px] text-mute transition hover:text-accent"
+              >
+                Passer
+              </button>
+              <span className="ml-auto text-[10px] tabular-nums text-mute">
+                {comment.length} / {MAX_COMMENT_LENGTH}
+              </span>
+            </div>
+          </form>
+        )}
+      </section>
+
+      <section className="mx-auto max-w-content px-5 pb-16 sm:px-8 lg:px-10">
+        <div className="relative overflow-hidden rounded-2xl bg-accent px-6 py-8 text-white sm:px-10 sm:py-10">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border border-white/15"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-24 right-10 h-56 w-56 rounded-full border border-white/10"
+          />
+          <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">La suite</p>
+              <h2 className="mt-3 max-w-xl font-display text-[clamp(1.9rem,4vw,2.8rem)] leading-[1.05] tracking-[-0.02em]">
+                {feedbackSent ? 'Merci. Gardez le rythme.' : 'Gardez le rythme.'}
+              </h2>
+              <p className="mt-3 max-w-md text-[13px] leading-relaxed text-white/85">
+                {feedbackSent
+                  ? 'Votre avis est enregistré. La prochaine série vous attend.'
+                  : 'Chaque série terminée vous rapproche de votre objectif. La suivante vous attend.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <ButtonLink
+                to={redoHref}
+                variant="white"
+                size="lg"
+                className="w-full justify-center sm:w-auto"
+              >
+                <RotateCcw size={16} /> Refaire une série
+              </ButtonLink>
+              <ButtonLink
+                to="/app#ues"
+                variant="white-outline"
+                size="lg"
+                className="w-full justify-center sm:w-auto"
+              >
+                Choisir une autre UE <ArrowRight size={16} />
+              </ButtonLink>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   )
