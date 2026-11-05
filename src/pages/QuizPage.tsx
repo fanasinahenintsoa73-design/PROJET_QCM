@@ -25,6 +25,40 @@ type BlockReason = 'limit' | 'access' | null
 const QUIT_MESSAGE =
   'Voulez-vous vraiment quitter ? Ce QCM compte une série même si vous revenez.'
 
+/**
+ * Évite qu'un retour navigateur/app juste après un abandon relance une
+ * nouvelle série (donc un nouveau comptage) : on repart vers le tableau de
+ * bord sans appeler start_chapter_quiz pendant quelques secondes.
+ */
+const JUST_ABANDONED_KEY = 'medqcm.justAbandoned'
+
+function isJustAbandoned(): boolean {
+  try {
+    const raw = sessionStorage.getItem(JUST_ABANDONED_KEY)
+    if (!raw) return false
+    const parsed = JSON.parse(raw) as { until?: number }
+    return typeof parsed.until === 'number' && parsed.until > Date.now()
+  } catch {
+    return false
+  }
+}
+
+function markJustAbandoned() {
+  try {
+    sessionStorage.setItem(JUST_ABANDONED_KEY, JSON.stringify({ until: Date.now() + 10000 }))
+  } catch {
+    /* stockage indisponible : le garde historique reste en place */
+  }
+}
+
+function clearJustAbandoned() {
+  try {
+    sessionStorage.removeItem(JUST_ABANDONED_KEY)
+  } catch {
+    /* noop */
+  }
+}
+
 interface ActiveQuiz {
   attemptId?: string
   subject?: Subject
@@ -171,6 +205,14 @@ export default function QuizPage() {
       return
     }
 
+    // Retour juste après un abandon confirmé : ne pas relancer une série.
+    if (isChapterMode && isJustAbandoned()) {
+      clearJustAbandoned()
+      setLoading(false)
+      navigate('/app', { replace: true })
+      return
+    }
+
     const request = isChapterMode
       ? api.startChapterQuiz(user.id, ueParam, chapterIds, SERIES_SIZE)
       : api.startQuiz(user.id, subjectId as string, SERIES_SIZE)
@@ -313,6 +355,7 @@ export default function QuizPage() {
       allowExit.current = true
       finished.current = true
       guardPushed.current = false
+      markJustAbandoned()
       setShowQuit(false)
       setQuitting(false)
       navigate('/app', { replace: true })
