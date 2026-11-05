@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useBlocker, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
@@ -71,17 +71,42 @@ export default function QuizPage() {
   const [quitting, setQuitting] = useState(false)
   const finished = useRef(false)
   const allowExit = useRef(false)
+  const guardPushed = useRef(false)
 
   // Une navigation hors du QCM (bouton retour, lien, app Android) demande une
   // confirmation : la série ouverte reste comptée même si l'étudiant revient.
-  const blocker = useBlocker(({ nextLocation }) => {
-    if (!payload || finished.current || allowExit.current) return false
-    return !nextLocation.pathname.startsWith('/app/resultat')
-  })
+  // On évite useBlocker : l'app utilise BrowserRouter, pas un data-router.
+  useEffect(() => {
+    if (!payload || finished.current || guardPushed.current) return
+    window.history.pushState({ medqcmQuiz: true }, '', window.location.href)
+    guardPushed.current = true
+  }, [payload])
 
   useEffect(() => {
-    if (blocker.state === 'blocked') setShowQuit(true)
-  }, [blocker.state])
+    const onPopState = () => {
+      if (!payload || finished.current || allowExit.current) return
+      window.history.pushState({ medqcmQuiz: true }, '', window.location.href)
+      setShowQuit(true)
+    }
+    const onClick = (event: MouseEvent) => {
+      if (!payload || finished.current || allowExit.current) return
+      const anchor = (event.target as Element | null)?.closest?.('a[href]')
+      if (!anchor) return
+      const href = anchor.getAttribute('href') ?? ''
+      if (!href.startsWith('/')) return
+      const nextPath = href.split('?')[0].split('#')[0]
+      if (nextPath.startsWith('/app/resultat')) return
+      event.preventDefault()
+      event.stopPropagation()
+      setShowQuit(true)
+    }
+    window.addEventListener('popstate', onPopState)
+    document.addEventListener('click', onClick, true)
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      document.removeEventListener('click', onClick, true)
+    }
+  }, [payload])
 
   // L'app Android envoie cet événement quand le bouton retour est pressé sans
   // historique WebView : la même fenêtre de confirmation s'affiche.
@@ -270,7 +295,6 @@ export default function QuizPage() {
   }
 
   function cancelQuit() {
-    if (blocker.state === 'blocked') blocker.reset()
     setShowQuit(false)
   }
 
@@ -288,10 +312,10 @@ export default function QuizPage() {
     } finally {
       allowExit.current = true
       finished.current = true
+      guardPushed.current = false
       setShowQuit(false)
       setQuitting(false)
-      if (blocker.state === 'blocked') blocker.proceed()
-      else navigate('/app', { replace: true })
+      navigate('/app', { replace: true })
     }
   }
 
