@@ -203,20 +203,6 @@ export default function ResultPage() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <ButtonLink to={redoHref} size="lg">
-            <RotateCcw size={15} /> Refaire une série
-          </ButtonLink>
-          <ButtonLink to="/app#ues" variant="secondary" size="lg">
-            Choisir une autre UE <ArrowRight size={15} />
-          </ButtonLink>
-          <Link
-            to="/app"
-            className="ml-auto inline-flex items-center gap-1.5 text-[12px] text-mute transition hover:text-accent"
-          >
-            Retour au cycle
-          </Link>
-        </div>
       </section>
 
       <section
