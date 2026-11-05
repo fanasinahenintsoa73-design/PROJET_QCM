@@ -25,24 +25,6 @@ type BlockReason = 'limit' | 'access' | null
 const QUIT_MESSAGE =
   'Voulez-vous vraiment quitter ? Ce QCM compte une série même si vous revenez.'
 
-/** Filigrane visible mais discret : il trace une fuite sans empêcher le passage. */
-function QuizWatermark({ text }: { text: string }) {
-  const items = Array.from({ length: 24 }, (_, index) => index)
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-10 select-none overflow-hidden">
-      {items.map((index) => (
-        <span
-          key={index}
-          className="absolute left-[-10%] top-[6%] w-[120%] whitespace-nowrap text-[13px] font-semibold uppercase tracking-[0.18em] text-ink/10"
-          style={{ transform: `rotate(-24deg) translateY(${index * 72}px)` }}
-        >
-          {text}
-        </span>
-      ))}
-    </div>
-  )
-}
-
 interface ActiveQuiz {
   attemptId?: string
   subject?: Subject
@@ -134,13 +116,6 @@ export default function QuizPage() {
   const selected = current ? answers[current.id] ?? [] : []
   const answeredCount = questions.filter((question) => (answers[question.id] ?? []).length > 0).length
   const isLast = index === questions.length - 1
-  const watermarkText = user
-    ? `${user.firstName} ${user.lastName} — ${user.email} — ${new Intl.DateTimeFormat('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      }).format(new Date())} — ${payload?.attemptId?.slice(0, 8) ?? subjectId?.slice(0, 8) ?? ''}`
-    : ''
 
   // La session recharge la base toutes les 20 s. On ne dépend que de
   // l'identifiant du sujet pour ne pas relancer la série en cours.
@@ -442,7 +417,6 @@ export default function QuizPage() {
 
   return (
     <>
-      {payload && current && watermarkText ? <QuizWatermark text={watermarkText} /> : null}
       <div className="min-h-[calc(100vh-68px)] bg-canvas">
       <div className="border-b border-line bg-surface">
         <div className="mx-auto max-w-content px-5 py-4 sm:px-8 lg:px-10">
