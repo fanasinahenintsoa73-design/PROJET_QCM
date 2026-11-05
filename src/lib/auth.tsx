@@ -94,6 +94,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted.current) return
       setRemoteUser(profile)
       setRemoteDb(snapshot)
+      // Dès la connexion, migration automatique des étoiles restées en local
+      // vers le backend (tous les téléphones partagent ensuite les mêmes
+      // notes). En arrière-plan, sans bloquer l'ouverture de l'app.
+      if (profile.role !== 'professor') {
+        void api.syncPendingSeriesFeedbacks()
+      }
     } catch (error) {
       if (!mounted.current) return
       console.error('Chargement du compte impossible.', error)

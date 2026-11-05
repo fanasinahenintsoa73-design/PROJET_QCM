@@ -336,6 +336,30 @@ export const api = {
     return getLocalFeedback(attemptId) ?? null
   },
 
+  /**
+   * Envoie vers le backend tous les avis étoiles encore stockés en local sur
+   * cet appareil (par exemple enregistrés avant la migration ou pendant une
+   * panne). Ne lève jamais : un échec laisse simplement l'avis en attente
+   * pour le prochain essai. Tous les téléphones partagent ensuite les mêmes
+   * notes côté serveur.
+   */
+  async syncPendingSeriesFeedbacks(): Promise<{ synced: number; pending: number }> {
+    if (!isSupabaseConfigured) return { synced: 0, pending: 0 }
+    const pending = listLocalSeriesFeedbacks()
+    if (pending.length === 0) return { synced: 0, pending: 0 }
+    let synced = 0
+    for (const feedback of pending) {
+      try {
+        await remote.saveSeriesFeedback(feedback)
+        removeSeriesFeedback(feedback.attemptId)
+        synced += 1
+      } catch (error) {
+        console.warn('[feedback-sync]', error instanceof Error ? error.message : error)
+      }
+    }
+    return { synced, pending: pending.length - synced }
+  },
+
   async listSeriesFeedbacks(): Promise<SeriesFeedbackReview[]> {
     if (isSupabaseConfigured) {
       // En production, une erreur doit être visible côté docteur (alerte avec
