@@ -52,6 +52,14 @@ export function saveSeriesFeedback(input: {
   return feedback
 }
 
+/** Supprime l'avis local après une synchronisation réussie vers le serveur. */
+export function removeSeriesFeedback(attemptId: string) {
+  const store = readStore()
+  if (!(attemptId in store)) return
+  delete store[attemptId]
+  writeStore(store)
+}
+
 /** Tous les avis stockés localement (mode démo / repli si migration absente). */
 export function listLocalSeriesFeedbacks(): SeriesFeedback[] {
   return Object.values(readStore()).sort(

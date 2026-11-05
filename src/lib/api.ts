@@ -6,6 +6,7 @@ import * as remote from '@/lib/supabaseData'
 import {
   getSeriesFeedback as getLocalFeedback,
   listLocalSeriesFeedbacks,
+  removeSeriesFeedback,
   saveSeriesFeedback as saveLocalFeedback,
 } from '@/lib/feedback'
 import { AppError, SERIES_SIZE } from '@/lib/utils'
@@ -284,12 +285,21 @@ export const api = {
   }): Promise<SeriesFeedback> {
     if (isSupabaseConfigured) {
       try {
-        return await remote.saveSeriesFeedback(input)
+        const saved = await remote.saveSeriesFeedback(input)
+        // L'avis est bien côté serveur : l'ancienne copie locale est inutile.
+        removeSeriesFeedback(input.attemptId)
+        return saved
       } catch (error) {
-        // Migration absente ou panne réseau : on garde l'avis sur l'appareil
-        // pour ne pas perdre le retour de l'étudiant.
+        // L'envoi a échoué (migration absente, RPC refusé, réseau).
+        // On garde l'avis sur l'appareil pour ne pas le perdre, mais on
+        // signale l'échec au lieu d'afficher un faux « Merci » : sinon
+        // l'étudiant croit sa note envoyée alors que l'admin ne voit rien.
         console.warn('[feedback]', error instanceof Error ? error.message : error)
-        return saveLocalFeedback(input)
+        saveLocalFeedback(input)
+        throw new AppError(
+          'FEEDBACK_NOT_SYNCED',
+          'Votre avis est gardé sur cet appareil, mais il n’a pas encore été envoyé au serveur. Patientez puis touchez « Envoyer mon avis » de nouveau.',
+        )
       }
     }
     return saveLocalFeedback(input)
@@ -297,26 +307,41 @@ export const api = {
 
   async getSeriesFeedback(attemptId: string): Promise<SeriesFeedback | null> {
     if (isSupabaseConfigured) {
+      const localFeedback = getLocalFeedback(attemptId) ?? null
       try {
         const remoteFeedback = await remote.getMySeriesFeedback(attemptId)
-        if (remoteFeedback) return remoteFeedback
+        if (remoteFeedback) {
+          removeSeriesFeedback(attemptId)
+          return remoteFeedback
+        }
+        // Avis encore seulement local (enregistré avant la migration ou
+        // pendant une panne) : on tente de le synchroniser maintenant.
+        if (localFeedback) {
+          try {
+            const synced = await remote.saveSeriesFeedback(localFeedback)
+            removeSeriesFeedback(attemptId)
+            return synced
+          } catch {
+            // Toujours pas synchronisable : on montre l'avis local pour que
+            // l'étudiant retrouve ses étoiles, sans prétendre qu'il est envoyé.
+            return localFeedback
+          }
+        }
       } catch {
-        // Repli local ci-dessous.
+        // Panne réseau / migration absente : on montre au moins l'avis local.
+        return localFeedback
       }
+      return null
     }
     return getLocalFeedback(attemptId) ?? null
   },
 
   async listSeriesFeedbacks(): Promise<SeriesFeedbackReview[]> {
     if (isSupabaseConfigured) {
-      try {
-        return await remote.listSeriesFeedbacks()
-      } catch (error) {
-        // Migration pas encore appliquée : le docteur voit l'état vide avec
-        // l'explication, au lieu d'une page blanche.
-        console.warn('[feedback]', error instanceof Error ? error.message : error)
-        return []
-      }
+      // En production, une erreur doit être visible côté docteur (alerte avec
+      // l'explication « migration ») au lieu de masquer le problème par une
+      // page « 0 avis » trompeuse.
+      return remote.listSeriesFeedbacks()
     }
     // Mode démonstration : on recompose depuis les avis locaux + la base locale.
     const db = demo.getDB()

@@ -57,11 +57,12 @@ export default function AdminFeedbackPage() {
       ? reviews.reduce((sum, item) => sum + item.rating, 0) / total
       : 0
     const withComment = reviews.filter((item) => item.comment.trim().length > 0).length
+    const withoutComment = total - withComment
     const distribution = [5, 4, 3, 2, 1].map((rating) => ({
       rating,
       count: reviews.filter((item) => item.rating === rating).length,
     }))
-    return { total, average, withComment, distribution }
+    return { total, average, withComment, withoutComment, distribution }
   }, [reviews])
 
   const filtered = useMemo(() => {
@@ -119,6 +120,9 @@ export default function AdminFeedbackPage() {
             <p className="mt-2 font-display text-[2.2rem] leading-none text-ink">{stats.total}</p>
             <p className="mt-1.5 text-[11px] text-mute">
               {stats.withComment} avec un commentaire
+            </p>
+            <p className="mt-0.5 text-[11px] text-mute">
+              {stats.withoutComment} sans commentaire (comptés quand même)
             </p>
           </div>
           <div className="rounded-2xl border border-line bg-surface p-5">
@@ -232,8 +236,8 @@ export default function AdminFeedbackPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2.5">
                       <Stars rating={item.rating} />
-                      <span className="text-[12px] font-medium text-ink">
-                        {RATING_LABELS[item.rating - 1]}
+                      <span className="whitespace-nowrap text-[12px] font-medium text-ink">
+                        {item.rating}/5 · {RATING_LABELS[item.rating - 1]}
                       </span>
                     </div>
                   </div>

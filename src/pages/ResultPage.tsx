@@ -361,15 +361,17 @@ export default function ResultPage() {
                   className={star <= rating ? '' : 'text-stone'}
                 />
               ))}
-              <span className="ml-2 text-[12px] font-medium text-ink">
-                {RATING_LABELS[Math.max(0, rating - 1)]}
+              <span className="ml-2 whitespace-nowrap text-[12px] font-medium text-ink">
+                {rating}/5 · {RATING_LABELS[Math.max(0, rating - 1)]}
               </span>
             </div>
             {comment ? (
               <p className="mt-3 max-w-2xl rounded-lg bg-white/70 px-4 py-3 text-[13px] leading-relaxed text-ash">
                 « {comment} »
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-3 text-[12px] italic text-mute">Note seule, sans commentaire.</p>
+            )}
           </div>
         ) : feedbackSkipped ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-y border-line py-5">
