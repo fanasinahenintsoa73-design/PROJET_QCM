@@ -261,7 +261,18 @@ export default function DashboardPage() {
                   <span>10 questions par série</span>
                 </div>
                 <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[11px]">
-                  <span className={cn('font-medium', available && !blocked ? 'text-accent' : 'text-mute')}>
+                  <span
+                    className={cn(
+                      'font-medium',
+                      blocked
+                        ? 'text-mute'
+                        : available && attemptedThemeIds.has(theme.id)
+                          ? 'font-semibold text-sale'
+                          : available
+                            ? 'text-accent'
+                            : 'text-mute',
+                    )}
+                  >
                     {blocked
                       ? 'Renouvelez pour continuer'
                       : available
