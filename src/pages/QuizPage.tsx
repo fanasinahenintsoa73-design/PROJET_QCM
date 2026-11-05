@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import { getSeriesUsage } from '@/lib/db'
@@ -100,6 +100,9 @@ export default function QuizPage() {
   const [submitError, setSubmitError] = useState('')
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
+  const [questionExpanded, setQuestionExpanded] = useState(false)
+  const [questionTruncated, setQuestionTruncated] = useState(false)
+  const questionTextRef = useRef<HTMLHeadingElement>(null)
   const [saving, setSaving] = useState(false)
   const [showQuit, setShowQuit] = useState(false)
   const [quitting, setQuitting] = useState(false)
@@ -175,6 +178,24 @@ export default function QuizPage() {
   const selected = current ? answers[current.id] ?? [] : []
   const answeredCount = questions.filter((question) => (answers[question.id] ?? []).length > 0).length
   const isLast = index === questions.length - 1
+
+  // Sur Android, les longues questions restent limitées à 3 lignes ; l'étudiant
+  // peut déplier pour lire la suite. On réinitialise à chaque nouvelle question.
+  useEffect(() => {
+    setQuestionExpanded(false)
+    setQuestionTruncated(false)
+  }, [current?.id])
+
+  useEffect(() => {
+    const measure = () => {
+      const element = questionTextRef.current
+      if (!element) return
+      setQuestionTruncated(element.scrollHeight > element.clientHeight + 4)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [current?.statement, questionExpanded])
 
   // La session recharge la base toutes les 20 s. On ne dépend que de
   // l'identifiant du sujet pour ne pas relancer la série en cours.
@@ -527,11 +548,33 @@ export default function QuizPage() {
           </span>
         </div>
 
-        <h1 className="mt-5 max-w-3xl font-display text-[clamp(1.7rem,3.2vw,2.35rem)] leading-[1.25] tracking-[-0.02em] text-ink">
-          {current.statement}
-        </h1>
+        <section className="mt-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+          <h1
+            ref={questionTextRef}
+            className={cn(
+              'text-[15px] font-medium leading-[1.55] text-ink sm:text-[16px]',
+              !questionExpanded && 'line-clamp-3',
+            )}
+          >
+            {current.statement}
+          </h1>
+          {questionTruncated ? (
+            <button
+              type="button"
+              onClick={() => setQuestionExpanded((value) => !value)}
+              aria-expanded={questionExpanded}
+              className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-accent transition hover:text-accent-deep"
+            >
+              {questionExpanded ? 'Voir moins' : 'Voir plus'}
+              <ChevronDown
+                size={13}
+                className={cn('transition-transform', questionExpanded && 'rotate-180')}
+              />
+            </button>
+          ) : null}
+        </section>
 
-        <div className="mt-7 space-y-2.5" role="group" aria-label="Réponses possibles">
+        <div className="mt-4 space-y-2" role="group" aria-label="Réponses possibles">
           {answerLetters.filter((letter) => current.options[letter]?.trim()).map((letter) => {
             const active = selected.includes(letter)
             return (
@@ -542,7 +585,7 @@ export default function QuizPage() {
                 aria-checked={active}
                 onClick={() => toggleAnswer(letter)}
                 className={cn(
-                  'flex w-full items-start gap-3.5 rounded-xl border px-3.5 py-3.5 text-left transition',
+                  'flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition',
                   active
                     ? 'border-accent bg-accent-soft'
                     : 'border-line bg-surface hover:border-accent/50 hover:bg-canvas',
