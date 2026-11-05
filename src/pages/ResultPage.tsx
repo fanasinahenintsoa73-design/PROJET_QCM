@@ -7,7 +7,7 @@ import type { AttemptReview } from '@/lib/supabaseData'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { resultEncouragement } from '@/lib/engagement'
-import { getSeriesFeedback, MAX_COMMENT_LENGTH, saveSeriesFeedback } from '@/lib/feedback'
+import { MAX_COMMENT_LENGTH } from '@/lib/feedback'
 import { answerLetters, cn, formatDateTime, scoreTone } from '@/lib/utils'
 import { chapterTitle, findPaceTheme, findThemeForChapter } from '@/lib/themes'
 
@@ -26,6 +26,8 @@ export default function ResultPage() {
   const [comment, setComment] = useState('')
   const [feedbackSent, setFeedbackSent] = useState(false)
   const [feedbackSkipped, setFeedbackSkipped] = useState(false)
+  const [feedbackSaving, setFeedbackSaving] = useState(false)
+  const [feedbackError, setFeedbackError] = useState('')
 
   useEffect(() => {
     if (!attemptId) {
@@ -55,17 +57,32 @@ export default function ResultPage() {
 
   useEffect(() => {
     if (!attemptId) return
-    const existing = getSeriesFeedback(attemptId)
-    if (!existing) {
-      setRating(0)
-      setComment('')
-      setFeedbackSent(false)
-      setFeedbackSkipped(false)
-      return
+    let active = true
+    api
+      .getSeriesFeedback(attemptId)
+      .then((existing) => {
+        if (!active) return
+        if (!existing) {
+          setRating(0)
+          setComment('')
+          setFeedbackSent(false)
+          setFeedbackSkipped(false)
+          return
+        }
+        setRating(existing.rating)
+        setComment(existing.comment)
+        setFeedbackSent(true)
+      })
+      .catch(() => {
+        if (active) {
+          setRating(0)
+          setComment('')
+          setFeedbackSent(false)
+        }
+      })
+    return () => {
+      active = false
     }
-    setRating(existing.rating)
-    setComment(existing.comment)
-    setFeedbackSent(true)
   }, [attemptId])
 
   const attempt = review?.attempt
@@ -136,16 +153,26 @@ export default function ResultPage() {
     : `/app/entrainement?theme=${encodeURIComponent(attempt.subjectId)}`
   const shownRating = hoverRating || rating
 
-  function submitFeedback(event: FormEvent<HTMLFormElement>) {
+  async function submitFeedback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!attemptId || rating < 1) return
-    saveSeriesFeedback({
-      attemptId,
-      userId: user?.id ?? attempt?.userId ?? 'unknown',
-      rating,
-      comment,
-    })
-    setFeedbackSent(true)
+    if (!attemptId || rating < 1 || feedbackSaving) return
+    setFeedbackSaving(true)
+    setFeedbackError('')
+    try {
+      await api.saveSeriesFeedback({
+        attemptId,
+        userId: user?.id ?? attempt?.userId ?? 'unknown',
+        rating,
+        comment,
+      })
+      setFeedbackSent(true)
+    } catch (error) {
+      setFeedbackError(
+        error instanceof Error ? error.message : 'Votre avis n’a pas pu être envoyé.',
+      )
+    } finally {
+      setFeedbackSaving(false)
+    }
   }
 
   return (
@@ -411,14 +438,20 @@ export default function ResultPage() {
               placeholder="Un mot sur les questions, le corrigé, ce qui vous a aidé… (facultatif)"
               className="form-textarea mt-5"
             />
+            {feedbackError ? (
+              <p role="alert" className="mt-3 text-[12px] font-medium text-sale">
+                {feedbackError}
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={rating < 1}>
+              <Button type="submit" disabled={rating < 1 || feedbackSaving} loading={feedbackSaving}>
                 Envoyer mon avis
               </Button>
               <button
                 type="button"
                 onClick={() => setFeedbackSkipped(true)}
-                className="text-[12px] text-mute transition hover:text-accent"
+                disabled={feedbackSaving}
+                className="text-[12px] text-mute transition hover:text-accent disabled:opacity-45"
               >
                 Passer
               </button>

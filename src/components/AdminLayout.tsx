@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BookOpen, LayoutDashboard, LogOut, Users } from 'lucide-react'
+import { BookOpen, LayoutDashboard, LogOut, Star, Users } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 import { fullName, initials } from '@/lib/utils'
@@ -8,6 +8,7 @@ const navItems = [
   { to: '/admin', label: 'Page d’accueil', icon: LayoutDashboard, end: true },
   { to: '/admin/themes', label: 'Sujets', icon: BookOpen },
   { to: '/admin/etudiants', label: 'Étudiants', icon: Users },
+  { to: '/admin/avis', label: 'Avis', icon: Star },
 ]
 
 export function AdminLayout() {
@@ -69,7 +70,7 @@ export function AdminLayout() {
 
         <div className="border-t border-line md:hidden">
           <nav
-            className="mx-auto grid max-w-content grid-cols-3 items-stretch px-2 sm:px-8"
+            className="mx-auto grid max-w-content grid-cols-4 items-stretch px-2 sm:px-8"
             aria-label="Navigation docteur mobile"
           >
             {navItems.map((item) => {

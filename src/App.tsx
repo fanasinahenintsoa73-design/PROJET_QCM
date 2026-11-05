@@ -29,6 +29,7 @@ import QuizPage from '@/pages/QuizPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminStudentsPage from '@/pages/admin/AdminStudentsPage'
+import AdminFeedbackPage from '@/pages/admin/AdminFeedbackPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 // xlsx is heavy: only load the publication module when a professor needs it.
@@ -143,6 +144,7 @@ function DoctorRoutes() {
           />
           <Route path="/admin/sujet" element={<Navigate to="/admin/themes" replace />} />
           <Route path="/admin/etudiants" element={<AdminStudentsPage />} />
+          <Route path="/admin/avis" element={<AdminFeedbackPage />} />
         </Route>
       </Route>
       <Route path="*" element={<NotFoundPage />} />

@@ -1,8 +1,13 @@
-import type { Receipt, Subject, User } from '@/types'
+import type { Receipt, SeriesFeedback, SeriesFeedbackReview, Subject, User } from '@/types'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
 import * as remote from '@/lib/supabaseData'
+import {
+  getSeriesFeedback as getLocalFeedback,
+  listLocalSeriesFeedbacks,
+  saveSeriesFeedback as saveLocalFeedback,
+} from '@/lib/feedback'
 import { AppError, SERIES_SIZE } from '@/lib/utils'
 import type {
   SaveChapterSubjectInput,
@@ -269,6 +274,70 @@ export const api = {
       throw new AppError('FORBIDDEN', 'Votre session a expiré. Reconnectez-vous.')
     }
     return demo.getAttemptForReview(attemptId, viewerId)
+  },
+
+  async saveSeriesFeedback(input: {
+    attemptId: string
+    userId: string
+    rating: number
+    comment: string
+  }): Promise<SeriesFeedback> {
+    if (isSupabaseConfigured) {
+      try {
+        return await remote.saveSeriesFeedback(input)
+      } catch (error) {
+        // Migration absente ou panne réseau : on garde l'avis sur l'appareil
+        // pour ne pas perdre le retour de l'étudiant.
+        console.warn('[feedback]', error instanceof Error ? error.message : error)
+        return saveLocalFeedback(input)
+      }
+    }
+    return saveLocalFeedback(input)
+  },
+
+  async getSeriesFeedback(attemptId: string): Promise<SeriesFeedback | null> {
+    if (isSupabaseConfigured) {
+      try {
+        const remoteFeedback = await remote.getMySeriesFeedback(attemptId)
+        if (remoteFeedback) return remoteFeedback
+      } catch {
+        // Repli local ci-dessous.
+      }
+    }
+    return getLocalFeedback(attemptId) ?? null
+  },
+
+  async listSeriesFeedbacks(): Promise<SeriesFeedbackReview[]> {
+    if (isSupabaseConfigured) {
+      try {
+        return await remote.listSeriesFeedbacks()
+      } catch (error) {
+        // Migration pas encore appliquée : le docteur voit l'état vide avec
+        // l'explication, au lieu d'une page blanche.
+        console.warn('[feedback]', error instanceof Error ? error.message : error)
+        return []
+      }
+    }
+    // Mode démonstration : on recompose depuis les avis locaux + la base locale.
+    const db = demo.getDB()
+    const usersById = new Map(db.users.map((account) => [account.id, account]))
+    const attemptsById = new Map(db.attempts.map((attempt) => [attempt.id, attempt]))
+    return listLocalSeriesFeedbacks()
+      .map((feedback) => {
+        const attempt = attemptsById.get(feedback.attemptId)
+        const student = usersById.get(feedback.userId)
+        return {
+          ...feedback,
+          userName: student ? `${student.firstName} ${student.lastName}` : 'Étudiant',
+          userEmail: student?.email ?? '',
+          ueId: attempt?.ueId,
+          chapterIds: attempt?.chapterIds,
+          score: attempt?.score ?? 0,
+          total: attempt?.total ?? 0,
+          attemptCreatedAt: attempt?.createdAt ?? feedback.createdAt,
+        } satisfies SeriesFeedbackReview
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   },
 
   async resolveReceiptUrl(path?: string): Promise<string> {

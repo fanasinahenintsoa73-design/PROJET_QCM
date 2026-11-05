@@ -1,10 +1,6 @@
-export interface SeriesFeedback {
-  attemptId: string
-  userId: string
-  rating: number
-  comment: string
-  createdAt: string
-}
+import type { SeriesFeedback } from '@/types'
+
+export type { SeriesFeedback }
 
 const STORAGE_KEY = 'medqcm.series-feedback.v1'
 const MAX_COMMENT_LENGTH = 500
@@ -54,6 +50,13 @@ export function saveSeriesFeedback(input: {
   store[input.attemptId] = feedback
   writeStore(store)
   return feedback
+}
+
+/** Tous les avis stockés localement (mode démo / repli si migration absente). */
+export function listLocalSeriesFeedbacks(): SeriesFeedback[] {
+  return Object.values(readStore()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )
 }
 
 export { MAX_COMMENT_LENGTH }

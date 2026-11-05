@@ -111,6 +111,25 @@ précédents restent en base pour l’audit et la consultation par le docteur : 
 policy `attempts_select_own_current_cycle_or_professor` et
 `get_attempt_review` les refusent à l’étudiant (`ATTEMPT_OUT_OF_CYCLE`).
 
+### Avis des étudiants
+
+Après le corrigé d’une série terminée, l’étudiant peut noter la série sur
+5 étoiles et laisser un commentaire facultatif (500 caractères maximum).
+L’avis est sauvegardé par `save_series_feedback` : il n’est possible que
+pour la série terminée de l’étudiant connecté, et un nouvel envoi met à
+jour le même avis. `get_my_series_feedback` relit l’avis de la session,
+`list_series_feedbacks` renvoie tous les avis (docteur uniquement) pour
+la page `/admin/avis`.
+
+Migration à exécuter en production :
+
+```text
+supabase/migrations/20261106_series_feedback.sql
+```
+
+Sans cette migration, l’avis reste stocké localement sur l’appareil de
+l’étudiant et ne remonte pas côté docteur.
+
 ### RPC étudiant
 
 ```sql

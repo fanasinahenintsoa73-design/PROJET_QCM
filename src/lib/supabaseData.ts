@@ -7,6 +7,8 @@ import type {
   RequestStatus,
   RequestType,
   Role,
+  SeriesFeedback,
+  SeriesFeedbackReview,
   Subject,
   SubjectAssignment,
   User,
@@ -239,6 +241,8 @@ const errorMessages: Record<string, string> = {
   SERIES_NOT_COMPLETE:
     'Vos 30 séries ne sont pas encore terminées. Le renouvellement sera disponible à la fin du cycle.',
   REQUEST_PENDING: 'Votre demande est en attente de validation.',
+  INVALID_RATING: 'La note doit être entre 1 et 5 étoiles.',
+  FEEDBACK_FORBIDDEN: 'Cette action est réservée au docteur.',
   INVALID_FULL_NAME: 'Indiquez votre nom et prénom.',
   INVALID_EMAIL: 'Saisissez une adresse email valide.',
 }
@@ -1031,6 +1035,95 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
     },
     questions,
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Avis des étudiants sur les séries                                   */
+/* ------------------------------------------------------------------ */
+
+function mapFeedback(payload: {
+  attemptId: string
+  userId: string
+  rating: number
+  comment?: string | null
+  createdAt: string
+  updatedAt?: string | null
+}): SeriesFeedback {
+  return {
+    attemptId: payload.attemptId,
+    userId: payload.userId,
+    rating: payload.rating,
+    comment: payload.comment ?? '',
+    createdAt: payload.createdAt,
+    updatedAt: payload.updatedAt ?? undefined,
+  }
+}
+
+/**
+ * Enregistre (ou met à jour) l'avis d'une série terminée.
+ * Lève si la migration `series_feedback` n'est pas encore appliquée :
+ * l'appelant garde alors le repli local.
+ */
+export async function saveSeriesFeedback(input: {
+  attemptId: string
+  rating: number
+  comment: string
+}): Promise<SeriesFeedback> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('save_series_feedback', {
+    p_attempt_id: input.attemptId,
+    p_rating: Math.min(5, Math.max(1, Math.round(input.rating))),
+    p_comment: input.comment.trim().slice(0, 500),
+  })
+  if (error) throw asFrenchError(error)
+  return mapFeedback(data as Parameters<typeof mapFeedback>[0])
+}
+
+export async function getMySeriesFeedback(attemptId: string): Promise<SeriesFeedback | null> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('get_my_series_feedback', {
+    p_attempt_id: attemptId,
+  })
+  if (error) throw asFrenchError(error)
+  if (!data) return null
+  return mapFeedback(data as Parameters<typeof mapFeedback>[0])
+}
+
+/** Tous les avis, réservé au docteur. */
+export async function listSeriesFeedbacks(): Promise<SeriesFeedbackReview[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('list_series_feedbacks')
+  if (error) throw asFrenchError(error)
+  const rows = (data ?? []) as Array<{
+    attemptId: string
+    userId: string
+    userName?: string | null
+    userEmail?: string | null
+    rating: number
+    comment?: string | null
+    createdAt: string
+    updatedAt?: string | null
+    ueId?: string | null
+    chapterIds?: string[] | null
+    score: number
+    total: number
+    attemptCreatedAt: string
+  }>
+  return rows.map((row) => ({
+    attemptId: row.attemptId,
+    userId: row.userId,
+    rating: row.rating,
+    comment: row.comment ?? '',
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt ?? undefined,
+    userName: row.userName ?? 'Étudiant',
+    userEmail: row.userEmail ?? '',
+    ueId: row.ueId ?? undefined,
+    chapterIds: row.chapterIds ?? undefined,
+    score: row.score,
+    total: row.total,
+    attemptCreatedAt: row.attemptCreatedAt,
+  }))
 }
 
 /* ------------------------------------------------------------------ */

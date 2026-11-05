@@ -41,3 +41,11 @@ supabase/migrations/20261106_active_sessions.sql
 ```
 
 Sans cette migration, l'application fonctionne mais la session unique n'est pas appliquée côté serveur.
+
+Pour que le docteur voie les étoiles/commentaires des étudiants, exécuter aussi :
+
+```text
+supabase/migrations/20261106_series_feedback.sql
+```
+
+Sans cette migration, les avis restent sur le téléphone de l'étudiant.

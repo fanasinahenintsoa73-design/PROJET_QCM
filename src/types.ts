@@ -115,6 +115,26 @@ export interface Attempt {
   questionSnapshot?: Question[]
 }
 
+export interface SeriesFeedback {
+  attemptId: string
+  userId: string
+  rating: number
+  comment: string
+  createdAt: string
+  updatedAt?: string
+}
+
+/** Avis lu par le docteur : identité de l'étudiant + contexte de la série. */
+export interface SeriesFeedbackReview extends SeriesFeedback {
+  userName: string
+  userEmail: string
+  ueId?: string
+  chapterIds?: string[]
+  score: number
+  total: number
+  attemptCreatedAt: string
+}
+
 export interface Database {
   version: number
   users: User[]
