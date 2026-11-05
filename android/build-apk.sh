@@ -53,7 +53,7 @@ java -jar "$BUILD_TOOLS/lib/apksigner.jar" sign \
   --ks "$KEYSTORE" \
   --ks-pass pass:android \
   --key-pass pass:android \
-  --out "$OUTPUT_DIR/medqcm-debug.apk" \
+  --out "$OUTPUT_DIR/medqcm.apk" \
   "$BUILD_DIR/app-aligned.apk"
 
-echo "APK prêt : $OUTPUT_DIR/medqcm-debug.apk"
+echo "APK prêt : $OUTPUT_DIR/medqcm.apk"
