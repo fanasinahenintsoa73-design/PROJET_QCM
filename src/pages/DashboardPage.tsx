@@ -418,22 +418,16 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {themes.map(({ theme, chapters, usable, available }) => {
+          {themes.map(({ theme, chapters, available }) => {
             const blocked = reached
             const href = `/app/ue/${encodeURIComponent(theme.id)}`
             const content = (
               <>
-                <div className="flex items-start justify-end gap-3">
-                  {available ? (
-                    <span className="rounded-full bg-accent-soft px-2.5 py-1 text-[10px] font-medium text-accent">
-                      {usable} questions
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-cloud px-2.5 py-1 text-[10px] font-medium text-mute">
-                      {chapters.length === 0 ? 'Chapitres à venir' : 'Bientôt disponible'}
-                    </span>
-                  )}
-                </div>
+                {available ? null : (
+                  <span className="inline-block rounded-full bg-cloud px-2.5 py-1 text-[10px] font-medium text-mute">
+                    {chapters.length === 0 ? 'Chapitres à venir' : 'Bientôt disponible'}
+                  </span>
+                )}
                 <h3 className="mt-4 min-h-[3.2rem]">
                   <span className="inline-block rounded-md bg-accent-soft px-2 py-1 text-[12px] font-semibold uppercase leading-snug tracking-[0.04em] text-accent">
                     {theme.title}

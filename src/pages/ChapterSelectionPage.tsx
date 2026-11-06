@@ -174,8 +174,6 @@ export default function ChapterSelectionPage() {
                         </span>
                         <span className="mt-0.5 block text-[11px] text-mute">
                           {chapter.subjects.length} sujet{chapter.subjects.length > 1 ? 's' : ''}
-                          {' · '}
-                          {chapter.questionCount} question{chapter.questionCount > 1 ? 's' : ''}
                         </span>
                       </span>
                       {chapter.questionCount < SERIES_SIZE ? (
@@ -198,8 +196,9 @@ export default function ChapterSelectionPage() {
                 </span>
               </p>
               <p className="mt-2 text-[12px] text-mute">
-                {totalQuestions} question{totalQuestions > 1 ? 's' : ''} disponible
-                {totalQuestions > 1 ? 's' : ''} dans la sélection
+                {canLaunch
+                  ? 'Votre sélection est prête pour lancer une série.'
+                  : 'Sélectionnez davantage de chapitres pour lancer une série.'}
               </p>
 
               <div className="mt-5 rounded-xl bg-cloud px-3 py-2.5 text-[11px] leading-relaxed text-mute">
