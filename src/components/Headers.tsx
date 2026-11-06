@@ -1,22 +1,12 @@
-import { ArrowRight, LogOut } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { Logo } from '@/components/Logo'
-import { ButtonLink } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
 
 export function PublicHeader() {
-  const { user, homePath } = useAuth()
-  const studentUser = user?.role === 'student' ? user : null
-
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-surface/95 backdrop-blur">
       <div className="mx-auto flex h-[68px] max-w-content items-center justify-between px-5 lg:px-10">
         <Logo />
-
-        {studentUser && (
-          <ButtonLink to={homePath} size="sm">
-            Mon espace <ArrowRight size={14} />
-          </ButtonLink>
-        )}
       </div>
     </header>
   )

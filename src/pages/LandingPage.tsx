@@ -1,4 +1,4 @@
-import { ArrowRight, Maximize2, X } from 'lucide-react'
+import { ArrowRight, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ButtonLink } from '@/components/ui/Button'
@@ -33,10 +33,8 @@ export function LandingPage() {
   return (
     <section className="border-b border-line bg-surface">
       <div className="mx-auto max-w-[42rem] px-5 py-12 sm:px-8 lg:py-16">
-        <p className="eyebrow">Le mot du docteur</p>
-
         {/* Photo ronde à gauche, nom à droite */}
-        <div className="mt-6 flex items-center gap-4 sm:gap-5">
+        <div className="flex items-center gap-4 sm:gap-5">
           <button
             type="button"
             onClick={() => setPhotoOpen(true)}
@@ -55,18 +53,11 @@ export function LandingPage() {
                 className="h-20 w-20 object-cover object-top sm:h-24 sm:w-24"
               />
             )}
-            <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-ink/55 py-1 text-[10px] font-medium text-white">
-              <Maximize2 size={11} />
-              Agrandir
-            </span>
           </button>
           <div>
             <h1 className="font-display text-[clamp(1.6rem,5vw,2.4rem)] leading-[1.05] tracking-[-0.02em] text-ink">
               Docteur RAZAFIMANDIMBY J.
             </h1>
-            <p className="mt-1.5 text-[13px] text-mute">
-              Touchez la photo pour la voir en entier.
-            </p>
           </div>
         </div>
 
