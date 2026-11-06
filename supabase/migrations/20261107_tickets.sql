@@ -91,14 +91,22 @@ begin
     v_user_id := gen_random_uuid();
     v_email := lower(v_code) || '@ticket.medqcm';
 
+    -- Les valeurs ci-dessous doivent correspondre exactement à ce que
+    -- supabase-auth écrit pour un compte créé par son API, sinon la
+    -- connexion du ticket échoue.
     insert into auth.users (
-      id, aud, role, email, encrypted_password,
-      email_confirmed_at, raw_user_meta_data, created_at, updated_at
+      instance_id, id, aud, role, email, encrypted_password,
+      email_confirmed_at, raw_user_meta_data, raw_app_meta_data,
+      confirmation_token, recovery_token, email_change_token_new, email_change,
+      created_at, updated_at
     ) values (
+      '00000000-0000-0000-0000-000000000000',
       v_user_id, 'authenticated', 'authenticated', v_email,
       extensions.crypt(v_secret, extensions.gen_salt('bf')),
       now(),
       jsonb_build_object('first_name', 'PACES', 'last_name', lpad(v_num::text, 4, '0')),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      '', '', '', '',
       now(), now()
     );
     -- Le trigger handle_new_user crée le profil depuis le metadata ci-dessus.
