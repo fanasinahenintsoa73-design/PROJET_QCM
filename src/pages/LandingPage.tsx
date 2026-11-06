@@ -1,81 +1,160 @@
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Maximize2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { useAuth } from '@/lib/auth'
-import { getPublishedSubjects } from '@/lib/db'
-import { PACE_THEMES } from '@/lib/themes'
-import { formatDateLong, SERIES_LIMIT, SERIES_SIZE } from '@/lib/utils'
+
+const DOCTOR_PHOTO = '/docteur.jpg'
 
 export function LandingPage() {
-  usePageTitle('MEDQCM mada — Les neuf thèmes PACES')
-  const { db, user, homePath } = useAuth()
-  const subjects = getPublishedSubjects(db)
-  const open = subjects.length > 0
+  usePageTitle('MEDQCM mada — Chers PACES')
+  const { user, homePath } = useAuth()
   const studentUser = user?.role === 'student' ? user : null
   const startHref = studentUser ? homePath : '/inscription'
-  const lastPublished = subjects.reduce(
-    (latest, subject) => (subject.publishedAt > latest ? subject.publishedAt : latest),
-    '',
-  )
+  const [photoOpen, setPhotoOpen] = useState(false)
+  const [photoError, setPhotoError] = useState(false)
+
+  // Fermeture de la photo en plein écran avec la touche Échap, et blocage
+  // du défilement de la page derrière.
+  useEffect(() => {
+    if (!photoOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPhotoOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [photoOpen])
 
   return (
     <section className="border-b border-line bg-surface">
-      <div className="mx-auto grid max-w-content gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-16 lg:px-10 lg:py-20">
-        <div>
-          <div className="flex items-center gap-2 text-[12px] font-medium text-mute">
-            <span className={`h-2 w-2 rounded-full ${open ? 'bg-success-bright' : 'bg-stone'}`} />
-            PACES (Première Année Commune des Études de Santé)
-          </div>
-          <h1 className="mt-6 max-w-2xl font-display text-[clamp(2.8rem,6vw,5rem)] leading-[0.98] tracking-[-0.03em] text-ink">
-            Neuf thèmes PACES.
-            <br />
-            Trente séries pour progresser.
-          </h1>
-          <p className="mt-6 max-w-[32rem] text-[16px] leading-[1.65] text-mute">
-            Des séries de dix questions, à votre rythme. Trente séries par cycle, avec la
-            correction détaillée après chaque envoi.
-          </p>
-          <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
-            <ButtonLink to={startHref} size="lg" className="w-full sm:w-auto">
-              {studentUser ? 'Ouvrir mon espace' : 'Créer compte'} <ArrowRight size={16} />
-            </ButtonLink>
-            <Link
-              to="/connexion"
-              className="inline-flex h-11 items-center text-[14px] font-medium text-ink underline decoration-line underline-offset-4 transition hover:text-accent hover:decoration-accent"
-            >
-              J’ai déjà un compte
-            </Link>
+      <div className="mx-auto max-w-[42rem] px-5 py-12 sm:px-8 lg:py-16">
+        <p className="eyebrow">Le mot du docteur</p>
+
+        {/* Photo ronde à gauche, nom à droite */}
+        <div className="mt-6 flex items-center gap-4 sm:gap-5">
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(true)}
+            aria-label="Voir la photo du docteur en entier"
+            className="relative shrink-0 overflow-hidden rounded-full border border-line bg-accent-soft shadow-soft transition hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          >
+            {photoError ? (
+              <span className="flex h-20 w-20 items-center justify-center font-display text-[22px] text-accent-deep sm:h-24 sm:w-24 sm:text-[26px]">
+                Dr
+              </span>
+            ) : (
+              <img
+                src={DOCTOR_PHOTO}
+                alt="Docteur RAZAFIMANDIMBY J."
+                onError={() => setPhotoError(true)}
+                className="h-20 w-20 object-cover object-top sm:h-24 sm:w-24"
+              />
+            )}
+            <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-ink/55 py-1 text-[10px] font-medium text-white">
+              <Maximize2 size={11} />
+              Agrandir
+            </span>
+          </button>
+          <div>
+            <h1 className="font-display text-[clamp(1.6rem,5vw,2.4rem)] leading-[1.05] tracking-[-0.02em] text-ink">
+              Docteur RAZAFIMANDIMBY J.
+            </h1>
+            <p className="mt-1.5 text-[13px] text-mute">
+              Touchez la photo pour la voir en entier.
+            </p>
           </div>
         </div>
 
-        <aside id="cycle" className="scroll-mt-24 border-t border-line pt-8 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
-          <p className="eyebrow">Le cycle</p>
-          <p className="mt-4 font-display text-[clamp(1.5rem,2.5vw,2rem)] leading-[1.15] tracking-[-0.02em] text-ink">
-            {PACE_THEMES.length} thèmes. {SERIES_LIMIT} séries.
+        {/* Long message, même police et même style que
+            « Des séries de dix questions… » */}
+        <div className="mt-8 space-y-5">
+          <p className="text-[16px] leading-[1.65] text-mute">Chers PACES,</p>
+
+          <p className="text-[16px] leading-[1.65] text-mute">
+            Cette application est conçue pour vous accompagner dans vos révisions et vous aider
+            à réussir le concours de passage en L2. Nous espérons qu’elle vous sera d’une grande
+            aide tout au long de votre préparation.
           </p>
-          <p className="mt-2 text-[12px] text-mute">
-            {lastPublished
-              ? `Catalogue publié le ${formatDateLong(lastPublished)}`
-              : 'Le catalogue sera publié dès que le docteur l’aura validé.'}
+
+          <p className="text-[16px] leading-[1.65] text-mute">
+            Ne cherchez pas seulement à retenir les bonnes réponses, cherchez avant tout à
+            comprendre le pourquoi de chaque affirmation, qu’elle soit juste ou fausse !
           </p>
-          <ol className="mt-8 border-t border-line">
-            {[
-              ['Déposez votre dossier', 'Identité, reçu de paiement, puis validation par le docteur.'],
-              ['Choisissez vos thèmes', 'Les neuf thèmes PACES sont ouverts dès l’activation du cycle.'],
-              [
-                'Travaillez et corrigez',
-                `${SERIES_LIMIT} séries de ${SERIES_SIZE} questions, correction après envoi.`,
-              ],
-            ].map(([title, text]) => (
-              <li key={title} className="border-b border-line py-4">
-                <p className="text-[13px] font-medium text-ink">{title}</p>
-                <p className="mt-1 text-[12px] leading-relaxed text-mute">{text}</p>
-              </li>
-            ))}
-          </ol>
-        </aside>
+
+          <p className="text-[16px] leading-[1.65] text-mute">
+            « La clé de la réussite en PACES : avoir suivi tous les cours en classe, comprendre
+            les cours, les mémoriser, s’entraîner avec des QCM, puis réviser tous les jours. »
+          </p>
+
+          <p className="text-[16px] leading-[1.65] text-mute">
+            Gardez confiance en vous, soyez persévérants et ne baissez jamais les bras. Chaque
+            effort compte et chaque jour de révision vous rapproche de votre objectif !
+          </p>
+
+          <p className="text-[16px] leading-[1.65] text-mute">
+            Des séries de dix questions, à votre rythme. Trente séries par cycle, avec la
+            correction détaillée après chaque envoi.
+          </p>
+
+          <p className="text-[16px] leading-[1.65] text-mute">
+            Je vous souhaite beaucoup de courage et surtout une excellente réussite !
+          </p>
+        </div>
+
+        <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
+          <ButtonLink to={startHref} size="lg" className="w-full sm:w-auto">
+            {studentUser ? 'Ouvrir mon espace' : 'Créer compte'} <ArrowRight size={16} />
+          </ButtonLink>
+          <Link
+            to="/connexion"
+            className="inline-flex h-11 items-center text-[14px] font-medium text-ink underline decoration-line underline-offset-4 transition hover:text-accent hover:decoration-accent"
+          >
+            J’ai déjà un compte
+          </Link>
+        </div>
       </div>
+
+      {/* Photo en entier, en plein écran */}
+      {photoOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo du docteur en entier"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/90 p-4"
+          onClick={() => setPhotoOpen(false)}
+        >
+          <button
+            type="button"
+            aria-label="Fermer la photo"
+            onClick={() => setPhotoOpen(false)}
+            className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+          >
+            <X size={22} />
+          </button>
+          {photoError ? (
+            <p className="max-w-sm text-center text-[15px] leading-relaxed text-white">
+              La photo du docteur n’est pas encore ajoutée.
+              <span className="mt-2 block text-[13px] text-white/70">
+                Placez le fichier original sous le nom <code>docteur.jpg</code> dans le dossier{' '}
+                <code>public/</code>.
+              </span>
+            </p>
+          ) : (
+            <img
+              src={DOCTOR_PHOTO}
+              alt="Docteur RAZAFIMANDIMBY J."
+              onError={() => setPhotoError(true)}
+              onClick={(event) => event.stopPropagation()}
+              className="max-h-[90vh] w-auto max-w-full rounded-lg object-contain shadow-soft"
+            />
+          )}
+        </div>
+      ) : null}
     </section>
   )
 }
