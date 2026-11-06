@@ -5,11 +5,13 @@ import {
   ArrowUpRight,
   Check,
   GraduationCap,
+  Phone,
   Star,
   Sun,
   Trophy,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { doctorContactLine } from '@/lib/contact'
 import {
   getCurrentCycleAttempts,
   getSeriesUsage,
@@ -31,7 +33,7 @@ import {
   findChapterSelectionSubjects,
   findLegacyThemeSubjects,
 } from '@/lib/subjects'
-import { buttonClasses, ButtonLink } from '@/components/ui/Button'
+import { buttonClasses } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { usePageTitle } from '@/components/Layouts'
 import {
@@ -278,7 +280,7 @@ export default function DashboardPage() {
               {reached ? (
                 <>
                   <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">
-                    Renouvellement
+                    Ticket terminé
                   </p>
                   <p className="mt-3 font-display text-[2.7rem] leading-none tracking-[-0.02em]">
                     {SERIES_LIMIT}
@@ -287,14 +289,10 @@ export default function DashboardPage() {
                   <p className="mt-3 text-[13px] leading-relaxed text-white/80">
                     {SERIES_LIMIT_MESSAGE}
                   </p>
-                  <ButtonLink
-                    to="/reinscription"
-                    variant="white"
-                    size="lg"
-                    className="mt-6 w-full justify-center"
-                  >
-                    Renouveler mon accès <ArrowRight size={16} />
-                  </ButtonLink>
+                  <p className="mt-4 flex items-start gap-2 rounded-xl bg-white/10 px-3.5 py-3 text-[12px] leading-relaxed text-white/90">
+                    <Phone size={14} className="mt-0.5 shrink-0" />
+                    <span>{doctorContactLine()}</span>
+                  </p>
                 </>
               ) : (
                 <>
@@ -457,7 +455,7 @@ export default function DashboardPage() {
                     )}
                   >
                     {blocked
-                      ? 'Renouvelez pour continuer'
+                      ? 'Ticket terminé, contactez le docteur'
                       : available
                         ? attemptedThemeIds.has(theme.id)
                           ? 'Refaire une série'
@@ -496,7 +494,7 @@ export default function DashboardPage() {
         <div className="border-b border-line pb-4">
           <h2 className="font-display text-[1.6rem] leading-none text-ink">Mes séries</h2>
           <p className="mt-2 text-[12px] text-mute">
-            Historique du cycle en cours uniquement. Il repart de zéro à chaque renouvellement.
+            Historique du ticket en cours uniquement. Il repart de zéro à chaque nouveau ticket.
           </p>
         </div>
 

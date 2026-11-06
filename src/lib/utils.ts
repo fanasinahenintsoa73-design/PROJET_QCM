@@ -101,7 +101,7 @@ export const SERIES_SIZE = 10
 export const SERIES_LIMIT = 30
 
 export const SERIES_LIMIT_MESSAGE =
-  'Vos 30 séries sont terminées. Renouvelez votre abonnement pour continuer.'
+  'Vos 30 séries sont terminées. Contactez le docteur pour un nouveau ticket.'
 
 /** Erreur métier avec un code stable, compris par l'interface. */
 export class AppError extends Error {

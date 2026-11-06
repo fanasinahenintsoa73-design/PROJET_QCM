@@ -1,6 +1,5 @@
 import { ArrowRight, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { useAuth } from '@/lib/auth'
@@ -11,7 +10,7 @@ export function LandingPage() {
   usePageTitle('MEDQCM mada — Chers PACES')
   const { user, homePath } = useAuth()
   const studentUser = user?.role === 'student' ? user : null
-  const startHref = studentUser ? homePath : '/inscription'
+  const startHref = studentUser ? homePath : '/acces'
   const [photoOpen, setPhotoOpen] = useState(false)
   const [photoError, setPhotoError] = useState(false)
 
@@ -97,16 +96,10 @@ export function LandingPage() {
           </p>
         </div>
 
-        <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
+        <div className="mt-10">
           <ButtonLink to={startHref} size="lg" className="w-full sm:w-auto">
-            {studentUser ? 'Ouvrir mon espace' : 'Créer compte'} <ArrowRight size={16} />
+            {studentUser ? 'Ouvrir mon espace' : 'Accéder'} <ArrowRight size={16} />
           </ButtonLink>
-          <Link
-            to="/connexion"
-            className="inline-flex h-11 items-center text-[14px] font-medium text-ink underline decoration-line underline-offset-4 transition hover:text-accent hover:decoration-accent"
-          >
-            J’ai déjà un compte
-          </Link>
         </div>
       </div>
 

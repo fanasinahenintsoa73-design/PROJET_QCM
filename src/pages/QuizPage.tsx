@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, ChevronDown, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Phone, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { doctorContactLine } from '@/lib/contact'
 import { api } from '@/lib/api'
 import { getSeriesUsage } from '@/lib/db'
 import type { Question, Subject } from '@/types'
@@ -426,15 +427,18 @@ export default function QuizPage() {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-content items-center px-5 py-16 sm:px-8 lg:px-10">
         <div className="max-w-lg">
-          <p className="text-[12px] text-mute">Quota du cycle</p>
+          <p className="text-[12px] text-mute">Ticket terminé</p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
             Vos 30 séries ont été lancées.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
             {SERIES_LIMIT_MESSAGE}
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            <ButtonLink to="/reinscription">Renouveler mon accès</ButtonLink>
+          <p className="mt-4 flex items-start gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-[13px] leading-relaxed text-mute">
+            <Phone size={14} className="mt-0.5 shrink-0 text-accent" />
+            <span>{doctorContactLine()}</span>
+          </p>
+          <div className="mt-6">
             <ButtonLink to="/app" variant="ghost">
               Retour au tableau de bord
             </ButtonLink>
@@ -450,14 +454,17 @@ export default function QuizPage() {
         <div className="max-w-lg">
           <p className="text-[12px] text-mute">Série interrompue</p>
           <h1 className="mt-3 font-display text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.03em] text-ink">
-            Le cycle est terminé.
+            Ton accès est suspendu.
           </h1>
           <p className="mt-4 text-[14px] leading-relaxed text-mute">
-            Votre accès n’est plus actif. Renouvelez votre abonnement pour retrouver vos UE, vos
-            chapitres et vos 30 séries.
+            Ton accès n’est plus actif. Contacte le docteur pour le réactiver ou
+            pour un nouveau ticket.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            <ButtonLink to="/reinscription">Renouveler mon accès</ButtonLink>
+          <p className="mt-4 flex items-start gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-[13px] leading-relaxed text-mute">
+            <Phone size={14} className="mt-0.5 shrink-0 text-accent" />
+            <span>{doctorContactLine()}</span>
+          </p>
+          <div className="mt-6">
             <ButtonLink to="/app" variant="ghost">
               Retour au tableau de bord
             </ButtonLink>

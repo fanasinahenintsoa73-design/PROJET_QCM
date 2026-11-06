@@ -135,6 +135,24 @@ export interface SeriesFeedbackReview extends SeriesFeedback {
   attemptCreatedAt: string
 }
 
+/** Statut d'un ticket : 1 ticket = 30 séries = 1 étudiant. */
+export type TicketStatus = 'available' | 'used' | 'suspended'
+
+export interface TicketItem {
+  code: string
+  status: TicketStatus
+  seriesUsed: number
+  createdAt: string
+  usedAt: string | null
+  lastLoginAt: string | null
+}
+
+/** Un ticket généré : le secret n'est affiché qu'une fois, à la génération. */
+export interface GeneratedTicket {
+  code: string
+  secret: string
+}
+
 export interface Database {
   version: number
   users: User[]

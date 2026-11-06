@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
-import { canRequestRenewal } from '@/lib/access'
 import { isDoctorPortal } from '@/lib/portal'
 import { MinimalHeader } from '@/components/Headers'
 import { Footer } from '@/components/Footer'
@@ -94,42 +93,29 @@ export function RequireGuest({ children }: { children: React.ReactNode }) {
 /** A student account in any state (pending, active, expired, rejected). */
 export function RequireStudentAccount() {
   const { user } = useAuth()
-  if (!user) return <Navigate to="/connexion" replace />
+  if (!user) return <Navigate to="/acces" replace />
   if (user.role !== 'student') return <PortalMismatch expected="student" />
   return <Outlet />
 }
 
-/** A student with a currently usable cycle. */
+/** A student with a currently usable ticket (30 séries, non suspendu). */
 export function RequireStudent() {
-  const { user, access } = useAuth()
-  if (!user) return <Navigate to="/connexion" replace />
+  const { user, access, ticketBlocked } = useAuth()
+  if (!user) return <Navigate to="/acces" replace />
   if (user.role !== 'student') return <PortalMismatch expected="student" />
-  if (access === 'pending') return <Navigate to="/en-attente" replace />
+  if (ticketBlocked) return <Navigate to="/expiration" replace />
+  if (access === 'pending') return <Navigate to="/acces" replace />
   if (access === 'expired' || access === 'rejected') return <Navigate to="/expiration" replace />
   return <Outlet />
 }
 
 export function RequireBlocked() {
-  const { user, access } = useAuth()
-  if (!user) return <Navigate to="/connexion" replace />
+  const { user, access, ticketBlocked } = useAuth()
+  if (!user) return <Navigate to="/acces" replace />
   if (user.role !== 'student') return <PortalMismatch expected="student" />
+  if (ticketBlocked) return <Outlet />
   if (access === 'active') return <Navigate to="/app" replace />
-  if (access === 'pending') return <Navigate to="/en-attente" replace />
-  return <Outlet />
-}
-
-/**
- * Le renouvellement est ouvert aux cycles expirés, aux dossiers refusés et aux
- * étudiants actifs ayant épuisé leurs 30 séries.
- */
-export function RequireRenewal() {
-  const { user, access, db } = useAuth()
-  if (!user) return <Navigate to="/connexion" replace />
-  if (user.role !== 'student') return <PortalMismatch expected="student" />
-  if (access === 'pending') return <Navigate to="/en-attente" replace />
-  if (access === 'active' && !canRequestRenewal(user, db)) {
-    return <Navigate to="/app" replace />
-  }
+  if (access === 'pending') return <Navigate to="/acces" replace />
   return <Outlet />
 }
 

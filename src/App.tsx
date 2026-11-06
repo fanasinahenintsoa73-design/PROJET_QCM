@@ -11,24 +11,20 @@ import {
   RequireStudent,
   RequireStudentAccount,
   RequireBlocked,
-  RequireRenewal,
   RequireAdmin,
   ScrollToTop,
 } from '@/components/Layouts'
 import { AdminLayout } from '@/components/AdminLayout'
 import { LoginPage } from '@/pages/LoginPage'
-import { StudentLoginPage } from '@/pages/StudentLoginPage'
 import { LandingPage } from '@/pages/LandingPage'
-import { SignupPage } from '@/pages/SignupPage'
-import { PendingPage } from '@/pages/PendingPage'
+import { TicketAccessPage } from '@/pages/TicketAccessPage'
 import { ExpirationPage } from '@/pages/ExpirationPage'
-import { RenewalPage } from '@/pages/RenewalPage'
 import DashboardPage from '@/pages/DashboardPage'
 import ChapterSelectionPage from '@/pages/ChapterSelectionPage'
 import QuizPage from '@/pages/QuizPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
-import AdminStudentsPage from '@/pages/admin/AdminStudentsPage'
+import AdminTicketsPage from '@/pages/admin/AdminTicketsPage'
 import AdminFeedbackPage from '@/pages/admin/AdminFeedbackPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
@@ -67,28 +63,16 @@ function StudentRoutes() {
       <Route path="/" element={<PublicLayout />}>
         <Route index element={<LandingPage />} />
       </Route>
-      <Route
-        path="/inscription"
-        element={
-          <RequireGuest>
-            <SignupPage />
-          </RequireGuest>
-        }
-      />
-      <Route
-        path="/connexion"
-        element={
-          <RequireGuest>
-            <StudentLoginPage />
-          </RequireGuest>
-        }
-      />
+      <Route path="/acces" element={<TicketAccessPage />} />
+      <Route path="/inscription" element={<Navigate to="/acces" replace />} />
+      <Route path="/connexion" element={<Navigate to="/acces" replace />} />
+      <Route path="/en-attente" element={<Navigate to="/acces" replace />} />
+      <Route path="/reinscription" element={<Navigate to="/expiration" replace />} />
       <Route path="/etudiant" element={<Navigate to="/" replace />} />
-      <Route path="/etudiant/inscription" element={<Navigate to="/inscription" replace />} />
-      <Route path="/etudiant/connexion" element={<Navigate to="/connexion" replace />} />
+      <Route path="/etudiant/inscription" element={<Navigate to="/acces" replace />} />
+      <Route path="/etudiant/connexion" element={<Navigate to="/acces" replace />} />
 
       <Route element={<RequireStudentAccount />}>
-        <Route path="/en-attente" element={<PendingPage />} />
         {/* Le résultat de la 30e série reste consultable après la fermeture du cycle. */}
         <Route element={<StudentLayout />}>
           <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
@@ -107,9 +91,6 @@ function StudentRoutes() {
       <Route element={<StatusLayout />}>
         <Route element={<RequireBlocked />}>
           <Route path="/expiration" element={<ExpirationPage />} />
-        </Route>
-        <Route element={<RequireRenewal />}>
-          <Route path="/reinscription" element={<RenewalPage />} />
         </Route>
       </Route>
 
@@ -143,7 +124,8 @@ function DoctorRoutes() {
             }
           />
           <Route path="/admin/sujet" element={<Navigate to="/admin/themes" replace />} />
-          <Route path="/admin/etudiants" element={<AdminStudentsPage />} />
+          <Route path="/admin/etudiants" element={<Navigate to="/admin/tickets" replace />} />
+          <Route path="/admin/tickets" element={<AdminTicketsPage />} />
           <Route path="/admin/avis" element={<AdminFeedbackPage />} />
         </Route>
       </Route>

@@ -25,4 +25,4 @@ export const isDoctorPortal = portal === 'doctor'
 export const isStudentPortal = portal === 'student'
 
 export const portalHome = isDoctorPortal ? '/admin' : '/'
-export const portalLogin = isDoctorPortal ? '/' : '/connexion'
+export const portalLogin = isDoctorPortal ? '/' : '/acces'

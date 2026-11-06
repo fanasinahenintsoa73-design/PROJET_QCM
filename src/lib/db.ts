@@ -2,12 +2,16 @@ import type {
   AccessRequest,
   Attempt,
   Database,
+  GeneratedTicket,
   Question,
   Receipt,
   Subject,
   SubjectAssignment,
+  TicketItem,
+  TicketStatus,
   User,
 } from '@/types'
+import { makeTicketSecret, ticketLoginEmail } from '@/lib/tickets'
 import { createSeedDatabase, PROFESSOR_FIRST_NAME, PROFESSOR_LAST_NAME, randomQuestionIds } from '@/lib/seed'
 import {
   PACE_THEMES,
@@ -1078,7 +1082,7 @@ export function startSeries(
   const db = getDB()
   const assignment = getCurrentAssignment(userId, db)
   if (!assignment) {
-    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Contactez le docteur pour un nouveau ticket.')
   }
   if (getSeriesUsage(userId, db).reached) {
     throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
@@ -1152,7 +1156,7 @@ export function startChapterSeries(
   const db = getDB()
   const assignment = getCurrentAssignment(userId, db)
   if (!assignment) {
-    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Contactez le docteur pour un nouveau ticket.')
   }
 
   const theme = PACE_THEMES.find((candidate) => candidate.id === ueId)
@@ -1255,7 +1259,7 @@ export function saveChapterAttempt(input: {
   const db = getDB()
   const assignment = getCurrentAssignment(input.userId, db)
   if (!assignment) {
-    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Contactez le docteur pour un nouveau ticket.')
   }
   const attempt = db.attempts.find((candidate) => candidate.id === input.attemptId)
   if (!attempt || attempt.userId !== input.userId) {
@@ -1314,7 +1318,7 @@ export function saveAttempt(input: {
   const db = getDB()
   const assignment = getCurrentAssignment(input.userId, db)
   if (!assignment) {
-    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Renouvelez votre abonnement pour continuer.')
+    throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Contactez le docteur pour un nouveau ticket.')
   }
   if (getSeriesUsage(input.userId, db).reached) {
     throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
@@ -1451,4 +1455,156 @@ export function seedAccounts() {
     studentMember: { email: 'sarah.lemoine@email.com', password: 'etudiant1234' },
     studentQuotaReached: { email: 'clara.fontaine@email.com', password: 'etudiant1234' },
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tickets (mode démonstration, stockage local)                        */
+/* ------------------------------------------------------------------ */
+
+const TICKETS_KEY = 'medqcm.tickets.v1'
+
+interface DemoTicket {
+  code: string
+  secret: string
+  userId: string
+  status: TicketStatus
+  createdAt: string
+  usedAt: string | null
+  lastLoginAt: string | null
+  logins: string[]
+}
+
+function loadDemoTickets(): DemoTicket[] {
+  try {
+    const raw = localStorage.getItem(TICKETS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveDemoTickets(records: DemoTicket[]) {
+  try {
+    localStorage.setItem(TICKETS_KEY, JSON.stringify(records))
+  } catch {
+    /* in-memory only */
+  }
+}
+
+function nextTicketNumber(records: DemoTicket[]): number {
+  let max = 0
+  for (const record of records) {
+    const num = Number.parseInt(record.code.slice(5), 10)
+    if (Number.isFinite(num)) max = Math.max(max, num)
+  }
+  return max + 1
+}
+
+/** Génère un lot de tickets (mode démonstration). */
+export function generateTickets(count: number): GeneratedTicket[] {
+  if (!Number.isInteger(count) || count < 1 || count > 500) {
+    throw new Error('Nombre de tickets invalide (1 à 500).')
+  }
+  const records = loadDemoTickets()
+  const db = getDB()
+  const users = [...db.users]
+  const assignments = [...db.assignments]
+  const created: GeneratedTicket[] = []
+  const now = new Date()
+  let next = nextTicketNumber(records)
+
+  for (let i = 0; i < count; i += 1) {
+    const digits = String(next).padStart(4, '0')
+    const code = `PACES${digits}`
+    const secret = makeTicketSecret()
+    const userId = uid('u')
+    users.push({
+      id: userId,
+      role: 'student',
+      firstName: 'PACES',
+      lastName: digits,
+      email: ticketLoginEmail(code),
+      password: secret,
+      status: 'active',
+      createdAt: now.toISOString(),
+      activatedAt: now.toISOString(),
+    })
+    assignments.push({
+      id: uid('assign'),
+      userId,
+      subjectId: null,
+      startedAt: now.toISOString(),
+      expiresAt: addDays(now, 36500).toISOString(),
+    })
+    records.push({
+      code,
+      secret,
+      userId,
+      status: 'available',
+      createdAt: now.toISOString(),
+      usedAt: null,
+      lastLoginAt: null,
+      logins: [],
+    })
+    created.push({ code, secret })
+    next += 1
+  }
+
+  commit({ ...db, users, assignments })
+  saveDemoTickets(records)
+  return created
+}
+
+/** Tous les tickets (mode démonstration). */
+export function listTickets(): TicketItem[] {
+  const db = getDB()
+  return loadDemoTickets().map((record) => ({
+    code: record.code,
+    status: record.status,
+    seriesUsed: getSeriesUsage(record.userId, db).used,
+    createdAt: record.createdAt,
+    usedAt: record.usedAt,
+    lastLoginAt: record.lastLoginAt,
+  }))
+}
+
+/** Suspend ou réactive un ticket (mode démonstration). */
+export function setTicketStatus(code: string, status: 'suspended' | 'active'): void {
+  const records = loadDemoTickets()
+  const record = records.find((candidate) => candidate.code === code)
+  if (!record) throw new Error('Ticket introuvable.')
+  record.status =
+    status === 'suspended' ? 'suspended' : record.usedAt ? 'used' : 'available'
+  saveDemoTickets(records)
+}
+
+/** Horodatage des connexions d'un ticket (mode démonstration). */
+export function ticketHistory(code: string): string[] {
+  const record = loadDemoTickets().find((candidate) => candidate.code === code)
+  return record ? [...record.logins].reverse() : []
+}
+
+/** Enregistre une connexion du ticket de la session courante. */
+export function recordTicketLogin(): void {
+  const userId = getSessionUserId()
+  if (!userId) return
+  const records = loadDemoTickets()
+  const record = records.find((candidate) => candidate.userId === userId)
+  if (!record) return
+  const now = new Date().toISOString()
+  record.logins.push(now)
+  record.usedAt = record.usedAt ?? now
+  record.lastLoginAt = now
+  if (record.status === 'available') record.status = 'used'
+  saveDemoTickets(records)
+}
+
+/** Statut du ticket de la session courante, null si pas un ticket. */
+export function myTicketStatus(): TicketStatus | null {
+  const userId = getSessionUserId()
+  if (!userId) return null
+  const record = loadDemoTickets().find((candidate) => candidate.userId === userId)
+  return record?.status ?? null
 }

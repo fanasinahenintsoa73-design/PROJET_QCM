@@ -25,6 +25,7 @@ import {
 } from '@/lib/access'
 import { isDoctorPortal } from '@/lib/portal'
 import { api } from '@/lib/api'
+import { ticketLoginEmail } from '@/lib/tickets'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { emptyDatabase, fetchDatabase, fetchProfile } from '@/lib/supabaseData'
 
@@ -37,11 +38,14 @@ interface AuthContextValue {
   user: User | null
   loading: boolean
   login: (email: string, password: string, expectedRole?: User['role']) => Promise<LoginOutcome>
+  ticketLogin: (code: string, secret: string) => Promise<LoginOutcome>
   logout: () => Promise<void>
   refresh: () => Promise<void>
   pendingRequest?: ReturnType<typeof getPendingRequest>
   latestRequest?: ReturnType<typeof getLatestRequest>
   access: ReturnType<typeof getStudentAccess> | null
+  /** Le ticket de l'étudiant connecté a été suspendu par le docteur. */
+  ticketBlocked: boolean
   homePath: string
 }
 
@@ -76,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [remoteDb, setRemoteDb] = useState<Database>(() => emptyDatabase())
   const [remoteUser, setRemoteUser] = useState<User | null>(null)
+  const [ticketBlocked, setTicketBlocked] = useState(false)
   const [initialising, setInitialising] = useState(isSupabaseConfigured)
   const mounted = useRef(true)
 
@@ -87,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted.current) return
         setRemoteDb(emptyDatabase())
         setRemoteUser(null)
+        setTicketBlocked(false)
         return
       }
       const profile = await fetchProfile(data.session.user.id)
@@ -94,6 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted.current) return
       setRemoteUser(profile)
       setRemoteDb(snapshot)
+      // Ticket suspendu côté docteur : la suspension est détectée ici
+      // (rafraîchissement périodique), sans attendre une nouvelle connexion.
+      if (profile.role === 'student') {
+        const status = await api.myTicketStatus().catch(() => null)
+        if (!mounted.current) return
+        setTicketBlocked(status === 'suspended')
+      }
       // Dès la connexion, migration automatique des étoiles restées en local
       // vers le backend (tous les téléphones partagent ensuite les mêmes
       // notes). En arrière-plan, sans bloquer l'ouverture de l'app.
@@ -155,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setRemoteDb(emptyDatabase())
         setRemoteUser(null)
+        setTicketBlocked(false)
         return
       }
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
@@ -206,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [db, user, clock],
   )
   const homePath = useMemo(() => {
-    if (!user) return isDoctorPortal ? '/' : '/connexion'
+    if (!user) return isDoctorPortal ? '/' : '/acces'
     if (user.role === 'professor') return '/admin'
     return studentHomePath(user, db)
   }, [db, user, clock])
@@ -269,7 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(async () => {
-    const target = isDoctorPortal ? '/' : '/connexion'
+    const target = isDoctorPortal ? '/' : '/acces'
     try {
       await api.logout()
     } finally {
@@ -279,9 +293,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setDemoSessionId(null)
       }
+      setTicketBlocked(false)
       navigate(target)
     }
   }, [navigate])
+
+  const ticketLogin = useCallback(
+    async (code: string, secret: string): Promise<LoginOutcome> => {
+      // Le numéro d'enregistrement est le mot de passe du compte du ticket.
+      const result = await login(ticketLoginEmail(code), secret, 'student')
+      if (!result.ok) return result
+      const status = await api.myTicketStatus().catch(() => null)
+      if (status === 'suspended') {
+        await logout()
+        return { ok: false, error: 'Ce ticket est suspendu. Contactez le docteur.' }
+      }
+      // L'historique côté admin : qui est entré, quand.
+      await api.recordTicketLogin()
+      return result
+    },
+    [login, logout],
+  )
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -289,11 +321,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading: initialising,
       login,
+      ticketLogin,
       logout,
       refresh,
       pendingRequest,
       latestRequest,
       access,
+      ticketBlocked,
       homePath,
     }),
     [
@@ -301,11 +335,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       initialising,
       login,
+      ticketLogin,
       logout,
       refresh,
       pendingRequest,
       latestRequest,
       access,
+      ticketBlocked,
       homePath,
     ],
   )

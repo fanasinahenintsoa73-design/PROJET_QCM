@@ -1,19 +1,18 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BookOpen, LayoutDashboard, LogOut, Star, Users } from 'lucide-react'
+import { BookOpen, LayoutDashboard, LogOut, Star, Ticket } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 import { fullName, initials } from '@/lib/utils'
 
 const navItems = [
   { to: '/admin', label: 'Page d’accueil', icon: LayoutDashboard, end: true },
+  { to: '/admin/tickets', label: 'Tickets', icon: Ticket },
   { to: '/admin/themes', label: 'Sujets', icon: BookOpen },
-  { to: '/admin/etudiants', label: 'Étudiants', icon: Users },
   { to: '/admin/avis', label: 'Avis', icon: Star },
 ]
 
 export function AdminLayout() {
-  const { user, db, logout } = useAuth()
-  const pendingCount = db.requests.filter((request) => request.status === 'pending').length
+  const { user, logout } = useAuth()
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
@@ -38,11 +37,6 @@ export function AdminLayout() {
                 }
               >
                 {item.label}
-                {item.to === '/admin' && pendingCount > 0 && (
-                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1.5 text-[9px] font-semibold text-white">
-                    {pendingCount}
-                  </span>
-                )}
               </NavLink>
             ))}
           </nav>
@@ -89,11 +83,6 @@ export function AdminLayout() {
                 >
                   <Icon className="hidden size-3.5 sm:block" strokeWidth={1.7} />
                   {item.label}
-                  {item.to === '/admin' && pendingCount > 0 && (
-                    <span className="grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[8px] font-semibold text-white">
-                      {pendingCount}
-                    </span>
-                  )}
                 </NavLink>
               )
             })}

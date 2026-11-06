@@ -1,4 +1,4 @@
-import type { Receipt, SeriesFeedback, SeriesFeedbackReview, Subject, User } from '@/types'
+import type { GeneratedTicket, Receipt, SeriesFeedback, SeriesFeedbackReview, Subject, TicketItem, TicketStatus, User } from '@/types'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
@@ -393,5 +393,49 @@ export const api = {
     if (!path) return ''
     if (isSupabaseConfigured) return remote.resolveReceiptUrl(path)
     return ''
+  },
+
+  /* ---------------------------------------------------------------- */
+  /* Tickets d'accès (1 ticket = 30 séries)                            */
+  /* ---------------------------------------------------------------- */
+
+  /** Génère un lot de tickets (docteur uniquement). */
+  async generateTickets(count: number): Promise<GeneratedTicket[]> {
+    if (isSupabaseConfigured) return remote.generateTickets(count)
+    return demo.generateTickets(count)
+  },
+
+  /** Tous les tickets (docteur uniquement). */
+  async listTickets(): Promise<TicketItem[]> {
+    if (isSupabaseConfigured) return remote.listTickets()
+    return demo.listTickets()
+  },
+
+  /** Suspend un ticket, ou le réactive (statut 'active'). */
+  async setTicketStatus(code: string, status: 'suspended' | 'active'): Promise<void> {
+    if (isSupabaseConfigured) return remote.setTicketStatus(code, status)
+    return demo.setTicketStatus(code, status)
+  },
+
+  /** Horodatage des connexions d'un ticket. */
+  async ticketHistory(code: string): Promise<string[]> {
+    if (isSupabaseConfigured) return remote.ticketHistory(code)
+    return demo.ticketHistory(code)
+  },
+
+  /** Enregistre une connexion réussie par ticket. Ne lève jamais. */
+  async recordTicketLogin(): Promise<void> {
+    try {
+      if (isSupabaseConfigured) return remote.recordTicketLogin()
+      return demo.recordTicketLogin()
+    } catch (error) {
+      console.warn('[ticket]', error instanceof Error ? error.message : error)
+    }
+  },
+
+  /** Statut du ticket de l'utilisateur connecté, null si pas un ticket. */
+  async myTicketStatus(): Promise<TicketStatus | null> {
+    if (isSupabaseConfigured) return remote.myTicketStatus()
+    return Promise.resolve(demo.myTicketStatus())
   },
 }

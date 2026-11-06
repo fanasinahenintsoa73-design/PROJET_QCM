@@ -2,6 +2,7 @@ import type {
   AccessRequest,
   Attempt,
   Database,
+  GeneratedTicket,
   Question,
   Receipt,
   RequestStatus,
@@ -11,6 +12,8 @@ import type {
   SeriesFeedbackReview,
   Subject,
   SubjectAssignment,
+  TicketItem,
+  TicketStatus,
   User,
   UserStatus,
 } from '@/types'
@@ -213,7 +216,7 @@ function mapRequest(
 /* ------------------------------------------------------------------ */
 
 const errorMessages: Record<string, string> = {
-  ACCESS_EXPIRED: 'Votre accès a expiré. Renouvelez votre cycle pour continuer.',
+  ACCESS_EXPIRED: 'Votre accès a expiré. Contactez le docteur pour un nouveau ticket.',
   SERIES_LIMIT_REACHED: SERIES_LIMIT_MESSAGE,
   THEME_NOT_FOUND: 'Ce thème est introuvable dans le catalogue.',
   THEME_UNAVAILABLE:
@@ -239,7 +242,7 @@ const errorMessages: Record<string, string> = {
   STUDENT_NOT_FOUND: 'Étudiant introuvable.',
   INVALID_DURATION: 'La durée demandée est invalide.',
   SERIES_NOT_COMPLETE:
-    'Vos 30 séries ne sont pas encore terminées. Le renouvellement sera disponible à la fin du cycle.',
+    'Vos 30 séries ne sont pas encore terminées. Un nouveau ticket sera disponible à la fin du cycle.',
   REQUEST_PENDING: 'Votre demande est en attente de validation.',
   INVALID_RATING: 'La note doit être entre 1 et 5 étoiles.',
   FEEDBACK_FORBIDDEN: 'Cette action est réservée au docteur.',
@@ -1135,4 +1138,75 @@ export async function resolveReceiptUrl(path: string): Promise<string> {
   const { data, error } = await client.storage.from('receipts').createSignedUrl(path, 3600)
   if (error) throw asFrenchError(error)
   return data.signedUrl
+}
+
+/* ------------------------------------------------------------------ */
+/* Tickets d'accès (1 ticket = 30 séries)                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Génère un lot de tickets (docteur uniquement).
+ * Retourne les codes + numéros en clair : à copier immédiatement,
+ * ils ne seront plus jamais lisibles (hash bcrypt côté Auth).
+ */
+export async function generateTickets(count: number): Promise<GeneratedTicket[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('generate_tickets', { p_count: count })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{ code: string; secret: string }>).map((row) => ({
+    code: row.code,
+    secret: row.secret,
+  }))
+}
+
+/** Tous les tickets (docteur uniquement). */
+export async function listTickets(): Promise<TicketItem[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('list_tickets')
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    code: string
+    status: TicketStatus
+    series_used: number
+    created_at: string
+    used_at: string | null
+    last_login_at: string | null
+  }>).map((row) => ({
+    code: row.code,
+    status: row.status,
+    seriesUsed: row.series_used,
+    createdAt: row.created_at,
+    usedAt: row.used_at,
+    lastLoginAt: row.last_login_at,
+  }))
+}
+
+/** Suspend un ticket, ou le réactive (statut 'active'). */
+export async function setTicketStatus(code: string, status: 'suspended' | 'active'): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('set_ticket_status', { p_code: code, p_status: status })
+  if (error) throw asFrenchError(error)
+}
+
+/** Horodatage des connexions d'un ticket (docteur uniquement). */
+export async function ticketHistory(code: string): Promise<string[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('ticket_history', { p_code: code })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{ created_at: string }>).map((row) => row.created_at)
+}
+
+/** Enregistre une connexion réussie par ticket. */
+export async function recordTicketLogin(): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('record_ticket_login')
+  if (error) throw asFrenchError(error)
+}
+
+/** Statut du ticket de l'utilisateur connecté, null si ce n'est pas un ticket. */
+export async function myTicketStatus(): Promise<TicketStatus | null> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('my_ticket_status')
+  if (error) throw asFrenchError(error)
+  return (data as TicketStatus | null) ?? null
 }

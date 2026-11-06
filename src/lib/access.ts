@@ -48,7 +48,9 @@ export function canRequestRenewal(user: User, db: Database): boolean {
 export function studentHomePath(user: User, db: Database): string {
   switch (getStudentAccess(user, db)) {
     case 'pending':
-      return '/en-attente'
+      // Ancien compte e-mail (le parcours par ticket a remplacé
+      // l'inscription) : la page d'accès explique ce qu'il faut faire.
+      return '/acces'
     case 'rejected':
     case 'expired':
       return '/expiration'
