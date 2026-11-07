@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Copy, FileSpreadsheet, FileText } from 'lucide-react'
+import { ArrowLeft, Copy, FileSpreadsheet, FileText, Ticket } from 'lucide-react'
 import { usePageTitle } from '@/components/Layouts'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
@@ -53,12 +53,16 @@ export default function AdminGeneratedTicketsPage() {
           Aucun ticket à afficher.
         </h1>
         <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-mute">
-          Les numéros ne sont visibles qu’une seule fois, juste après la génération. Si cette page
-          a été actualisée, ils ne sont plus affichés.
+          Les numéros ne sont visibles qu’une seule fois, juste après la génération. Ils restent
+          affichés tant que cet onglet est ouvert ; après sa fermeture, ils ne peuvent plus être
+          récupérés. Génère un nouveau lot pour obtenir de nouveaux numéros.
         </p>
-        <div className="mt-7">
+        <div className="mt-7 flex flex-wrap gap-3">
           <ButtonLink to="/admin/tickets">
             <ArrowLeft size={15} /> Retour aux tickets
+          </ButtonLink>
+          <ButtonLink to="/admin/tickets" variant="outline">
+            <Ticket size={15} /> Générer un nouveau lot
           </ButtonLink>
         </div>
       </div>
@@ -75,8 +79,8 @@ export default function AdminGeneratedTicketsPage() {
         {batch.length} ticket{batch.length > 1 ? 's' : ''} généré{batch.length > 1 ? 's' : ''}.
       </h1>
       <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-mute">
-        Télécharge ou copie ces numéros maintenant : après avoir quitté cette page, ils ne seront
-        plus affichés.
+        Télécharge ou copie ces numéros maintenant : ce lot reste affiché tant que cet onglet est
+        ouvert, mais il disparaît à sa fermeture.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -97,7 +101,7 @@ export default function AdminGeneratedTicketsPage() {
       </p>
 
       <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[340px] text-left text-[13px]">
+        <table className="w-full min-w-[280px] text-left text-[13px]">
           <thead>
             <tr className="border-b border-line text-[10px] uppercase tracking-[0.12em] text-mute">
               <th className="py-3 pr-4 font-semibold">ID</th>

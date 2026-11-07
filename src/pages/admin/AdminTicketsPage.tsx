@@ -6,16 +6,18 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type TouchEvent as ReactTouchEvent,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Ban, History, Play, RefreshCw, Ticket, Trash2 } from 'lucide-react'
+import { Ban, Copy, History, Play, RefreshCw, Ticket, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
 import { Field, Input } from '@/components/ui/Field'
-import { Button, buttonClasses } from '@/components/ui/Button'
+import { Button, ButtonLink, buttonClasses } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
-import { setGeneratedTickets } from '@/lib/generatedTicketsSession'
+import { copyText } from '@/lib/downloadTickets'
+import { getGeneratedTickets, setGeneratedTickets } from '@/lib/generatedTicketsSession'
 import { usePressAndHold } from '@/lib/usePressAndHold'
 import { formatDateLong, formatDateTime } from '@/lib/utils'
 import type { TicketItem } from '@/types'
@@ -23,6 +25,8 @@ import type { TicketItem } from '@/types'
 const MAX_TICKETS_PER_BATCH = 500
 const ROW_HOLD_MS = 2000
 const DELETE_HOLD_MS = 3000
+/** Tolérance de déplacement du doigt pendant l'appui (en pixels). */
+const HOLD_MOVE_TOLERANCE = 18
 
 type Tone = 'success' | 'info' | 'neutral' | 'error'
 
@@ -54,10 +58,13 @@ export default function AdminTicketsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const [holdCode, setHoldCode] = useState<string | null>(null)
+  const holdCodeRef = useRef<string | null>(null)
+  const touchStartRef = useRef<{ id: number; x: number; y: number } | null>(null)
   const rowHold = usePressAndHold(ROW_HOLD_MS)
   const deleteHold = usePressAndHold(DELETE_HOLD_MS)
   const suppressClickRef = useRef(false)
   const selectedRef = useRef(selected)
+  const lastBatch = getGeneratedTickets()
 
   useEffect(() => {
     selectedRef.current = selected
@@ -144,13 +151,19 @@ export default function AdminTicketsPage() {
     })
   }
 
-  function startRowHold(event: ReactPointerEvent<HTMLTableRowElement>, item: TicketItem) {
-    if (isInteractive(event.target) || holdCode !== null) return
-    if (event.pointerType === 'mouse' && event.button !== 0) return
+  async function handleCopyId(code: string) {
+    const ok = await copyText(code)
+    toast(ok ? 'ID copié !' : 'Copie impossible sur cet appareil.', ok ? 'success' : 'error')
+  }
+
+  function beginRowHold(item: TicketItem, event?: ReactPointerEvent<HTMLTableRowElement>) {
+    if (holdCodeRef.current !== null) return
+    holdCodeRef.current = item.code
     suppressClickRef.current = false
     setHoldCode(item.code)
     rowHold.start(() => {
       suppressClickRef.current = true
+      holdCodeRef.current = null
       setHoldCode(null)
       setSelected((previous) => {
         const next = new Set(previous)
@@ -160,8 +173,48 @@ export default function AdminTicketsPage() {
     }, event)
   }
 
+  function startRowHold(event: ReactPointerEvent<HTMLTableRowElement>, item: TicketItem) {
+    // Le tactile passe par les événements touch, plus fiables que les
+    // événements pointer : le navigateur peut annuler un pointer pendant un
+    // défilement ou un menu contextuel, ce qui faisait échouer l'appui long.
+    if (event.pointerType === 'touch') return
+    if (isInteractive(event.target) || holdCodeRef.current !== null) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    beginRowHold(item, event)
+  }
+
+  function handleTouchStart(event: ReactTouchEvent<HTMLTableRowElement>, item: TicketItem) {
+    if (isInteractive(event.target) || holdCodeRef.current !== null) return
+    if (event.touches.length !== 1) return
+    const touch = event.touches[0]
+    touchStartRef.current = { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+    beginRowHold(item)
+  }
+
+  function handleTouchMove(event: ReactTouchEvent<HTMLTableRowElement>) {
+    const start = touchStartRef.current
+    if (!start || holdCodeRef.current === null) return
+    const touch = Array.from(event.touches).find((candidate) => candidate.identifier === start.id)
+    if (!touch) return
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (Math.hypot(dx, dy) > HOLD_MOVE_TOLERANCE) cancelRowHold()
+  }
+
+  function handleTouchEnd() {
+    touchStartRef.current = null
+    cancelRowHold()
+  }
+
+  function handlePointerEnd(event: ReactPointerEvent<HTMLTableRowElement>) {
+    if (event.pointerType === 'touch') return
+    cancelRowHold()
+  }
+
   function cancelRowHold() {
     rowHold.cancel()
+    holdCodeRef.current = null
+    touchStartRef.current = null
     setHoldCode(null)
   }
 
@@ -231,6 +284,18 @@ export default function AdminTicketsPage() {
         </p>
       </section>
 
+      {lastBatch.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-accent/20 bg-accent-soft/40 px-4 py-3">
+          <p className="text-[13px] text-ink">
+            Dernier lot généré : <strong>{lastBatch.length}</strong> ticket
+            {lastBatch.length > 1 ? 's' : ''}.
+          </p>
+          <ButtonLink to="/admin/tickets/generes" variant="outline" size="sm" className="ml-auto">
+            Voir les ID et numéros
+          </ButtonLink>
+        </div>
+      ) : null}
+
       {/* Liste des tickets */}
       <section className="mt-8">
         <div className="flex items-end justify-between gap-4 border-b border-line pb-4">
@@ -241,7 +306,7 @@ export default function AdminTicketsPage() {
             </p>
             <p className="mt-1 text-[11px] text-mute">
               {selected.size === 0
-                ? 'Appuie 2 secondes sur un ticket pour le sélectionner, puis touche les autres.'
+                ? 'Maintiens 2 secondes sur un ticket (pas sur les boutons) pour le sélectionner, puis touche les autres.'
                 : 'Touche un ticket pour l’ajouter ou le retirer de la sélection.'}
             </p>
           </div>
@@ -333,8 +398,12 @@ export default function AdminTicketsPage() {
                         tabIndex={0}
                         aria-selected={isSelected}
                         onPointerDown={(event) => startRowHold(event, item)}
-                        onPointerUp={cancelRowHold}
-                        onPointerCancel={cancelRowHold}
+                        onPointerUp={handlePointerEnd}
+                        onPointerCancel={handlePointerEnd}
+                        onTouchStart={(event) => handleTouchStart(event, item)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        onTouchCancel={handleTouchEnd}
                         onClick={(event) => handleRowClick(event, item)}
                         onKeyDown={(event) => {
                           if (event.target !== event.currentTarget || event.repeat) return
@@ -349,7 +418,9 @@ export default function AdminTicketsPage() {
                         style={
                           isHolding
                             ? {
-                                background: `linear-gradient(to right, rgba(11, 107, 79, 0.16) ${rowHold.progress * 100}%, transparent ${rowHold.progress * 100}%)`,
+                                background: `linear-gradient(to right, rgba(11, 107, 79, 0.26) ${rowHold.progress * 100}%, transparent ${rowHold.progress * 100}%)`,
+                                boxShadow:
+                                  rowHold.progress > 0.05 ? 'inset 3px 0 0 #0B6B4F' : undefined,
                               }
                             : undefined
                         }
@@ -361,7 +432,28 @@ export default function AdminTicketsPage() {
                               : 'hover:bg-cloud/30'
                         }`}
                       >
-                        <td className="py-3 pr-4 font-semibold tracking-wide text-ink">{item.code}</td>
+                        <td className="py-3 pr-4 font-semibold tracking-wide text-ink">
+                          <span className="inline-flex items-center gap-1.5">
+                            {item.code}
+                            <button
+                              type="button"
+                              onClick={() => void handleCopyId(item.code)}
+                              aria-label={`Copier l’ID ${item.code}`}
+                              title="Copier l’ID"
+                              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
+                            >
+                              <Copy size={13} />
+                            </button>
+                            {isHolding && rowHold.progress > 0.08 ? (
+                              <span
+                                aria-hidden
+                                className="inline-flex items-center rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent"
+                              >
+                                {Math.max(1, Math.ceil((1 - rowHold.progress) * (ROW_HOLD_MS / 1000)))} s
+                              </span>
+                            ) : null}
+                          </span>
+                        </td>
                         <td className="py-3 pr-4">
                           <StatusPill tone={display.tone}>{display.label}</StatusPill>
                         </td>
