@@ -9,7 +9,7 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Ban, Copy, Play, RefreshCw, Ticket, Trash2 } from 'lucide-react'
+import { Ban, Copy, Play, RefreshCw, Search, Ticket, Trash2, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
 import { Field, Input } from '@/components/ui/Field'
@@ -81,6 +81,7 @@ export default function AdminTicketsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [count, setCount] = useState('50')
+  const [search, setSearch] = useState('')
   const [generating, setGenerating] = useState(false)
   const [busyCode, setBusyCode] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -99,6 +100,11 @@ export default function AdminTicketsPage() {
   const filteredTickets = activeFilter
     ? tickets.filter((item) => matchesTicketFilter(item, activeFilter))
     : tickets
+  const normalizedSearch = search.trim().toUpperCase()
+  const searchActive = !activeFilter && normalizedSearch.length > 0
+  const visibleTickets = searchActive
+    ? filteredTickets.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
+    : filteredTickets
 
   useEffect(() => {
     selectedRef.current = selected
@@ -106,6 +112,10 @@ export default function AdminTicketsPage() {
 
   useEffect(() => {
     setSelected(new Set())
+  }, [activeFilter, normalizedSearch])
+
+  useEffect(() => {
+    if (activeFilter) setSearch('')
   }, [activeFilter])
 
   const load = useCallback(async () => {
@@ -337,8 +347,49 @@ export default function AdminTicketsPage() {
                 : 'Touche un ticket pour l’ajouter ou le retirer de la sélection.'}
             </p>
           </div>
-          <span className="font-display text-[1.6rem] leading-none text-ink">{filteredTickets.length}</span>
+          <span className="font-display text-[1.6rem] leading-none text-ink">{visibleTickets.length}</span>
         </div>
+
+        {!activeFilter ? (
+          <div className="mt-4">
+            <div className="relative max-w-xs">
+              <Search
+                size={15}
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
+              />
+              <Input
+                id="ticket-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                placeholder="Rechercher un ID (ex. PACES0001)"
+                aria-label="Rechercher un ticket par ID"
+                autoComplete="off"
+                spellCheck={false}
+                className="pl-9 pr-9 uppercase"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label="Effacer la recherche"
+                  className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
+            </div>
+            {searchActive ? (
+              <p className="mt-2 text-[11px] text-mute">
+                {visibleTickets.length} résultat{visibleTickets.length > 1 ? 's' : ''} pour « {normalizedSearch} ».
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-mute">
+                Tape l’ID complet (PACES0001) ou seulement les chiffres (0001).
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {activeFilter ? (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-accent/20 bg-accent-soft/40 px-4 py-3">
@@ -409,6 +460,13 @@ export default function AdminTicketsPage() {
             <p className="text-[14px] font-medium text-ink">Aucun ticket pour le moment.</p>
             <p className="mt-1 text-[12px] text-mute">Génère un premier lot ci-dessus.</p>
           </div>
+        ) : searchActive && visibleTickets.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-[14px] font-medium text-ink">
+              Aucun ticket trouvé pour « {normalizedSearch} ».
+            </p>
+            <p className="mt-1 text-[12px] text-mute">Vérifie l’ID ou efface la recherche.</p>
+          </div>
         ) : filteredTickets.length === 0 ? (
           <div className="py-10 text-center">
             <p className="text-[14px] font-medium text-ink">
@@ -437,7 +495,7 @@ export default function AdminTicketsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredTickets.map((item) => {
+                {visibleTickets.map((item) => {
                   const display = ticketDisplay(item)
                   const isSelected = selected.has(item.code)
                   const isHolding = holdCode === item.code
