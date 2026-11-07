@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Ban, History, Play, RefreshCw, Ticket, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -13,6 +21,8 @@ import { formatDateLong, formatDateTime } from '@/lib/utils'
 import type { TicketItem } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
+const ROW_HOLD_MS = 2000
+const DELETE_HOLD_MS = 3000
 
 type Tone = 'success' | 'info' | 'neutral' | 'error'
 
@@ -21,6 +31,10 @@ function ticketDisplay(item: TicketItem): { label: string; tone: Tone } {
   if (item.seriesUsed >= 30) return { label: 'Terminé', tone: 'neutral' }
   if (item.status === 'used' || item.usedAt) return { label: `En cours · ${item.seriesUsed}/30`, tone: 'info' }
   return { label: 'Disponible', tone: 'success' }
+}
+
+function isInteractive(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('button, a, input, select, textarea') !== null
 }
 
 export default function AdminTicketsPage() {
@@ -39,13 +53,27 @@ export default function AdminTicketsPage() {
   const [busyCode, setBusyCode] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
-  const { progress: holdProgress, start: startHold, cancel: cancelHold } = usePressAndHold(3000)
+  const [holdCode, setHoldCode] = useState<string | null>(null)
+  const rowHold = usePressAndHold(ROW_HOLD_MS)
+  const deleteHold = usePressAndHold(DELETE_HOLD_MS)
+  const suppressClickRef = useRef(false)
+  const selectedRef = useRef(selected)
+
+  useEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      setTickets(await api.listTickets())
+      const list = await api.listTickets()
+      setTickets(list)
+      setSelected((previous) => {
+        if (previous.size === 0) return previous
+        const codes = new Set(list.map((item) => item.code))
+        return new Set([...previous].filter((code) => codes.has(code)))
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Les tickets n’ont pas pu être chargés.')
     } finally {
@@ -107,9 +135,7 @@ export default function AdminTicketsPage() {
     }
   }
 
-  const allSelected = tickets.length > 0 && selected.size === tickets.length
-
-  function toggleSelect(code: string) {
+  function toggleSelected(code: string) {
     setSelected((previous) => {
       const next = new Set(previous)
       if (next.has(code)) next.delete(code)
@@ -118,12 +144,39 @@ export default function AdminTicketsPage() {
     })
   }
 
-  function toggleSelectAll() {
-    setSelected(allSelected ? new Set() : new Set(tickets.map((item) => item.code)))
+  function startRowHold(event: ReactPointerEvent<HTMLTableRowElement>, item: TicketItem) {
+    if (isInteractive(event.target) || holdCode !== null) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    suppressClickRef.current = false
+    setHoldCode(item.code)
+    rowHold.start(() => {
+      suppressClickRef.current = true
+      setHoldCode(null)
+      setSelected((previous) => {
+        const next = new Set(previous)
+        next.add(item.code)
+        return next
+      })
+    }, event)
+  }
+
+  function cancelRowHold() {
+    rowHold.cancel()
+    setHoldCode(null)
+  }
+
+  function handleRowClick(event: ReactMouseEvent<HTMLTableRowElement>, item: TicketItem) {
+    if (isInteractive(event.target)) return
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+    if (selected.size === 0) return
+    toggleSelected(item.code)
   }
 
   async function handleDeleteSelected() {
-    const codes = [...selected]
+    const codes = [...selectedRef.current]
     if (codes.length === 0) return
     setDeleting(true)
     try {
@@ -186,62 +239,52 @@ export default function AdminTicketsPage() {
             <p className="mt-1 text-[11px] text-mute">
               Disponible · En cours (séries faites) · Terminé (30 séries) · Suspendu
             </p>
+            <p className="mt-1 text-[11px] text-mute">
+              {selected.size === 0
+                ? 'Appuie 2 secondes sur un ticket pour le sélectionner, puis touche les autres.'
+                : 'Touche un ticket pour l’ajouter ou le retirer de la sélection.'}
+            </p>
           </div>
           <span className="font-display text-[1.6rem] leading-none text-ink">{tickets.length}</span>
         </div>
 
-        {tickets.length > 0 ? (
-          <div
-            className={
-              selected.size > 0
-                ? 'mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3'
-                : 'mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3'
-            }
-          >
+        {selected.size > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3">
             <p className="text-[13px] font-medium text-ink">
-              {selected.size > 0
-                ? `${selected.size} ticket${selected.size > 1 ? 's' : ''} sélectionné${selected.size > 1 ? 's' : ''}`
-                : 'Aucun ticket sélectionné'}
+              {selected.size} ticket{selected.size > 1 ? 's' : ''} sélectionné{selected.size > 1 ? 's' : ''}
             </p>
             <p className="text-[11px] text-mute">
-              {selected.size > 0
-                ? 'Maintiens le bouton 3 secondes sans relâcher pour supprimer.'
-                : 'Coche des tickets, puis maintiens la corbeille 3 secondes pour les supprimer.'}
+              Maintiens le bouton 3 secondes sans relâcher pour supprimer.
             </p>
             <div className="ml-auto flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelected(new Set())}
-                disabled={deleting || selected.size === 0}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={deleting}>
                 Annuler
               </Button>
               <button
                 type="button"
-                onPointerDown={(event) => startHold(() => void handleDeleteSelected(), event)}
-                onPointerUp={cancelHold}
-                onPointerCancel={cancelHold}
+                onPointerDown={(event) => deleteHold.start(() => void handleDeleteSelected(), event)}
+                onPointerUp={deleteHold.cancel}
+                onPointerCancel={deleteHold.cancel}
                 onKeyDown={(event) => {
-                  if ((event.key === 'Enter' || event.key === ' ') && !deleting && selected.size > 0) {
+                  if ((event.key === 'Enter' || event.key === ' ') && !deleting) {
                     event.preventDefault()
-                    startHold(() => void handleDeleteSelected())
+                    deleteHold.start(() => void handleDeleteSelected())
                   }
                 }}
-                onKeyUp={cancelHold}
+                onKeyUp={deleteHold.cancel}
                 onContextMenu={(event) => event.preventDefault()}
-                disabled={deleting || selected.size === 0}
+                disabled={deleting}
                 aria-label={`Supprimer ${selected.size} ticket${selected.size > 1 ? 's' : ''} sélectionnés (maintenir 3 secondes)`}
-                className={buttonClasses('danger', 'sm', 'relative select-none overflow-hidden touch-none')}
+                className={buttonClasses('danger', 'sm', 'relative select-none overflow-hidden')}
               >
                 <span
                   aria-hidden
                   className="absolute inset-y-0 left-0 bg-white/25"
-                  style={{ width: `${holdProgress * 100}%` }}
+                  style={{ width: `${deleteHold.progress * 100}%` }}
                 />
-                {holdProgress > 0 ? (
+                {deleteHold.progress > 0 ? (
                   <span aria-hidden className="text-[13px] font-bold tabular-nums">
-                    {Math.ceil((1 - holdProgress) * 3)}
+                    {Math.ceil((1 - deleteHold.progress) * (DELETE_HOLD_MS / 1000))}
                   </span>
                 ) : (
                   <Trash2 size={13} />
@@ -270,15 +313,6 @@ export default function AdminTicketsPage() {
             <table className="w-full min-w-[760px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-line text-[10px] uppercase tracking-[0.12em] text-mute">
-                  <th className="py-3 pr-3 font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleSelectAll}
-                      aria-label="Sélectionner tous les tickets"
-                      className="h-4 w-4 accent-[#0B6B4F]"
-                    />
-                  </th>
                   <th className="py-3 pr-4 font-semibold">Ticket</th>
                   <th className="py-3 pr-4 font-semibold">Statut</th>
                   <th className="py-3 pr-4 font-semibold">Créé</th>
@@ -291,18 +325,42 @@ export default function AdminTicketsPage() {
               <tbody>
                 {tickets.map((item) => {
                   const display = ticketDisplay(item)
+                  const isSelected = selected.has(item.code)
+                  const isHolding = holdCode === item.code
                   return (
-                    <>
-                      <tr key={item.code} className="border-b border-line/60 align-middle">
-                        <td className="py-3 pr-3">
-                          <input
-                            type="checkbox"
-                            checked={selected.has(item.code)}
-                            onChange={() => toggleSelect(item.code)}
-                            aria-label={`Sélectionner ${item.code}`}
-                            className="h-4 w-4 accent-[#0B6B4F]"
-                          />
-                        </td>
+                    <Fragment key={item.code}>
+                      <tr
+                        tabIndex={0}
+                        aria-selected={isSelected}
+                        onPointerDown={(event) => startRowHold(event, item)}
+                        onPointerUp={cancelRowHold}
+                        onPointerCancel={cancelRowHold}
+                        onClick={(event) => handleRowClick(event, item)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget || event.repeat) return
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            toggleSelected(item.code)
+                          }
+                        }}
+                        onContextMenu={(event) => {
+                          if (!isInteractive(event.target)) event.preventDefault()
+                        }}
+                        style={
+                          isHolding
+                            ? {
+                                background: `linear-gradient(to right, rgba(11, 107, 79, 0.16) ${rowHold.progress * 100}%, transparent ${rowHold.progress * 100}%)`,
+                              }
+                            : undefined
+                        }
+                        className={`select-none border-b border-line/60 align-middle transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+                          isSelected
+                            ? 'bg-accent-soft/60'
+                            : selected.size > 0
+                              ? 'cursor-pointer hover:bg-cloud/50'
+                              : 'hover:bg-cloud/30'
+                        }`}
+                      >
                         <td className="py-3 pr-4 font-semibold tracking-wide text-ink">{item.code}</td>
                         <td className="py-3 pr-4">
                           <StatusPill tone={display.tone}>{display.label}</StatusPill>
@@ -342,8 +400,8 @@ export default function AdminTicketsPage() {
                         </td>
                       </tr>
                       {historyCode === item.code ? (
-                        <tr key={`${item.code}-history`} className="border-b border-line/60">
-                          <td colSpan={8} className="bg-cloud/60 px-4 py-3">
+                        <tr className="border-b border-line/60">
+                          <td colSpan={7} className="bg-cloud/60 px-4 py-3">
                             {historyLoading ? (
                               <p className="text-[12px] text-mute">Chargement…</p>
                             ) : history.length === 0 ? (
@@ -357,7 +415,7 @@ export default function AdminTicketsPage() {
                           </td>
                         </tr>
                       ) : null}
-                    </>
+                    </Fragment>
                   )
                 })}
               </tbody>

@@ -109,28 +109,30 @@ export default function AdminGeneratedTicketsPage() {
               <tr key={item.code} className="border-b border-line/60">
                 <td className="py-2.5 pr-4">
                   <span className="flex items-center gap-1.5">
-                    <span className="font-semibold tracking-wide text-ink">{item.code}</span>
                     <button
                       type="button"
                       onClick={() => void handleCopy(item.code, 'ID')}
                       aria-label={`Copier l’ID ${item.code}`}
+                      title="Copier l’ID"
                       className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
                     >
                       <Copy size={13} />
                     </button>
+                    <span className="font-semibold tracking-wide text-ink">{item.code}</span>
                   </span>
                 </td>
                 <td className="py-2.5">
                   <span className="flex items-center gap-1.5">
-                    <span className="font-mono text-[12px] tracking-widest text-ink">{item.secret}</span>
                     <button
                       type="button"
                       onClick={() => void handleCopy(item.secret, 'Numéro')}
                       aria-label={`Copier le numéro de ${item.code}`}
+                      title="Copier le numéro"
                       className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
                     >
                       <Copy size={13} />
                     </button>
+                    <span className="font-mono text-[12px] tracking-widest text-ink">{item.secret}</span>
                   </span>
                 </td>
               </tr>

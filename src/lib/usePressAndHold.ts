@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 
 /**
  * Presse-and-hold : la confirmation ne se déclenche qu'après avoir maintenu
@@ -20,8 +20,15 @@ export function usePressAndHold(duration = 3000) {
     setProgress(0)
   }, [])
 
+  useEffect(() => {
+    return () => {
+      if (raf.current !== null) cancelAnimationFrame(raf.current)
+      raf.current = null
+    }
+  }, [])
+
   const start = useCallback(
-    (onComplete: () => void, event?: PointerEvent<HTMLButtonElement>) => {
+    (onComplete: () => void, event?: PointerEvent<HTMLElement>) => {
       if (raf.current !== null) return
       if (event) {
         try {
