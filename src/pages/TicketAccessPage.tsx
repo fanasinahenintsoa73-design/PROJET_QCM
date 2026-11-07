@@ -101,7 +101,7 @@ export function TicketAccessPage() {
                 autoComplete="current-password"
                 placeholder="Numéro sur ton ticket"
                 value={secret}
-                onChange={(event) => setSecret(event.target.value)}
+                onChange={(event) => setSecret(event.target.value.toUpperCase())}
                 className="pr-12"
                 required
               />
