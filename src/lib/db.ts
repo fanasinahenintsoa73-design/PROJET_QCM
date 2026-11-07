@@ -1562,6 +1562,7 @@ export function listTickets(): TicketItem[] {
   const db = getDB()
   return loadDemoTickets().map((record) => ({
     code: record.code,
+    secret: record.secret,
     status: record.status,
     seriesUsed: getSeriesUsage(record.userId, db).used,
     createdAt: record.createdAt,

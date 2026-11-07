@@ -1171,8 +1171,10 @@ export async function listTickets(): Promise<TicketItem[]> {
     created_at: string
     used_at: string | null
     last_login_at: string | null
+    secret: string | null
   }>).map((row) => ({
     code: row.code,
+    secret: row.secret,
     status: row.status,
     seriesUsed: row.series_used,
     createdAt: row.created_at,

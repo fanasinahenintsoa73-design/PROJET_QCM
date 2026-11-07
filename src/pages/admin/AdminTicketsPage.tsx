@@ -62,6 +62,7 @@ export default function AdminTicketsPage() {
   const suppressClickRef = useRef(false)
   const selectedRef = useRef(selected)
   const lastBatch = getGeneratedTickets()
+  const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
 
   useEffect(() => {
     selectedRef.current = selected
@@ -133,6 +134,11 @@ export default function AdminTicketsPage() {
   async function handleCopyId(code: string) {
     const ok = await copyText(code)
     toast(ok ? 'ID copié !' : 'Copie impossible sur cet appareil.', ok ? 'success' : 'error')
+  }
+
+  async function handleCopySecret(secret: string) {
+    const ok = await copyText(secret)
+    toast(ok ? 'Numéro copié !' : 'Copie impossible sur cet appareil.', ok ? 'success' : 'error')
   }
 
   function beginRowHold(item: TicketItem, event?: ReactPointerEvent<HTMLTableRowElement>) {
@@ -354,10 +360,11 @@ export default function AdminTicketsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-[13px]">
+            <table className="w-full min-w-[900px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-line text-[10px] uppercase tracking-[0.12em] text-mute">
                   <th className="py-3 pr-4 font-semibold">Ticket</th>
+                  <th className="py-3 pr-4 font-semibold">Numéro d’enregistrement</th>
                   <th className="py-3 pr-4 font-semibold">Statut</th>
                   <th className="py-3 pr-4 font-semibold">Créé</th>
                   <th className="py-3 pr-4 font-semibold">1ʳᵉ connexion</th>
@@ -370,6 +377,7 @@ export default function AdminTicketsPage() {
                   const display = ticketDisplay(item)
                   const isSelected = selected.has(item.code)
                   const isHolding = holdCode === item.code
+                  const secret = item.secret ?? batchSecrets.get(item.code) ?? null
                   return (
                     <Fragment key={item.code}>
                       <tr
@@ -431,6 +439,24 @@ export default function AdminTicketsPage() {
                               </span>
                             ) : null}
                           </span>
+                        </td>
+                        <td className="py-3 pr-4">
+                          {secret ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => void handleCopySecret(secret)}
+                                aria-label={`Copier le numéro de ${item.code}`}
+                                title="Copier le numéro"
+                                className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
+                              >
+                                <Copy size={13} />
+                              </button>
+                              <span className="font-mono text-[12px] tracking-widest text-ink">{secret}</span>
+                            </span>
+                          ) : (
+                            <span className="text-mute">—</span>
+                          )}
                         </td>
                         <td className="py-3 pr-4">
                           <StatusPill tone={display.tone}>{display.label}</StatusPill>

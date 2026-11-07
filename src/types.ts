@@ -140,6 +140,8 @@ export type TicketStatus = 'available' | 'used' | 'suspended'
 
 export interface TicketItem {
   code: string
+  /** Numéro d'enregistrement (visible par le docteur). */
+  secret: string | null
   status: TicketStatus
   seriesUsed: number
   createdAt: string
