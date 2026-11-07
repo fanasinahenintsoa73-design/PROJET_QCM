@@ -28,11 +28,20 @@ export default function AdminDashboardPage() {
   const questionCount = subjects.reduce((total, item) => total + item.questionCount, 0)
 
   const counts = {
-    available: tickets.filter((item) => item.status === 'available' && item.seriesUsed < 30).length,
-    inProgress: tickets.filter(
-      (item) => item.status !== 'suspended' && item.seriesUsed < 30 && (item.status === 'used' || item.usedAt),
+    available: tickets.filter(
+      (item) =>
+        item.status !== 'suspended' &&
+        item.seriesUsed < 30 &&
+        item.status !== 'used' &&
+        !item.usedAt,
     ).length,
-    finished: tickets.filter((item) => item.seriesUsed >= 30).length,
+    inProgress: tickets.filter(
+      (item) =>
+        item.status !== 'suspended' &&
+        item.seriesUsed < 30 &&
+        (item.status === 'used' || item.usedAt),
+    ).length,
+    finished: tickets.filter((item) => item.status !== 'suspended' && item.seriesUsed >= 30).length,
     suspended: tickets.filter((item) => item.status === 'suspended').length,
   }
 
@@ -80,7 +89,7 @@ export default function AdminDashboardPage() {
             {ticketLinks.map((item) => (
               <Link
                 key={item.key}
-                to="/admin/tickets"
+                to={`/admin/tickets?statut=${item.key}`}
                 className="group flex items-center gap-3 border-b border-hairline py-3.5 transition-colors hover:bg-cloud sm:px-2"
               >
                 <span className={cn('size-1.5 shrink-0 rounded-full', item.dot)} />

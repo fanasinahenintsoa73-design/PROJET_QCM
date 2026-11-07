@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type TouchEvent as ReactTouchEvent,
 } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Ban, Copy, Play, RefreshCw, Ticket, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
@@ -37,6 +37,36 @@ function ticketDisplay(item: TicketItem): { label: string; tone: Tone } {
   return { label: 'Disponible', tone: 'success' }
 }
 
+const TICKET_FILTERS = ['available', 'inProgress', 'finished', 'suspended'] as const
+type TicketFilter = (typeof TICKET_FILTERS)[number]
+
+const FILTER_LABELS: Record<TicketFilter, string> = {
+  available: 'Disponibles',
+  inProgress: 'En cours',
+  finished: 'Terminés',
+  suspended: 'Suspendus',
+}
+
+const FILTER_TITLES: Record<TicketFilter, string> = {
+  available: 'Tickets disponibles',
+  inProgress: 'Tickets en cours',
+  finished: 'Tickets terminés',
+  suspended: 'Tickets suspendus',
+}
+
+function isTicketFilter(value: string | null): value is TicketFilter {
+  return value !== null && (TICKET_FILTERS as readonly string[]).includes(value)
+}
+
+function matchesTicketFilter(item: TicketItem, filter: TicketFilter): boolean {
+  if (filter === 'suspended') return item.status === 'suspended'
+  if (item.status === 'suspended') return false
+  if (filter === 'finished') return item.seriesUsed >= 30
+  const started = item.status === 'used' || item.usedAt !== null
+  if (filter === 'inProgress') return item.seriesUsed < 30 && started
+  return item.seriesUsed < 30 && !started
+}
+
 function isInteractive(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('button, a, input, select, textarea') !== null
 }
@@ -45,6 +75,7 @@ export default function AdminTicketsPage() {
   usePageTitle('Tickets — Espace docteur')
   const { toast } = useToast()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [tickets, setTickets] = useState<TicketItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,10 +94,19 @@ export default function AdminTicketsPage() {
   const selectedRef = useRef(selected)
   const lastBatch = getGeneratedTickets()
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
+  const filterParam = searchParams.get('statut')
+  const activeFilter = isTicketFilter(filterParam) ? filterParam : null
+  const filteredTickets = activeFilter
+    ? tickets.filter((item) => matchesTicketFilter(item, activeFilter))
+    : tickets
 
   useEffect(() => {
     selectedRef.current = selected
   }, [selected])
+
+  useEffect(() => {
+    setSelected(new Set())
+  }, [activeFilter])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -285,7 +325,9 @@ export default function AdminTicketsPage() {
       <section className="mt-8">
         <div className="flex items-end justify-between gap-4 border-b border-line pb-4">
           <div>
-            <h2 className="text-[22px] font-medium tracking-[-0.01em] text-ink">Tous les tickets</h2>
+            <h2 className="text-[22px] font-medium tracking-[-0.01em] text-ink">
+              {activeFilter ? FILTER_TITLES[activeFilter] : 'Tous les tickets'}
+            </h2>
             <p className="mt-1 text-[11px] text-mute">
               Disponible · En cours (séries faites) · Terminé (30 séries) · Suspendu
             </p>
@@ -295,8 +337,20 @@ export default function AdminTicketsPage() {
                 : 'Touche un ticket pour l’ajouter ou le retirer de la sélection.'}
             </p>
           </div>
-          <span className="font-display text-[1.6rem] leading-none text-ink">{tickets.length}</span>
+          <span className="font-display text-[1.6rem] leading-none text-ink">{filteredTickets.length}</span>
         </div>
+
+        {activeFilter ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-accent/20 bg-accent-soft/40 px-4 py-3">
+            <p className="text-[13px] text-ink">
+              Filtre : <strong>{FILTER_LABELS[activeFilter]}</strong> · {filteredTickets.length} ticket
+              {filteredTickets.length > 1 ? 's' : ''}
+            </p>
+            <Button variant="outline" size="sm" className="ml-auto" onClick={() => setSearchParams({})}>
+              Tout afficher
+            </Button>
+          </div>
+        ) : null}
 
         {selected.size > 0 ? (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3">
@@ -358,6 +412,24 @@ export default function AdminTicketsPage() {
             <p className="text-[14px] font-medium text-ink">Aucun ticket pour le moment.</p>
             <p className="mt-1 text-[12px] text-mute">Génère un premier lot ci-dessus.</p>
           </div>
+        ) : filteredTickets.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-[14px] font-medium text-ink">
+              {activeFilter
+                ? `Aucun ticket ${FILTER_LABELS[activeFilter].toLowerCase()}.`
+                : 'Aucun ticket dans cette catégorie.'}
+            </p>
+            <p className="mt-1 text-[12px] text-mute">
+              {activeFilter
+                ? 'Change de filtre pour voir les autres tickets.'
+                : 'Génère un premier lot ci-dessus.'}
+            </p>
+            {activeFilter ? (
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => setSearchParams({})}>
+                Tout afficher
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-[13px]">
@@ -373,7 +445,7 @@ export default function AdminTicketsPage() {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((item) => {
+                {filteredTickets.map((item) => {
                   const display = ticketDisplay(item)
                   const isSelected = selected.has(item.code)
                   const isHolding = holdCode === item.code
