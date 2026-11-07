@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, Copy, History, Play, Printer, RefreshCw, Ticket } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Ban, History, Play, RefreshCw, Ticket } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
 import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
+import { setGeneratedTickets } from '@/lib/generatedTicketsSession'
 import { formatDateLong, formatDateTime } from '@/lib/utils'
-import type { GeneratedTicket, TicketItem } from '@/types'
+import type { TicketItem } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
 
@@ -20,36 +22,16 @@ function ticketDisplay(item: TicketItem): { label: string; tone: Tone } {
   return { label: 'Disponible', tone: 'success' }
 }
 
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    document.body.appendChild(ta)
-    ta.select()
-    let ok = false
-    try {
-      ok = document.execCommand('copy')
-    } catch {
-      ok = false
-    }
-    ta.remove()
-    return ok
-  }
-}
-
 export default function AdminTicketsPage() {
   usePageTitle('Tickets — Espace docteur')
   const { toast } = useToast()
+  const navigate = useNavigate()
 
   const [tickets, setTickets] = useState<TicketItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [count, setCount] = useState('50')
   const [generating, setGenerating] = useState(false)
-  const [generated, setGenerated] = useState<GeneratedTicket[]>([])
   const [historyCode, setHistoryCode] = useState<string | null>(null)
   const [history, setHistory] = useState<string[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -80,20 +62,14 @@ export default function AdminTicketsPage() {
     setGenerating(true)
     try {
       const created = await api.generateTickets(n)
-      setGenerated(created)
+      setGeneratedTickets(created)
       toast(`${created.length} ticket${created.length > 1 ? 's' : ''} généré${created.length > 1 ? 's' : ''}.`)
-      await load()
+      navigate('/admin/tickets/generes')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'La génération a échoué.', 'error')
     } finally {
       setGenerating(false)
     }
-  }
-
-  async function handleCopyAll() {
-    const text = generated.map((item) => `${item.code} — ${item.secret}`).join('\n')
-    const ok = await copyText(text)
-    toast(ok ? 'Liste copiée !' : 'Copie impossible sur cet appareil.', ok ? 'success' : 'error')
   }
 
   async function handleStatus(item: TicketItem, status: 'suspended' | 'active') {
@@ -161,38 +137,10 @@ export default function AdminTicketsPage() {
             <Ticket size={15} /> Générer
           </Button>
         </div>
-
-        {generated.length > 0 ? (
-          <div id="generated-tickets" className="mt-6 border-t border-line pt-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[13px] font-medium text-ink">{generated.length} tickets générés</p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => void handleCopyAll()}>
-                  <Copy size={13} /> Copier tout
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => window.print()}>
-                  <Printer size={13} /> Imprimer
-                </Button>
-              </div>
-            </div>
-            <p className="mt-2 rounded-lg border border-warning/30 bg-[#fdf3e2] px-3 py-2 text-[12px] leading-relaxed text-[#8a5300]">
-              Copie ou imprime ces numéros maintenant : après avoir fermé cette page, ils ne
-              seront plus affichés.
-            </p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[340px] text-left text-[13px]">
-                <tbody>
-                  {generated.map((item) => (
-                    <tr key={item.code} className="border-b border-line/60">
-                      <td className="py-2 pr-4 font-semibold tracking-wide text-ink">{item.code}</td>
-                      <td className="py-2 font-mono text-[12px] tracking-widest text-ink">{item.secret}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : null}
+        <p className="mt-3 text-[12px] text-mute">
+          Après génération, tu arrives sur une nouvelle page avec les ID et numéros, pour les
+          télécharger en Excel ou en PDF.
+        </p>
       </section>
 
       {/* Liste des tickets */}
@@ -302,8 +250,6 @@ export default function AdminTicketsPage() {
           </div>
         )}
       </section>
-
-      <style>{`@media print { body * { visibility: hidden; } #generated-tickets, #generated-tickets * { visibility: visible; } #generated-tickets { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 0; } }`}</style>
     </div>
   )
 }

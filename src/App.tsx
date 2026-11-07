@@ -30,6 +30,7 @@ import NotFoundPage from '@/pages/NotFoundPage'
 
 // xlsx is heavy: only load the publication module when a professor needs it.
 const AdminSubjectPage = lazy(() => import('@/pages/admin/AdminSubjectPage'))
+const AdminGeneratedTicketsPage = lazy(() => import('@/pages/admin/AdminGeneratedTicketsPage'))
 
 function RouteFallback() {
   return (
@@ -126,6 +127,14 @@ function DoctorRoutes() {
           <Route path="/admin/sujet" element={<Navigate to="/admin/themes" replace />} />
           <Route path="/admin/etudiants" element={<Navigate to="/admin/tickets" replace />} />
           <Route path="/admin/tickets" element={<AdminTicketsPage />} />
+          <Route
+            path="/admin/tickets/generes"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <AdminGeneratedTicketsPage />
+              </Suspense>
+            }
+          />
           <Route path="/admin/avis" element={<AdminFeedbackPage />} />
         </Route>
       </Route>
