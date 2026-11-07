@@ -75,7 +75,7 @@ export default function AdminTicketsPage() {
   usePageTitle('Tickets — Espace docteur')
   const { toast } = useToast()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   const [tickets, setTickets] = useState<TicketItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -346,9 +346,6 @@ export default function AdminTicketsPage() {
               Filtre : <strong>{FILTER_LABELS[activeFilter]}</strong> · {filteredTickets.length} ticket
               {filteredTickets.length > 1 ? 's' : ''}
             </p>
-            <Button variant="outline" size="sm" className="ml-auto" onClick={() => setSearchParams({})}>
-              Tout afficher
-            </Button>
           </div>
         ) : null}
 
@@ -421,14 +418,9 @@ export default function AdminTicketsPage() {
             </p>
             <p className="mt-1 text-[12px] text-mute">
               {activeFilter
-                ? 'Change de filtre pour voir les autres tickets.'
+                ? 'Ouvre « Tickets » dans le menu pour voir tous les tickets.'
                 : 'Génère un premier lot ci-dessus.'}
             </p>
-            {activeFilter ? (
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => setSearchParams({})}>
-                Tout afficher
-              </Button>
-            ) : null}
           </div>
         ) : (
           <div className="overflow-x-auto">
