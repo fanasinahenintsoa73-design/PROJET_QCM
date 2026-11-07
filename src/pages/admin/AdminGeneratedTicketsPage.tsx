@@ -36,10 +36,14 @@ export default function AdminGeneratedTicketsPage() {
     }
   }
 
-  async function handleCopy() {
-    const text = batch.map((item) => `${item.code} — ${item.secret}`).join('\n')
-    const ok = await copyText(text)
-    toast(ok ? 'Liste copiée !' : 'Copie impossible sur cet appareil.', ok ? 'success' : 'error')
+  async function handleCopy(body: string, label: string) {
+    const ok = await copyText(body)
+    toast(ok ? `${label} copié !` : 'Copie impossible sur cet appareil.', ok ? 'success' : 'error')
+  }
+
+  async function handleCopyAll() {
+    const body = batch.map((item) => `${item.code} — ${item.secret}`).join('\n')
+    await handleCopy(body, 'Liste')
   }
 
   if (batch.length === 0) {
@@ -82,7 +86,7 @@ export default function AdminGeneratedTicketsPage() {
         <Button variant="outline" onClick={() => void handlePdf()} loading={busy === 'pdf'}>
           <FileText size={15} /> Télécharger PDF
         </Button>
-        <Button variant="outline" onClick={() => void handleCopy()}>
+        <Button variant="outline" onClick={() => void handleCopyAll()}>
           <Copy size={13} /> Copier tout
         </Button>
       </div>
@@ -103,8 +107,32 @@ export default function AdminGeneratedTicketsPage() {
           <tbody>
             {batch.map((item) => (
               <tr key={item.code} className="border-b border-line/60">
-                <td className="py-2.5 pr-4 font-semibold tracking-wide text-ink">{item.code}</td>
-                <td className="py-2.5 font-mono text-[12px] tracking-widest text-ink">{item.secret}</td>
+                <td className="py-2.5 pr-4">
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-semibold tracking-wide text-ink">{item.code}</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopy(item.code, 'ID')}
+                      aria-label={`Copier l’ID ${item.code}`}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </span>
+                </td>
+                <td className="py-2.5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-mono text-[12px] tracking-widest text-ink">{item.secret}</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopy(item.secret, 'Numéro')}
+                      aria-label={`Copier le numéro de ${item.code}`}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
