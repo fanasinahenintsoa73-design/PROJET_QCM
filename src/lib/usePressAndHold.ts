@@ -1,9 +1,13 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type PointerEvent } from 'react'
 
 /**
  * Presse-and-hold : la confirmation ne se déclenche qu'après avoir maintenu
  * l'appui pendant `duration` ms sans relâcher (souris, tactile ou clavier).
  * `progress` (0 à 1) sert à afficher une progression visuelle.
+ *
+ * Au tactile, la capture du pointeur permet de tolérer les petits
+ * déplacements du doigt : seul un relâchement ou une interruption
+ * (défilement pris en charge par le navigateur) annule.
  */
 export function usePressAndHold(duration = 3000) {
   const [progress, setProgress] = useState(0)
@@ -17,8 +21,15 @@ export function usePressAndHold(duration = 3000) {
   }, [])
 
   const start = useCallback(
-    (onComplete: () => void) => {
+    (onComplete: () => void, event?: PointerEvent<HTMLButtonElement>) => {
       if (raf.current !== null) return
+      if (event) {
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId)
+        } catch {
+          /* capture non disponible : le maintien reste vérifié au relâchement */
+        }
+      }
       startedAt.current = performance.now()
       const tick = () => {
         const elapsed = performance.now() - startedAt.current

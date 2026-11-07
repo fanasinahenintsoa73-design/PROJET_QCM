@@ -190,42 +190,63 @@ export default function AdminTicketsPage() {
           <span className="font-display text-[1.6rem] leading-none text-ink">{tickets.length}</span>
         </div>
 
-        {selected.size > 0 ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3">
+        {tickets.length > 0 ? (
+          <div
+            className={
+              selected.size > 0
+                ? 'mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3'
+                : 'mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3'
+            }
+          >
             <p className="text-[13px] font-medium text-ink">
-              {selected.size} ticket{selected.size > 1 ? 's' : ''} sélectionné{selected.size > 1 ? 's' : ''}
+              {selected.size > 0
+                ? `${selected.size} ticket${selected.size > 1 ? 's' : ''} sélectionné${selected.size > 1 ? 's' : ''}`
+                : 'Aucun ticket sélectionné'}
             </p>
             <p className="text-[11px] text-mute">
-              Maintiens le bouton 3 secondes sans relâcher pour supprimer.
+              {selected.size > 0
+                ? 'Maintiens le bouton 3 secondes sans relâcher pour supprimer.'
+                : 'Coche des tickets, puis maintiens la corbeille 3 secondes pour les supprimer.'}
             </p>
             <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={deleting}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelected(new Set())}
+                disabled={deleting || selected.size === 0}
+              >
                 Annuler
               </Button>
               <button
                 type="button"
-                onPointerDown={() => startHold(() => void handleDeleteSelected())}
+                onPointerDown={(event) => startHold(() => void handleDeleteSelected(), event)}
                 onPointerUp={cancelHold}
-                onPointerLeave={cancelHold}
                 onPointerCancel={cancelHold}
                 onKeyDown={(event) => {
-                  if ((event.key === 'Enter' || event.key === ' ') && !deleting) {
+                  if ((event.key === 'Enter' || event.key === ' ') && !deleting && selected.size > 0) {
                     event.preventDefault()
                     startHold(() => void handleDeleteSelected())
                   }
                 }}
                 onKeyUp={cancelHold}
                 onContextMenu={(event) => event.preventDefault()}
-                disabled={deleting}
+                disabled={deleting || selected.size === 0}
                 aria-label={`Supprimer ${selected.size} ticket${selected.size > 1 ? 's' : ''} sélectionnés (maintenir 3 secondes)`}
-                className={buttonClasses('danger', 'sm', 'relative select-none overflow-hidden')}
+                className={buttonClasses('danger', 'sm', 'relative select-none overflow-hidden touch-none')}
               >
                 <span
                   aria-hidden
                   className="absolute inset-y-0 left-0 bg-white/25"
                   style={{ width: `${holdProgress * 100}%` }}
                 />
-                <Trash2 size={13} /> Supprimer
+                {holdProgress > 0 ? (
+                  <span aria-hidden className="text-[13px] font-bold tabular-nums">
+                    {Math.ceil((1 - holdProgress) * 3)}
+                  </span>
+                ) : (
+                  <Trash2 size={13} />
+                )}
+                Supprimer
               </button>
             </div>
           </div>
