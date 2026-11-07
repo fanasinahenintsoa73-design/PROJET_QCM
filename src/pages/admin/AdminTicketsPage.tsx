@@ -9,7 +9,7 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Ban, Copy, History, Play, RefreshCw, Ticket, Trash2 } from 'lucide-react'
+import { Ban, Copy, Play, RefreshCw, Ticket, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
 import { Field, Input } from '@/components/ui/Field'
@@ -51,9 +51,6 @@ export default function AdminTicketsPage() {
   const [error, setError] = useState('')
   const [count, setCount] = useState('50')
   const [generating, setGenerating] = useState(false)
-  const [historyCode, setHistoryCode] = useState<string | null>(null)
-  const [history, setHistory] = useState<string[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
   const [busyCode, setBusyCode] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
@@ -121,24 +118,6 @@ export default function AdminTicketsPage() {
       toast(err instanceof Error ? err.message : 'Action impossible.', 'error')
     } finally {
       setBusyCode(null)
-    }
-  }
-
-  async function toggleHistory(item: TicketItem) {
-    if (historyCode === item.code) {
-      setHistoryCode(null)
-      setHistory([])
-      return
-    }
-    setHistoryCode(item.code)
-    setHistory([])
-    setHistoryLoading(true)
-    try {
-      setHistory(await api.ticketHistory(item.code))
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Historique impossible.', 'error')
-    } finally {
-      setHistoryLoading(false)
     }
   }
 
@@ -383,7 +362,6 @@ export default function AdminTicketsPage() {
                   <th className="py-3 pr-4 font-semibold">Créé</th>
                   <th className="py-3 pr-4 font-semibold">1ʳᵉ connexion</th>
                   <th className="py-3 pr-4 font-semibold">Dernière connexion</th>
-                  <th className="py-3 pr-4 font-semibold">Historique</th>
                   <th className="py-3 text-right font-semibold">Action</th>
                 </tr>
               </thead>
@@ -460,15 +438,6 @@ export default function AdminTicketsPage() {
                         <td className="py-3 pr-4 text-mute">{formatDateLong(item.createdAt)}</td>
                         <td className="py-3 pr-4 text-mute">{item.usedAt ? formatDateLong(item.usedAt) : '—'}</td>
                         <td className="py-3 pr-4 text-mute">{item.lastLoginAt ? formatDateTime(item.lastLoginAt) : '—'}</td>
-                        <td className="py-3 pr-4">
-                          <button
-                            type="button"
-                            onClick={() => void toggleHistory(item)}
-                            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:underline"
-                          >
-                            <History size={13} /> {historyCode === item.code ? 'Masquer' : 'Voir'}
-                          </button>
-                        </td>
                         <td className="py-3 text-right">
                           {item.status === 'suspended' ? (
                             <Button
@@ -491,22 +460,6 @@ export default function AdminTicketsPage() {
                           )}
                         </td>
                       </tr>
-                      {historyCode === item.code ? (
-                        <tr className="border-b border-line/60">
-                          <td colSpan={7} className="bg-cloud/60 px-4 py-3">
-                            {historyLoading ? (
-                              <p className="text-[12px] text-mute">Chargement…</p>
-                            ) : history.length === 0 ? (
-                              <p className="text-[12px] text-mute">Aucune connexion enregistrée.</p>
-                            ) : (
-                              <p className="text-[12px] leading-relaxed text-mute">
-                                {history.length} connexion{history.length > 1 ? 's' : ''} :{' '}
-                                {history.map((date) => formatDateTime(date)).join(' · ')}
-                              </p>
-                            )}
-                          </td>
-                        </tr>
-                      ) : null}
                     </Fragment>
                   )
                 })}
