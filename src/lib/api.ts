@@ -417,6 +417,12 @@ export const api = {
     return demo.setTicketStatus(code, status)
   },
 
+  /** Supprime les tickets choisis et leurs comptes (docteur uniquement). */
+  async deleteTickets(codes: string[]): Promise<void> {
+    if (isSupabaseConfigured) return remote.deleteTickets(codes)
+    return demo.deleteTickets(codes)
+  },
+
   /** Horodatage des connexions d'un ticket. */
   async ticketHistory(code: string): Promise<string[]> {
     if (isSupabaseConfigured) return remote.ticketHistory(code)

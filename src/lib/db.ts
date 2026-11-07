@@ -1580,6 +1580,24 @@ export function setTicketStatus(code: string, status: 'suspended' | 'active'): v
   saveDemoTickets(records)
 }
 
+/** Supprime des tickets avec leurs comptes, séries et assignations (démo). */
+export function deleteTickets(codes: string[]): void {
+  if (codes.length === 0) return
+  const records = loadDemoTickets()
+  const userIds = new Set(
+    records.filter((record) => codes.includes(record.code)).map((record) => record.userId),
+  )
+  if (userIds.size === 0) return
+  saveDemoTickets(records.filter((record) => !codes.includes(record.code)))
+  const db = getDB()
+  commit({
+    ...db,
+    users: db.users.filter((user) => !userIds.has(user.id)),
+    assignments: db.assignments.filter((assignment) => !userIds.has(assignment.userId)),
+    attempts: db.attempts.filter((attempt) => !userIds.has(attempt.userId)),
+  })
+}
+
 /** Horodatage des connexions d'un ticket (mode démonstration). */
 export function ticketHistory(code: string): string[] {
   const record = loadDemoTickets().find((candidate) => candidate.code === code)

@@ -1188,6 +1188,17 @@ export async function setTicketStatus(code: string, status: 'suspended' | 'activ
   if (error) throw asFrenchError(error)
 }
 
+/**
+ * Supprime les tickets choisis (docteur uniquement). La suppression du
+ * compte auth entraîne en cascade la suppression du profil, du ticket,
+ * des assignations, des séries et des avis.
+ */
+export async function deleteTickets(codes: string[]): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('delete_tickets', { p_codes: codes })
+  if (error) throw asFrenchError(error)
+}
+
 /** Horodatage des connexions d'un ticket (docteur uniquement). */
 export async function ticketHistory(code: string): Promise<string[]> {
   const client = requireSupabase()
