@@ -25,7 +25,7 @@ export function StudentHeader() {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
-            to="/message-du-docteur"
+            to="/"
             aria-label="Message du docteur"
             title="Message du docteur"
             className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-mute transition hover:bg-cloud hover:text-ink sm:px-2.5"

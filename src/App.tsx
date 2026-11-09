@@ -68,9 +68,6 @@ function StudentRoutes() {
       <Route path="/" element={<PublicLayout />}>
         <Route index element={<LandingPage />} />
       </Route>
-      <Route path="/message-du-docteur" element={<PublicLayout />}>
-        <Route index element={<LandingPage showForAnki />} />
-      </Route>
       <Route path="/acces" element={<TicketAccessPage />} />
       <Route path="/inscription" element={<Navigate to="/acces" replace />} />
       <Route path="/connexion" element={<Navigate to="/acces" replace />} />
