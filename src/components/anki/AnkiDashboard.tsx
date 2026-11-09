@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -50,6 +50,7 @@ function statusLabel(status: AnkiHistoryEntry['status']): string {
 export default function AnkiDashboard() {
   usePageTitle('Mode Anki — MEDQCM mada')
   const { user, db, ticketExpiresAt } = useAuth()
+  const navigate = useNavigate()
   const [chapters, setChapters] = useState<AnkiChapterState[]>([])
   const [history, setHistory] = useState<AnkiHistoryEntry[]>([])
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
@@ -79,6 +80,12 @@ export default function AnkiDashboard() {
   useEffect(() => {
     void load()
   }, [])
+
+  useEffect(() => {
+    if (!loading && chapters.length === 0) {
+      navigate('/app/anki/choisir', { replace: true })
+    }
+  }, [loading, chapters.length, navigate])
 
   const selection = useMemo(
     () =>
@@ -142,6 +149,10 @@ export default function AnkiDashboard() {
         </div>
       </div>
     )
+  }
+
+  if (chapters.length === 0) {
+    return null
   }
 
   return (

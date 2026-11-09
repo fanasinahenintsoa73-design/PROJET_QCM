@@ -1300,6 +1300,14 @@ export async function selectAnkiChapters(chapterIds: string[]): Promise<void> {
   if (error) throw asFrenchError(error)
 }
 
+export async function addAnkiChapter(chapterId: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('anki_add_chapter', {
+    p_chapter_id: chapterId,
+  })
+  if (error) throw asFrenchError(error)
+}
+
 export async function getAnkiQuestions(chapterId: string): Promise<Question[]> {
   const client = requireSupabase()
   const { data, error } = await client.rpc('anki_next_questions', {

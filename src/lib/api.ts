@@ -480,6 +480,11 @@ export const api = {
     return Promise.resolve(demo.selectAnkiChapters(chapterIds))
   },
 
+  async addAnkiChapter(chapterId: string): Promise<void> {
+    if (isSupabaseConfigured) return remote.addAnkiChapter(chapterId)
+    return Promise.resolve(demo.addAnkiChapter(chapterId))
+  },
+
   async getAnkiQuestions(chapterId: string): Promise<Question[]> {
     if (isSupabaseConfigured) return remote.getAnkiQuestions(chapterId)
     return Promise.resolve(demo.getAnkiQuestions(chapterId))

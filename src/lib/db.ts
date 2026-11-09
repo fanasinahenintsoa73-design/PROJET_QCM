@@ -1825,6 +1825,20 @@ export function selectAnkiChapters(chapterIds: string[]): void {
   saveAnkiStore(store)
 }
 
+/** Ajoute un chapitre Anki, un par un, sans dépasser 5 au total. */
+export function addAnkiChapter(chapterId: string): void {
+  const ticket = requireAnkiTicket()
+  const store = loadAnkiStore()
+  const state = store[ticket.code] ?? { chapters: [], progress: {}, history: [] }
+  if (state.chapters.includes(chapterId)) return
+  if (state.chapters.length >= 5) throw new Error('5 chapitres maximum.')
+  if (!findThemeForChapter(chapterId)) throw new Error('Chapitre inconnu.')
+  state.chapters.push(chapterId)
+  state.progress[chapterId] = { completedAt: null, questions: {} }
+  store[ticket.code] = state
+  saveAnkiStore(store)
+}
+
 /** Recommence un chapitre terminé sans réinitialiser le niveau. */
 export function restartAnkiChapter(chapterId: string): void {
   const ticket = requireAnkiTicket()

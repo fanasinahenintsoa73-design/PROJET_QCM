@@ -24,6 +24,7 @@ import { ExpirationPage } from '@/pages/ExpirationPage'
 import DashboardPage from '@/pages/DashboardPage'
 import ChapterSelectionPage from '@/pages/ChapterSelectionPage'
 import QuizPage from '@/pages/QuizPage'
+import AnkiHomePage from '@/pages/AnkiHomePage'
 import AnkiQuizPage from '@/pages/AnkiQuizPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
@@ -94,6 +95,7 @@ function StudentRoutes() {
             <Route path="/app/entrainement" element={<QuizPage />} />
           </Route>
           <Route element={<RequireAnkiStudent />}>
+            <Route path="/app/anki/choisir" element={<AnkiHomePage />} />
             <Route path="/app/anki/:chapterId" element={<AnkiQuizPage />} />
           </Route>
         </Route>
