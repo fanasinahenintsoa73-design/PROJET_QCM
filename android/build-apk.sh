@@ -27,8 +27,8 @@ mkdir -p "$BUILD_DIR/classes" "$BUILD_DIR/dex" "$BUILD_DIR/gen"
   --java "$BUILD_DIR/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 35 \
-  --version-code 2 \
-  --version-name 1.1.0 \
+  --version-code 3 \
+  --version-name 1.1.1 \
   "$BUILD_DIR/compiled.zip"
 
 javac --release 17 -cp "$ANDROID_JAR" -d "$BUILD_DIR/classes" \

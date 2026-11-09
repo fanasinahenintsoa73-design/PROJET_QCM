@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         configureWebView();
+        webView.clearCache(true);
         webView.loadUrl(getString(R.string.web_url));
     }
 
@@ -80,7 +81,7 @@ public class MainActivity extends Activity {
         settings.setDatabaseEnabled(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
