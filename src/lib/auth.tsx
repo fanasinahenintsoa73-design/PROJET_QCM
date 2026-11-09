@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Database, User } from '@/types'
+import type { Database, TicketInfo, TicketType, User } from '@/types'
 import {
   getDB,
   getSessionUserId,
@@ -44,8 +44,12 @@ interface AuthContextValue {
   pendingRequest?: ReturnType<typeof getPendingRequest>
   latestRequest?: ReturnType<typeof getLatestRequest>
   access: ReturnType<typeof getStudentAccess> | null
-  /** Le ticket de l'étudiant connecté a été suspendu par le docteur. */
+  /** Le ticket de l'étudiant connecté a été suspendu ou a expiré. */
   ticketBlocked: boolean
+  /** Type du ticket étudiant (30 séries ou Anki). */
+  ticketType: TicketType | null
+  /** Date d'expiration du ticket Anki. */
+  ticketExpiresAt: string | null
   homePath: string
 }
 
@@ -80,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [remoteDb, setRemoteDb] = useState<Database>(() => emptyDatabase())
   const [remoteUser, setRemoteUser] = useState<User | null>(null)
+  const [ticketInfo, setTicketInfo] = useState<TicketInfo | null>(null)
   const [ticketBlocked, setTicketBlocked] = useState(false)
   const [initialising, setInitialising] = useState(isSupabaseConfigured)
   const mounted = useRef(true)
@@ -92,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted.current) return
         setRemoteDb(emptyDatabase())
         setRemoteUser(null)
+        setTicketInfo(null)
         setTicketBlocked(false)
         return
       }
@@ -103,9 +109,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ticket suspendu côté docteur : la suspension est détectée ici
       // (rafraîchissement périodique), sans attendre une nouvelle connexion.
       if (profile.role === 'student') {
-        const status = await api.myTicketStatus().catch(() => null)
+        const info = await api.myTicketInfo().catch(() => null)
         if (!mounted.current) return
-        setTicketBlocked(status === 'suspended')
+        setTicketInfo(info)
+        const expired =
+          info?.type === 'anki' && info.expiresAt
+            ? new Date(info.expiresAt).getTime() < Date.now()
+            : false
+        setTicketBlocked(info?.status === 'suspended' || expired)
+      } else {
+        setTicketInfo(null)
+        setTicketBlocked(false)
       }
       // Dès la connexion, migration automatique des étoiles restées en local
       // vers le backend (tous les téléphones partagent ensuite les mêmes
@@ -133,6 +147,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const sync = () => setDemoSessionId(getSessionUserId())
     return subscribe(sync)
   }, [])
+
+  // Mode démonstration : type et expiration du ticket local.
+  useEffect(() => {
+    if (isSupabaseConfigured) return
+    if (!demoSessionId) {
+      setTicketInfo(null)
+      setTicketBlocked(false)
+      return
+    }
+    let active = true
+    void api
+      .myTicketInfo()
+      .then((info) => {
+        if (!active) return
+        setTicketInfo(info)
+        const expired =
+          info?.type === 'anki' && info.expiresAt
+            ? new Date(info.expiresAt).getTime() < Date.now()
+            : false
+        setTicketBlocked(info?.status === 'suspended' || expired)
+      })
+      .catch(() => {
+        if (active) setTicketInfo(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [demoSessionId, demoDb, clock])
 
   // Re-evaluate time-based access regularly, and as soon as the tab wakes up.
   useEffect(() => {
@@ -168,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setRemoteDb(emptyDatabase())
         setRemoteUser(null)
+        setTicketInfo(null)
         setTicketBlocked(false)
         return
       }
@@ -303,17 +346,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Le numéro d'enregistrement est le mot de passe du compte du ticket.
       const result = await login(ticketLoginEmail(code), secret, 'student')
       if (!result.ok) return result
-      const status = await api.myTicketStatus().catch(() => null)
-      if (status === 'suspended') {
+      const info = await api.myTicketInfo().catch(() => null)
+      if (info?.status === 'suspended') {
         await logout()
         return { ok: false, error: 'Ce ticket est suspendu. Contactez le docteur.' }
       }
+      const expired =
+        info?.type === 'anki' && info.expiresAt
+          ? new Date(info.expiresAt).getTime() < Date.now()
+          : false
+      if (expired) {
+        await logout()
+        return {
+          ok: false,
+          error: 'Ton ticket Anki a expiré. Contacte le docteur pour un nouveau ticket.',
+        }
+      }
+      setTicketInfo(info)
       // L'historique côté admin : qui est entré, quand.
       await api.recordTicketLogin()
       return result
     },
     [login, logout],
   )
+
+  const ticketType = ticketInfo?.type ?? null
+  const ticketExpiresAt = ticketInfo?.expiresAt ?? null
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -328,6 +386,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       latestRequest,
       access,
       ticketBlocked,
+      ticketType,
+      ticketExpiresAt,
       homePath,
     }),
     [
@@ -342,6 +402,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       latestRequest,
       access,
       ticketBlocked,
+      ticketType,
+      ticketExpiresAt,
       homePath,
     ],
   )

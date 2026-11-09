@@ -22,6 +22,7 @@ import { ExpirationPage } from '@/pages/ExpirationPage'
 import DashboardPage from '@/pages/DashboardPage'
 import ChapterSelectionPage from '@/pages/ChapterSelectionPage'
 import QuizPage from '@/pages/QuizPage'
+import AnkiQuizPage from '@/pages/AnkiQuizPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminTicketsPage from '@/pages/admin/AdminTicketsPage'
@@ -86,6 +87,7 @@ function StudentRoutes() {
           <Route path="/app" element={<DashboardPage />} />
           <Route path="/app/ue/:ueId" element={<ChapterSelectionPage />} />
           <Route path="/app/entrainement" element={<QuizPage />} />
+          <Route path="/app/anki/:chapterId" element={<AnkiQuizPage />} />
         </Route>
       </Route>
 

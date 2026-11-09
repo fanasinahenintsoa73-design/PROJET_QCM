@@ -135,24 +135,69 @@ export interface SeriesFeedbackReview extends SeriesFeedback {
   attemptCreatedAt: string
 }
 
-/** Statut d'un ticket : 1 ticket = 30 séries = 1 étudiant. */
+/** Statut d'un ticket : 1 ticket = 1 étudiant. */
 export type TicketStatus = 'available' | 'used' | 'suspended'
+
+/** Type de ticket : 30 séries classiques ou mode Anki. */
+export type TicketType = 'series' | 'anki'
 
 export interface TicketItem {
   code: string
   /** Numéro d'enregistrement (visible par le docteur). */
   secret: string | null
   status: TicketStatus
+  type: TicketType
+  expiresAt: string | null
+  ankiChapters: number
+  ankiCompleted: number
   seriesUsed: number
   createdAt: string
   usedAt: string | null
   lastLoginAt: string | null
 }
 
-/** Un ticket généré : le secret n'est affiché qu'une fois, à la génération. */
+/** Un ticket généré : le secret est affiché à la génération. */
 export interface GeneratedTicket {
   code: string
   secret: string
+  type: TicketType
+}
+
+/** Informations du ticket de l'étudiant connecté. */
+export interface TicketInfo {
+  status: TicketStatus
+  type: TicketType
+  expiresAt: string | null
+}
+
+/** Progression d'un chapitre en mode Anki. */
+export interface AnkiChapterState {
+  chapterId: string
+  level: number
+  completedBlocks: number
+  completedAt: string | null
+  totalQuestions: number
+  answeredQuestions: number
+}
+
+/** Résultat de l'enregistrement d'une réponse Anki. */
+export interface AnkiAnswerResult {
+  level: number
+  completedBlocks: number
+  completed: boolean
+}
+
+/** Une entrée de l'historique Anki. */
+export interface AnkiHistoryEntry {
+  id: string
+  chapterId: string
+  questionId: string
+  statement: string
+  givenAnswers: string[]
+  correctAnswers: string[]
+  explanation: string
+  status: 'correct' | 'wrong' | 'revealed' | 'skipped'
+  createdAt: string
 }
 
 export interface Database {

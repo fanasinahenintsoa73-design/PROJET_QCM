@@ -1,5 +1,8 @@
 import type {
   AccessRequest,
+  AnkiAnswerResult,
+  AnkiChapterState,
+  AnkiHistoryEntry,
   Attempt,
   Database,
   GeneratedTicket,
@@ -7,8 +10,10 @@ import type {
   Receipt,
   Subject,
   SubjectAssignment,
+  TicketInfo,
   TicketItem,
   TicketStatus,
+  TicketType,
   User,
 } from '@/types'
 import { makeTicketSecret, ticketLoginEmail } from '@/lib/tickets'
@@ -1468,6 +1473,8 @@ interface DemoTicket {
   secret: string
   userId: string
   status: TicketStatus
+  type: TicketType
+  expiresAt: string | null
   createdAt: string
   usedAt: string | null
   lastLoginAt: string | null
@@ -1479,7 +1486,19 @@ function loadDemoTickets(): DemoTicket[] {
     const raw = localStorage.getItem(TICKETS_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((record: Partial<DemoTicket>) => ({
+      code: String(record.code ?? ''),
+      secret: String(record.secret ?? ''),
+      userId: String(record.userId ?? ''),
+      status: record.status ?? 'available',
+      type: record.type === 'anki' ? 'anki' : 'series',
+      expiresAt: record.expiresAt ?? null,
+      createdAt: record.createdAt ?? new Date().toISOString(),
+      usedAt: record.usedAt ?? null,
+      lastLoginAt: record.lastLoginAt ?? null,
+      logins: Array.isArray(record.logins) ? record.logins : [],
+    }))
   } catch {
     return []
   }
@@ -1493,17 +1512,18 @@ function saveDemoTickets(records: DemoTicket[]) {
   }
 }
 
-function nextTicketNumber(records: DemoTicket[]): number {
+function nextTicketNumber(records: DemoTicket[], prefix = 'PACES'): number {
   let max = 0
   for (const record of records) {
-    const num = Number.parseInt(record.code.slice(5), 10)
+    if (!record.code.startsWith(prefix)) continue
+    const num = Number.parseInt(record.code.slice(prefix.length), 10)
     if (Number.isFinite(num)) max = Math.max(max, num)
   }
   return max + 1
 }
 
 /** Génère un lot de tickets (mode démonstration). */
-export function generateTickets(count: number): GeneratedTicket[] {
+export function generateTickets(count: number, type: TicketType = 'series'): GeneratedTicket[] {
   if (!Number.isInteger(count) || count < 1 || count > 500) {
     throw new Error('Nombre de tickets invalide (1 à 500).')
   }
@@ -1513,17 +1533,19 @@ export function generateTickets(count: number): GeneratedTicket[] {
   const assignments = [...db.assignments]
   const created: GeneratedTicket[] = []
   const now = new Date()
-  let next = nextTicketNumber(records)
+  const prefix = type === 'anki' ? 'ANKI' : 'PACES'
+  const expiresAt = type === 'anki' ? addDays(now, 30).toISOString() : null
+  let next = nextTicketNumber(records, prefix)
 
   for (let i = 0; i < count; i += 1) {
     const digits = String(next).padStart(4, '0')
-    const code = `PACES${digits}`
+    const code = `${prefix}${digits}`
     const secret = makeTicketSecret()
     const userId = uid('u')
     users.push({
       id: userId,
       role: 'student',
-      firstName: 'PACES',
+      firstName: prefix,
       lastName: digits,
       email: ticketLoginEmail(code),
       password: secret,
@@ -1543,12 +1565,14 @@ export function generateTickets(count: number): GeneratedTicket[] {
       secret,
       userId,
       status: 'available',
+      type,
+      expiresAt,
       createdAt: now.toISOString(),
       usedAt: null,
       lastLoginAt: null,
       logins: [],
     })
-    created.push({ code, secret })
+    created.push({ code, secret, type })
     next += 1
   }
 
@@ -1560,15 +1584,25 @@ export function generateTickets(count: number): GeneratedTicket[] {
 /** Tous les tickets (mode démonstration). */
 export function listTickets(): TicketItem[] {
   const db = getDB()
-  return loadDemoTickets().map((record) => ({
-    code: record.code,
-    secret: record.secret,
-    status: record.status,
-    seriesUsed: getSeriesUsage(record.userId, db).used,
-    createdAt: record.createdAt,
-    usedAt: record.usedAt,
-    lastLoginAt: record.lastLoginAt,
-  }))
+  const ankiStore = loadAnkiStore()
+  return loadDemoTickets().map((record) => {
+    const anki = ankiStore[record.code]
+    return {
+      code: record.code,
+      secret: record.secret,
+      status: record.status,
+      type: record.type,
+      expiresAt: record.expiresAt,
+      ankiChapters: anki?.chapters.length ?? 0,
+      ankiCompleted: anki
+        ? Object.values(anki.progress).filter((progress) => progress.completedAt).length
+        : 0,
+      seriesUsed: getSeriesUsage(record.userId, db).used,
+      createdAt: record.createdAt,
+      usedAt: record.usedAt,
+      lastLoginAt: record.lastLoginAt,
+    }
+  })
 }
 
 /** Suspend ou réactive un ticket (mode démonstration). */
@@ -1626,4 +1660,233 @@ export function myTicketStatus(): TicketStatus | null {
   if (!userId) return null
   const record = loadDemoTickets().find((candidate) => candidate.userId === userId)
   return record?.status ?? null
+}
+
+/** Informations complètes du ticket de la session courante. */
+export function myTicketInfo(): TicketInfo | null {
+  const ticket = currentDemoTicket()
+  if (!ticket) return null
+  return { status: ticket.status, type: ticket.type, expiresAt: ticket.expiresAt }
+}
+
+/* ------------------------------------------------------------------ */
+/* Mode Anki (mode démonstration, stockage local)                      */
+/* ------------------------------------------------------------------ */
+
+const ANKI_KEY = 'medqcm.anki.v1'
+
+interface DemoAnkiChapterProgress {
+  level: number
+  completedBlocks: number
+  completedAt: string | null
+}
+
+interface DemoAnkiTicketState {
+  chapters: string[]
+  progress: Record<string, DemoAnkiChapterProgress>
+  history: AnkiHistoryEntry[]
+}
+
+type DemoAnkiStore = Record<string, DemoAnkiTicketState>
+
+function loadAnkiStore(): DemoAnkiStore {
+  try {
+    const raw = localStorage.getItem(ANKI_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? (parsed as DemoAnkiStore) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveAnkiStore(store: DemoAnkiStore) {
+  try {
+    localStorage.setItem(ANKI_KEY, JSON.stringify(store))
+  } catch {
+    /* in-memory only */
+  }
+}
+
+function currentDemoTicket(): DemoTicket | null {
+  const userId = getSessionUserId()
+  if (!userId) return null
+  return loadDemoTickets().find((record) => record.userId === userId) ?? null
+}
+
+function requireAnkiTicket(): DemoTicket {
+  const ticket = currentDemoTicket()
+  if (!ticket) throw new Error('Ticket introuvable.')
+  if (ticket.type !== 'anki') throw new Error('Ce ticket n’est pas un ticket Anki.')
+  if (ticket.status === 'suspended') throw new Error('Ce ticket est suspendu.')
+  if (ticket.expiresAt && new Date(ticket.expiresAt).getTime() < Date.now()) {
+    throw new Error('Ticket Anki expiré.')
+  }
+  return ticket
+}
+
+function ankiStateFor(code: string): DemoAnkiTicketState {
+  const state = loadAnkiStore()[code]
+  return state ?? { chapters: [], progress: {}, history: [] }
+}
+
+function normalizedStatement(statement: string): string {
+  return statement
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function chapterQuestionBank(chapterId: string, db: Database = getDB()): Question[] {
+  const subjectIds = new Set(
+    db.subjects.filter((subject) => !subject.archived && subject.chapterId === chapterId).map((subject) => subject.id),
+  )
+  const seen = new Set<string>()
+  return db.questions.filter((question) => {
+    if (!subjectIds.has(question.subjectId) || question.correctAnswers.length !== 1) return false
+    const key = normalizedStatement(question.statement)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function shuffleQuestions(items: Question[]): Question[] {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
+
+/** Chapitres choisis et progression Anki du ticket courant. */
+export function getAnkiChapters(): AnkiChapterState[] {
+  const ticket = requireAnkiTicket()
+  const state = ankiStateFor(ticket.code)
+  const db = getDB()
+  return state.chapters.map((chapterId) => {
+    const progress = state.progress[chapterId] ?? {
+      level: 1,
+      completedBlocks: 0,
+      completedAt: null,
+    }
+    return {
+      chapterId,
+      level: progress.level,
+      completedBlocks: progress.completedBlocks,
+      completedAt: progress.completedAt,
+      totalQuestions: chapterQuestionBank(chapterId, db).length,
+      answeredQuestions: state.history.filter((entry) => entry.chapterId === chapterId).length,
+    }
+  })
+}
+
+/** Enregistre le choix des 5 chapitres (une seule fois par ticket). */
+export function selectAnkiChapters(chapterIds: string[]): void {
+  const ticket = requireAnkiTicket()
+  const store = loadAnkiStore()
+  if (store[ticket.code]?.chapters.length) {
+    throw new Error('Les chapitres sont déjà choisis pour ce ticket.')
+  }
+  const unique = [...new Set(chapterIds.filter(Boolean))]
+  if (unique.length === 0) throw new Error('Choisis au moins un chapitre.')
+  if (unique.length > 5) throw new Error('Choisis 5 chapitres maximum.')
+  for (const chapterId of unique) {
+    if (!findThemeForChapter(chapterId)) throw new Error('Chapitre inconnu.')
+  }
+  store[ticket.code] = {
+    chapters: unique,
+    progress: Object.fromEntries(
+      unique.map((chapterId) => [
+        chapterId,
+        { level: 1, completedBlocks: 0, completedAt: null },
+      ]),
+    ),
+    history: [],
+  }
+  saveAnkiStore(store)
+}
+
+/** 5 questions aléatoires non encore répondues du chapitre. */
+export function getAnkiQuestions(chapterId: string): Question[] {
+  const ticket = requireAnkiTicket()
+  const state = ankiStateFor(ticket.code)
+  if (!state.chapters.includes(chapterId)) {
+    throw new Error('Chapitre non choisi pour ce ticket.')
+  }
+  const answered = new Set(
+    state.history.filter((entry) => entry.chapterId === chapterId).map((entry) => entry.questionId),
+  )
+  return shuffleQuestions(chapterQuestionBank(chapterId).filter((question) => !answered.has(question.id))).slice(
+    0,
+    5,
+  )
+}
+
+/** Enregistre une réponse Anki et met à jour le niveau / la progression. */
+export function recordAnkiAnswer(input: {
+  chapterId: string
+  questionId: string
+  givenAnswers: string[]
+  status: AnkiHistoryEntry['status']
+}): AnkiAnswerResult {
+  const ticket = requireAnkiTicket()
+  const state = ankiStateFor(ticket.code)
+  if (!state.chapters.includes(input.chapterId)) {
+    throw new Error('Chapitre non choisi pour ce ticket.')
+  }
+  const question = getDB().questions.find((candidate) => candidate.id === input.questionId)
+  if (!question) throw new Error('Question introuvable.')
+
+  if (
+    !state.history.some(
+      (entry) => entry.chapterId === input.chapterId && entry.questionId === input.questionId,
+    )
+  ) {
+    state.history.push({
+      id: uid('anki'),
+      chapterId: input.chapterId,
+      questionId: input.questionId,
+      statement: question.statement,
+      givenAnswers: input.givenAnswers,
+      correctAnswers: question.correctAnswers,
+      explanation: question.explanation,
+      status: input.status,
+      createdAt: new Date().toISOString(),
+    })
+  }
+
+  const count = state.history.filter((entry) => entry.chapterId === input.chapterId).length
+  const level = 1 + Math.floor(count / 5)
+  const completedBlocks = Math.floor(count / 5)
+  const remaining = chapterQuestionBank(input.chapterId).filter(
+    (candidate) =>
+      !state.history.some(
+        (entry) => entry.chapterId === input.chapterId && entry.questionId === candidate.id,
+      ),
+  ).length
+  const completed = remaining === 0
+  state.progress[input.chapterId] = {
+    level,
+    completedBlocks,
+    completedAt: completed
+      ? (state.progress[input.chapterId]?.completedAt ?? new Date().toISOString())
+      : (state.progress[input.chapterId]?.completedAt ?? null),
+  }
+
+  const store = loadAnkiStore()
+  store[ticket.code] = state
+  saveAnkiStore(store)
+  return { level, completedBlocks, completed }
+}
+
+/** Historique Anki du ticket courant, du plus récent au plus ancien. */
+export function getAnkiHistory(): AnkiHistoryEntry[] {
+  const ticket = requireAnkiTicket()
+  return [...ankiStateFor(ticket.code).history].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )
 }

@@ -1,4 +1,19 @@
-import type { GeneratedTicket, Receipt, SeriesFeedback, SeriesFeedbackReview, Subject, TicketItem, TicketStatus, User } from '@/types'
+import type {
+  AnkiAnswerResult,
+  AnkiChapterState,
+  AnkiHistoryEntry,
+  GeneratedTicket,
+  Question,
+  Receipt,
+  SeriesFeedback,
+  SeriesFeedbackReview,
+  Subject,
+  TicketInfo,
+  TicketItem,
+  TicketStatus,
+  TicketType,
+  User,
+} from '@/types'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
@@ -400,9 +415,9 @@ export const api = {
   /* ---------------------------------------------------------------- */
 
   /** Génère un lot de tickets (docteur uniquement). */
-  async generateTickets(count: number): Promise<GeneratedTicket[]> {
-    if (isSupabaseConfigured) return remote.generateTickets(count)
-    return demo.generateTickets(count)
+  async generateTickets(count: number, type: TicketType = 'series'): Promise<GeneratedTicket[]> {
+    if (isSupabaseConfigured) return remote.generateTickets(count, type)
+    return demo.generateTickets(count, type)
   },
 
   /** Tous les tickets (docteur uniquement). */
@@ -443,5 +458,45 @@ export const api = {
   async myTicketStatus(): Promise<TicketStatus | null> {
     if (isSupabaseConfigured) return remote.myTicketStatus()
     return Promise.resolve(demo.myTicketStatus())
+  },
+
+  /** Type et expiration du ticket connecté. */
+  async myTicketInfo(): Promise<TicketInfo | null> {
+    if (isSupabaseConfigured) return remote.myTicketInfo()
+    return Promise.resolve(demo.myTicketInfo())
+  },
+
+  /* ---------------------------------------------------------------- */
+  /* Mode Anki                                                        */
+  /* ---------------------------------------------------------------- */
+
+  async getAnkiChapters(): Promise<AnkiChapterState[]> {
+    if (isSupabaseConfigured) return remote.getAnkiChapters()
+    return Promise.resolve(demo.getAnkiChapters())
+  },
+
+  async selectAnkiChapters(chapterIds: string[]): Promise<void> {
+    if (isSupabaseConfigured) return remote.selectAnkiChapters(chapterIds)
+    return Promise.resolve(demo.selectAnkiChapters(chapterIds))
+  },
+
+  async getAnkiQuestions(chapterId: string): Promise<Question[]> {
+    if (isSupabaseConfigured) return remote.getAnkiQuestions(chapterId)
+    return Promise.resolve(demo.getAnkiQuestions(chapterId))
+  },
+
+  async recordAnkiAnswer(input: {
+    chapterId: string
+    questionId: string
+    givenAnswers: string[]
+    status: AnkiHistoryEntry['status']
+  }): Promise<AnkiAnswerResult> {
+    if (isSupabaseConfigured) return remote.recordAnkiAnswer(input)
+    return Promise.resolve(demo.recordAnkiAnswer(input))
+  },
+
+  async getAnkiHistory(): Promise<AnkiHistoryEntry[]> {
+    if (isSupabaseConfigured) return remote.getAnkiHistory()
+    return Promise.resolve(demo.getAnkiHistory())
   },
 }

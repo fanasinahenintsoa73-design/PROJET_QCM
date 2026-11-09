@@ -11,6 +11,7 @@ import {
   Trophy,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import AnkiDashboard from '@/components/anki/AnkiDashboard'
 import { doctorContactLine } from '@/lib/contact'
 import {
   getCurrentCycleAttempts,
@@ -63,7 +64,7 @@ function attemptThemeId(attempt: Attempt, subjectTitleById: Map<string, string>)
 
 export default function DashboardPage() {
   usePageTitle('Mon cycle — MEDQCM mada')
-  const { user, db } = useAuth()
+  const { user, db, ticketType } = useAuth()
   const [filter, setFilter] = useState('all')
 
   const usage = user ? getSeriesUsage(user.id, db) : undefined
@@ -194,6 +195,8 @@ export default function DashboardPage() {
   const remainingSeries = usage?.remaining ?? SERIES_LIMIT
   const reached = usage?.reached ?? false
   const seriesProgress = Math.min(100, (used / SERIES_LIMIT) * 100)
+
+  if (ticketType === 'anki') return <AnkiDashboard />
 
   return (
     <div className="bg-canvas">

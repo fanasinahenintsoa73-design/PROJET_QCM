@@ -10,6 +10,7 @@ export default function AdminGeneratedTicketsPage() {
   usePageTitle('Tickets générés — Espace docteur')
   const { toast } = useToast()
   const batch = getGeneratedTickets()
+  const isAnkiBatch = batch.length > 0 && batch.every((item) => item.type === 'anki')
   const [busy, setBusy] = useState<'excel' | 'pdf' | null>(null)
 
   async function handleExcel() {
@@ -96,8 +97,9 @@ export default function AdminGeneratedTicketsPage() {
       </div>
 
       <p className="mt-6 rounded-lg border border-warning/30 bg-[#fdf3e2] px-4 py-3 text-[13px] leading-relaxed text-[#8a5300]">
-        Chaque numéro donne accès à 30 séries pour un seul étudiant. Ne les partage qu’avec la
-        personne concernée.
+        {isAnkiBatch
+          ? 'Chaque numéro donne accès au mode Anki pendant 1 mois (5 chapitres au choix) pour un seul étudiant. Ne les partage qu’avec la personne concernée.'
+          : 'Chaque numéro donne accès à 30 séries pour un seul étudiant. Ne les partage qu’avec la personne concernée.'}
       </p>
 
       <div className="mt-6 overflow-x-auto">
@@ -105,6 +107,7 @@ export default function AdminGeneratedTicketsPage() {
           <thead>
             <tr className="border-b border-line text-[10px] uppercase tracking-[0.12em] text-mute">
               <th className="py-3 pr-4 font-semibold">ID</th>
+              <th className="py-3 pr-4 font-semibold">Type</th>
               <th className="py-3 font-semibold">Numéro d’enregistrement</th>
             </tr>
           </thead>
@@ -124,6 +127,9 @@ export default function AdminGeneratedTicketsPage() {
                     </button>
                     <span className="font-semibold tracking-wide text-ink">{item.code}</span>
                   </span>
+                </td>
+                <td className="py-2.5 pr-4 text-[12px] text-mute">
+                  {item.type === 'anki' ? 'Anki' : '30 séries'}
                 </td>
                 <td className="py-2.5">
                   <span className="flex items-center gap-1.5">

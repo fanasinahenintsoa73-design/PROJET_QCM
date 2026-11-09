@@ -20,7 +20,7 @@ import { copyText } from '@/lib/downloadTickets'
 import { getGeneratedTickets, setGeneratedTickets } from '@/lib/generatedTicketsSession'
 import { usePressAndHold } from '@/lib/usePressAndHold'
 import { formatDateLong, formatDateTime } from '@/lib/utils'
-import type { TicketItem } from '@/types'
+import type { TicketItem, TicketType } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
 const ROW_HOLD_MS = 2000
@@ -30,8 +30,25 @@ const HOLD_MOVE_TOLERANCE = 18
 
 type Tone = 'success' | 'info' | 'neutral' | 'error'
 
+function isAnkiExpired(item: TicketItem): boolean {
+  return Boolean(item.expiresAt && new Date(item.expiresAt).getTime() < Date.now())
+}
+
 function ticketDisplay(item: TicketItem): { label: string; tone: Tone } {
   if (item.status === 'suspended') return { label: 'Suspendu', tone: 'error' }
+  if (item.type === 'anki') {
+    if (isAnkiExpired(item)) return { label: 'Expiré', tone: 'neutral' }
+    if (item.ankiChapters > 0 && item.ankiCompleted >= item.ankiChapters) {
+      return { label: 'Terminé', tone: 'neutral' }
+    }
+    if (item.ankiChapters > 0) {
+      return {
+        label: `En cours · ${item.ankiCompleted}/${item.ankiChapters}`,
+        tone: 'info',
+      }
+    }
+    return { label: 'Disponible', tone: 'success' }
+  }
   if (item.seriesUsed >= 30) return { label: 'Terminé', tone: 'neutral' }
   if (item.status === 'used' || item.usedAt) return { label: `En cours · ${item.seriesUsed}/30`, tone: 'info' }
   return { label: 'Disponible', tone: 'success' }
@@ -61,6 +78,14 @@ function isTicketFilter(value: string | null): value is TicketFilter {
 function matchesTicketFilter(item: TicketItem, filter: TicketFilter): boolean {
   if (filter === 'suspended') return item.status === 'suspended'
   if (item.status === 'suspended') return false
+  if (item.type === 'anki') {
+    const finished =
+      isAnkiExpired(item) ||
+      (item.ankiChapters > 0 && item.ankiCompleted >= item.ankiChapters)
+    if (filter === 'finished') return finished
+    if (filter === 'inProgress') return !finished && item.ankiChapters > 0
+    return !finished && item.ankiChapters === 0
+  }
   if (filter === 'finished') return item.seriesUsed >= 30
   const started = item.status === 'used' || item.usedAt !== null
   if (filter === 'inProgress') return item.seriesUsed < 30 && started
@@ -81,6 +106,7 @@ export default function AdminTicketsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [count, setCount] = useState('50')
+  const [ticketType, setTicketType] = useState<TicketType>('series')
   const [search, setSearch] = useState('')
   const [generating, setGenerating] = useState(false)
   const [busyCode, setBusyCode] = useState<string | null>(null)
@@ -148,7 +174,7 @@ export default function AdminTicketsPage() {
     }
     setGenerating(true)
     try {
-      const created = await api.generateTickets(n)
+      const created = await api.generateTickets(n, ticketType)
       setGeneratedTickets(created)
       toast(`${created.length} ticket${created.length > 1 ? 's' : ''} généré${created.length > 1 ? 's' : ''}.`)
       navigate('/admin/tickets/generes')
@@ -299,6 +325,17 @@ export default function AdminTicketsPage() {
       {/* Génération */}
       <section className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-6">
         <div className="flex flex-wrap items-end gap-4">
+          <Field label="Type de ticket" htmlFor="ticket-type" className="w-52">
+            <select
+              id="ticket-type"
+              value={ticketType}
+              onChange={(event) => setTicketType(event.target.value as TicketType)}
+              className="h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[14px] text-ink outline-none transition focus:border-accent"
+            >
+              <option value="series">30 séries</option>
+              <option value="anki">Anki · 5 chapitres</option>
+            </select>
+          </Field>
           <Field label="Nombre de tickets" htmlFor="ticket-count" className="w-40">
             <Input
               id="ticket-count"
@@ -482,12 +519,14 @@ export default function AdminTicketsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-[13px]">
+            <table className="w-full min-w-[1080px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-line text-[10px] uppercase tracking-[0.12em] text-mute">
                   <th className="py-3 pr-4 font-semibold">Ticket</th>
                   <th className="py-3 pr-4 font-semibold">Numéro d’enregistrement</th>
+                  <th className="py-3 pr-4 font-semibold">Type</th>
                   <th className="py-3 pr-4 font-semibold">Statut</th>
+                  <th className="py-3 pr-4 font-semibold">Progression</th>
                   <th className="py-3 pr-4 font-semibold">Créé</th>
                   <th className="py-3 pr-4 font-semibold">1ʳᵉ connexion</th>
                   <th className="py-3 pr-4 font-semibold">Dernière connexion</th>
@@ -581,7 +620,28 @@ export default function AdminTicketsPage() {
                           )}
                         </td>
                         <td className="py-3 pr-4">
+                          <StatusPill tone={item.type === 'anki' ? 'info' : 'neutral'}>
+                            {item.type === 'anki' ? 'Anki' : '30 séries'}
+                          </StatusPill>
+                        </td>
+                        <td className="py-3 pr-4">
                           <StatusPill tone={display.tone}>{display.label}</StatusPill>
+                        </td>
+                        <td className="py-3 pr-4 text-mute">
+                          {item.type === 'anki' ? (
+                            <>
+                              <span className="block">
+                                {item.ankiCompleted}/{item.ankiChapters || 5} chapitres
+                              </span>
+                              {item.expiresAt ? (
+                                <span className="mt-0.5 block text-[10px] text-mute">
+                                  expire le {formatDateLong(item.expiresAt)}
+                                </span>
+                              ) : null}
+                            </>
+                          ) : (
+                            '—'
+                          )}
                         </td>
                         <td className="py-3 pr-4 text-mute">{formatDateLong(item.createdAt)}</td>
                         <td className="py-3 pr-4 text-mute">{item.usedAt ? formatDateLong(item.usedAt) : '—'}</td>

@@ -1,5 +1,8 @@
 import type {
   AccessRequest,
+  AnkiAnswerResult,
+  AnkiChapterState,
+  AnkiHistoryEntry,
   Attempt,
   Database,
   GeneratedTicket,
@@ -12,8 +15,10 @@ import type {
   SeriesFeedbackReview,
   Subject,
   SubjectAssignment,
+  TicketInfo,
   TicketItem,
   TicketStatus,
+  TicketType,
   User,
   UserStatus,
 } from '@/types'
@@ -1149,13 +1154,20 @@ export async function resolveReceiptUrl(path: string): Promise<string> {
  * Retourne les codes + numéros en clair : à copier immédiatement,
  * ils ne seront plus jamais lisibles (hash bcrypt côté Auth).
  */
-export async function generateTickets(count: number): Promise<GeneratedTicket[]> {
+export async function generateTickets(
+  count: number,
+  type: TicketType = 'series',
+): Promise<GeneratedTicket[]> {
   const client = requireSupabase()
-  const { data, error } = await client.rpc('generate_tickets', { p_count: count })
+  const { data, error } = await client.rpc('generate_tickets_typed', {
+    p_count: count,
+    p_type: type,
+  })
   if (error) throw asFrenchError(error)
-  return ((data ?? []) as Array<{ code: string; secret: string }>).map((row) => ({
+  return ((data ?? []) as Array<{ code: string; secret: string; type: TicketType }>).map((row) => ({
     code: row.code,
     secret: row.secret,
+    type: row.type ?? type,
   }))
 }
 
@@ -1172,10 +1184,18 @@ export async function listTickets(): Promise<TicketItem[]> {
     used_at: string | null
     last_login_at: string | null
     secret: string | null
+    type: TicketType
+    expires_at: string | null
+    anki_chapters: number
+    anki_completed: number
   }>).map((row) => ({
     code: row.code,
     secret: row.secret,
     status: row.status,
+    type: row.type ?? 'series',
+    expiresAt: row.expires_at ?? null,
+    ankiChapters: row.anki_chapters ?? 0,
+    ankiCompleted: row.anki_completed ?? 0,
     seriesUsed: row.series_used,
     createdAt: row.created_at,
     usedAt: row.used_at,
@@ -1222,4 +1242,129 @@ export async function myTicketStatus(): Promise<TicketStatus | null> {
   const { data, error } = await client.rpc('my_ticket_status')
   if (error) throw asFrenchError(error)
   return (data as TicketStatus | null) ?? null
+}
+
+/** Type et expiration du ticket connecté (Anki ou 30 séries). */
+export async function myTicketInfo(): Promise<TicketInfo | null> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('my_ticket_info')
+  if (error) throw asFrenchError(error)
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { status: TicketStatus; type: TicketType; expires_at: string | null }
+    | null
+  if (!row) return null
+  return {
+    status: row.status,
+    type: row.type ?? 'series',
+    expiresAt: row.expires_at ?? null,
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Mode Anki                                                           */
+/* ------------------------------------------------------------------ */
+
+export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_chapters')
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    chapter_id: string
+    level: number
+    completed_blocks: number
+    completed_at: string | null
+    total_questions: number
+    answered_questions: number
+  }>).map((row) => ({
+    chapterId: row.chapter_id,
+    level: row.level,
+    completedBlocks: row.completed_blocks,
+    completedAt: row.completed_at,
+    totalQuestions: row.total_questions,
+    answeredQuestions: row.answered_questions,
+  }))
+}
+
+export async function selectAnkiChapters(chapterIds: string[]): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('anki_select_chapters', {
+    p_chapter_ids: chapterIds,
+  })
+  if (error) throw asFrenchError(error)
+}
+
+export async function getAnkiQuestions(chapterId: string): Promise<Question[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_next_questions', {
+    p_chapter_id: chapterId,
+  })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    id: string
+    subject_id: string
+    number: number
+    matiere: string
+    statement: string
+    options: Question['options']
+    correct_answers: string[]
+    explanation: string | null
+  }>).map((row) => ({
+    id: row.id,
+    subjectId: row.subject_id,
+    number: row.number,
+    matiere: row.matiere,
+    statement: row.statement,
+    options: row.options,
+    correctAnswers: row.correct_answers ?? [],
+    explanation: row.explanation ?? '',
+  }))
+}
+
+export async function recordAnkiAnswer(input: {
+  chapterId: string
+  questionId: string
+  givenAnswers: string[]
+  status: AnkiHistoryEntry['status']
+}): Promise<AnkiAnswerResult> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_record_answer', {
+    p_chapter_id: input.chapterId,
+    p_question_id: input.questionId,
+    p_given_answers: input.givenAnswers,
+    p_status: input.status,
+  })
+  if (error) throw asFrenchError(error)
+  const row = data as { level: number; completedBlocks: number; completed: boolean }
+  return {
+    level: row.level,
+    completedBlocks: row.completedBlocks,
+    completed: row.completed,
+  }
+}
+
+export async function getAnkiHistory(): Promise<AnkiHistoryEntry[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_get_history')
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    id: number | string
+    chapter_id: string
+    question_id: string
+    statement: string
+    given_answers: string[]
+    correct_answers: string[]
+    explanation: string | null
+    status: AnkiHistoryEntry['status']
+    created_at: string
+  }>).map((row) => ({
+    id: String(row.id),
+    chapterId: row.chapter_id,
+    questionId: row.question_id,
+    statement: row.statement,
+    givenAnswers: row.given_answers ?? [],
+    correctAnswers: row.correct_answers ?? [],
+    explanation: row.explanation ?? '',
+    status: row.status,
+    createdAt: row.created_at,
+  }))
 }

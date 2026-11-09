@@ -8,10 +8,14 @@ import { SERIES_LIMIT } from '@/lib/utils'
 
 export function ExpirationPage() {
   usePageTitle('Accès terminé — MEDQCM mada')
-  const { user, access, ticketBlocked, db } = useAuth()
+  const { user, access, ticketBlocked, db, ticketType, ticketExpiresAt } = useAuth()
   if (!user) return null
 
-  const suspended = ticketBlocked || access === 'rejected'
+  const ankiExpired =
+    ticketType === 'anki' && ticketExpiresAt
+      ? new Date(ticketExpiresAt).getTime() < Date.now()
+      : false
+  const suspended = (ticketBlocked && !ankiExpired) || access === 'rejected'
   const usage = user.role === 'student' ? getSeriesUsage(user.id, db) : null
 
   return (
@@ -24,13 +28,19 @@ export function ExpirationPage() {
             </StatusPill>
 
             <h1 className="mt-6 max-w-xl font-display text-[clamp(2.5rem,5.4vw,4rem)] leading-[1.03] tracking-[-0.035em] text-ink">
-              {suspended ? 'Votre accès est suspendu.' : 'Vos 30 séries sont terminées.'}
+              {suspended
+                ? 'Votre accès est suspendu.'
+                : ankiExpired
+                  ? 'Votre ticket Anki a expiré.'
+                  : 'Vos 30 séries sont terminées.'}
             </h1>
 
             <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-mute">
               {suspended
                 ? 'Contactez le docteur pour plus d’informations.'
-                : 'Ton ticket est terminé. Contacte le docteur pour un nouveau ticket et continuer tes séries.'}
+                : ankiExpired
+                  ? 'Ton ticket Anki d’un mois est terminé. Contacte le docteur pour un nouveau ticket et choisir 5 nouveaux chapitres.'
+                  : 'Ton ticket est terminé. Contacte le docteur pour un nouveau ticket et continuer tes séries.'}
             </p>
 
             <div className="mt-6 flex max-w-lg items-start gap-2.5 rounded-xl border border-line bg-surface px-4 py-3.5 text-[13px] leading-relaxed text-mute">
@@ -49,7 +59,9 @@ export function ExpirationPage() {
                 <p className="text-[11px] text-mute">
                   {suspended
                     ? 'Le docteur peut réactiver ton accès'
-                    : 'Un nouveau ticket rouvre 30 séries'}
+                    : ankiExpired
+                      ? 'Un nouveau ticket rouvre 5 chapitres Anki'
+                      : 'Un nouveau ticket rouvre 30 séries'}
                 </p>
               </div>
             </div>

@@ -18,13 +18,18 @@ function readBatch(): GeneratedTicket[] {
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter(
-      (item): item is GeneratedTicket =>
-        typeof item === 'object' &&
-        item !== null &&
-        typeof (item as GeneratedTicket).code === 'string' &&
-        typeof (item as GeneratedTicket).secret === 'string',
-    )
+    return parsed
+      .filter(
+        (item): item is GeneratedTicket =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as GeneratedTicket).code === 'string' &&
+          typeof (item as GeneratedTicket).secret === 'string',
+      )
+      .map((item) => ({
+        ...item,
+        type: item.type === 'anki' ? 'anki' : 'series',
+      }))
   } catch {
     return []
   }
