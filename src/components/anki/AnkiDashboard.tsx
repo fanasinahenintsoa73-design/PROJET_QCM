@@ -11,7 +11,6 @@ import {
   History,
   ListChecks,
   LockKeyhole,
-  Sparkles,
   Trophy,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
@@ -150,16 +149,12 @@ export default function AnkiDashboard() {
       <div className="mx-auto max-w-content px-5 py-10 sm:px-8 lg:px-10 lg:py-14">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
-              <Sparkles size={12} />
-              Mode Anki
-            </span>
-            <h1 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.035em] text-ink">
-              Bonjour {user?.firstName ?? ''}, prêt à réviser ?
+            <h1 className="font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.035em] text-ink">
+              BONJOUR PACES ; prêt à réviser avec Anki ?
             </h1>
             <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
-              Des blocs de 5 questions aléatoires, un niveau qui monte et un historique complet
-              pour suivre ta progression.
+              Des questions aléatoires, un niveau qui monte à chaque bonne réponse et un historique
+              complet pour suivre ta progression.
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-[12px] text-mute">
