@@ -108,6 +108,7 @@ export default function AdminTicketsPage() {
   const [count, setCount] = useState('50')
   const [ticketType, setTicketType] = useState<TicketType>('series')
   const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'all' | TicketType>('all')
   const [generating, setGenerating] = useState(false)
   const [busyCode, setBusyCode] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -126,11 +127,13 @@ export default function AdminTicketsPage() {
   const filteredTickets = activeFilter
     ? tickets.filter((item) => matchesTicketFilter(item, activeFilter))
     : tickets
+  const typeFilteredTickets =
+    typeFilter === 'all' ? filteredTickets : filteredTickets.filter((item) => item.type === typeFilter)
   const normalizedSearch = search.trim().toUpperCase()
   const searchActive = !activeFilter && normalizedSearch.length > 0
   const visibleTickets = searchActive
-    ? filteredTickets.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
-    : filteredTickets
+    ? typeFilteredTickets.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
+    : typeFilteredTickets
 
   useEffect(() => {
     selectedRef.current = selected
@@ -138,7 +141,7 @@ export default function AdminTicketsPage() {
 
   useEffect(() => {
     setSelected(new Set())
-  }, [activeFilter, normalizedSearch])
+  }, [activeFilter, normalizedSearch, typeFilter])
 
   useEffect(() => {
     if (activeFilter) setSearch('')
@@ -376,7 +379,7 @@ export default function AdminTicketsPage() {
               {activeFilter ? FILTER_TITLES[activeFilter] : 'Tous les tickets'}
             </h2>
             <p className="mt-1 text-[11px] text-mute">
-              Disponible · En cours (séries faites) · Terminé (30 séries) · Suspendu
+              Disponible · En cours (séries faites) · Terminé (30 séries) · Suspendu · Filtre par type : 30 séries / Anki
             </p>
             <p className="mt-1 text-[11px] text-mute">
               {selected.size === 0
@@ -389,32 +392,45 @@ export default function AdminTicketsPage() {
 
         {!activeFilter ? (
           <div className="mt-4">
-            <div className="relative max-w-xs">
-              <Search
-                size={15}
-                aria-hidden
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
-              />
-              <Input
-                id="ticket-search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value.toUpperCase())}
-                placeholder="Rechercher un ID (ex. PACES0001)"
-                aria-label="Rechercher un ticket par ID"
-                autoComplete="off"
-                spellCheck={false}
-                className="pl-9 pr-9 uppercase"
-              />
-              {search ? (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  aria-label="Effacer la recherche"
-                  className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
-                >
-                  <X size={14} />
-                </button>
-              ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative max-w-xs flex-1">
+                <Search
+                  size={15}
+                  aria-hidden
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
+                />
+                <Input
+                  id="ticket-search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
+                  placeholder="Rechercher un ID (ex. PACES0001)"
+                  aria-label="Rechercher un ticket par ID"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="pl-9 pr-9 uppercase"
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label="Effacer la recherche"
+                    className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
+                  >
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </div>
+              <select
+                id="ticket-type-filter"
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value as 'all' | TicketType)}
+                aria-label="Filtrer par type de ticket"
+                className="h-11 rounded-[10px] border border-line bg-surface px-3 text-[14px] text-ink outline-none transition focus:border-accent"
+              >
+                <option value="all">Tous les types</option>
+                <option value="series">30 séries</option>
+                <option value="anki">Anki</option>
+              </select>
             </div>
             {searchActive ? (
               <p className="mt-2 text-[11px] text-mute">
