@@ -1,5 +1,6 @@
 import { ArrowRight, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { useAuth } from '@/lib/auth'
@@ -8,7 +9,7 @@ const DOCTOR_PHOTO = '/docteur.jpg'
 
 export function LandingPage() {
   usePageTitle('MEDQCM mada — Chers PACES')
-  const { user, homePath } = useAuth()
+  const { user, homePath, ticketType } = useAuth()
   const studentUser = user?.role === 'student' ? user : null
   const startHref = studentUser ? homePath : '/acces'
   const [photoOpen, setPhotoOpen] = useState(false)
@@ -28,6 +29,12 @@ export function LandingPage() {
       document.body.style.overflow = ''
     }
   }, [photoOpen])
+
+  // Dans l'application Android, un étudiant Anki déjà connecté doit arriver
+  // directement sur sa Page d'accueil Anki, sans repasser par la présentation.
+  if (studentUser && ticketType === 'anki') {
+    return <Navigate to={homePath} replace />
+  }
 
   return (
     <section className="border-b border-line bg-surface">
