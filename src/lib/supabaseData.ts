@@ -1272,13 +1272,14 @@ export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
     chapter_id: string
     level: number
     completed_blocks: number
+    correct_answers: number
     completed_at: string | null
     total_questions: number
     answered_questions: number
   }>).map((row) => ({
     chapterId: row.chapter_id,
     level: row.level,
-    completedBlocks: row.completed_blocks,
+    correctAnswers: row.correct_answers ?? row.completed_blocks,
     completedAt: row.completed_at,
     totalQuestions: row.total_questions,
     answeredQuestions: row.answered_questions,
@@ -1325,6 +1326,7 @@ export async function recordAnkiAnswer(input: {
   questionId: string
   givenAnswers: string[]
   status: AnkiHistoryEntry['status']
+  canReturn: boolean
 }): Promise<AnkiAnswerResult> {
   const client = requireSupabase()
   const { data, error } = await client.rpc('anki_record_answer', {
@@ -1332,14 +1334,23 @@ export async function recordAnkiAnswer(input: {
     p_question_id: input.questionId,
     p_given_answers: input.givenAnswers,
     p_status: input.status,
+    p_can_return: input.canReturn,
   })
   if (error) throw asFrenchError(error)
-  const row = data as { level: number; completedBlocks: number; completed: boolean }
+  const row = data as { level: number; correctAnswers: number; completedBlocks?: number; completed: boolean }
   return {
     level: row.level,
-    completedBlocks: row.completedBlocks,
+    correctAnswers: row.correctAnswers ?? row.completedBlocks ?? 0,
     completed: row.completed,
   }
+}
+
+export async function restartAnkiChapter(chapterId: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('anki_restart_chapter', {
+    p_chapter_id: chapterId,
+  })
+  if (error) throw asFrenchError(error)
 }
 
 export async function getAnkiHistory(): Promise<AnkiHistoryEntry[]> {

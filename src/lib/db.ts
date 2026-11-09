@@ -1673,12 +1673,18 @@ export function myTicketInfo(): TicketInfo | null {
 /* Mode Anki (mode démonstration, stockage local)                      */
 /* ------------------------------------------------------------------ */
 
-const ANKI_KEY = 'medqcm.anki.v1'
+const ANKI_KEY = 'medqcm.anki.v2'
+
+interface DemoAnkiQuestionProgress {
+  state: 'pending' | 'review' | 'mastered' | 'ignored'
+  attempts: number
+  correctAnswers: number
+  lastSeenAt: string | null
+}
 
 interface DemoAnkiChapterProgress {
-  level: number
-  completedBlocks: number
   completedAt: string | null
+  questions: Record<string, DemoAnkiQuestionProgress>
 }
 
 interface DemoAnkiTicketState {
@@ -1768,18 +1774,17 @@ export function getAnkiChapters(): AnkiChapterState[] {
   const state = ankiStateFor(ticket.code)
   const db = getDB()
   return state.chapters.map((chapterId) => {
-    const progress = state.progress[chapterId] ?? {
-      level: 1,
-      completedBlocks: 0,
-      completedAt: null,
-    }
+    const progress = state.progress[chapterId] ?? { completedAt: null, questions: {} }
+    const correctAnswers = state.history.filter(
+      (entry) => entry.chapterId === chapterId && entry.status === 'correct',
+    ).length
     return {
       chapterId,
-      level: progress.level,
-      completedBlocks: progress.completedBlocks,
+      level: 1 + correctAnswers,
+      correctAnswers,
       completedAt: progress.completedAt,
       totalQuestions: chapterQuestionBank(chapterId, db).length,
-      answeredQuestions: state.history.filter((entry) => entry.chapterId === chapterId).length,
+      answeredQuestions: Object.keys(progress.questions).length,
     }
   })
 }
@@ -1802,7 +1807,7 @@ export function selectAnkiChapters(chapterIds: string[]): void {
     progress: Object.fromEntries(
       unique.map((chapterId) => [
         chapterId,
-        { level: 1, completedBlocks: 0, completedAt: null },
+        { level: 1, completedAt: null, questions: {} },
       ]),
     ),
     history: [],
@@ -1810,20 +1815,34 @@ export function selectAnkiChapters(chapterIds: string[]): void {
   saveAnkiStore(store)
 }
 
-/** 5 questions aléatoires non encore répondues du chapitre. */
+/** Recommence un chapitre terminé sans réinitialiser le niveau. */
+export function restartAnkiChapter(chapterId: string): void {
+  const ticket = requireAnkiTicket()
+  const store = loadAnkiStore()
+  const state = store[ticket.code]
+  if (!state?.chapters.includes(chapterId)) {
+    throw new Error('Chapitre non choisi pour ce ticket.')
+  }
+  state.progress[chapterId] = { completedAt: null, questions: {} }
+  store[ticket.code] = state
+  saveAnkiStore(store)
+}
+
+/** 5 questions pour le bloc suivant, avec les questions à revoir en priorité. */
 export function getAnkiQuestions(chapterId: string): Question[] {
   const ticket = requireAnkiTicket()
   const state = ankiStateFor(ticket.code)
   if (!state.chapters.includes(chapterId)) {
     throw new Error('Chapitre non choisi pour ce ticket.')
   }
-  const answered = new Set(
-    state.history.filter((entry) => entry.chapterId === chapterId).map((entry) => entry.questionId),
-  )
-  return shuffleQuestions(chapterQuestionBank(chapterId).filter((question) => !answered.has(question.id))).slice(
-    0,
-    5,
-  )
+  const progress = state.progress[chapterId]?.questions ?? {}
+  const candidates = chapterQuestionBank(chapterId).filter((question) => {
+    const entry = progress[question.id]
+    return !entry || entry.state === 'pending' || entry.state === 'review'
+  })
+  const review = candidates.filter((question) => progress[question.id]?.state === 'review')
+  const fresh = candidates.filter((question) => progress[question.id]?.state !== 'review')
+  return [...shuffleQuestions(review), ...shuffleQuestions(fresh)].slice(0, 5)
 }
 
 /** Enregistre une réponse Anki et met à jour le niveau / la progression. */
@@ -1832,6 +1851,7 @@ export function recordAnkiAnswer(input: {
   questionId: string
   givenAnswers: string[]
   status: AnkiHistoryEntry['status']
+  canReturn: boolean
 }): AnkiAnswerResult {
   const ticket = requireAnkiTicket()
   const state = ankiStateFor(ticket.code)
@@ -1841,46 +1861,52 @@ export function recordAnkiAnswer(input: {
   const question = getDB().questions.find((candidate) => candidate.id === input.questionId)
   if (!question) throw new Error('Question introuvable.')
 
-  if (
-    !state.history.some(
-      (entry) => entry.chapterId === input.chapterId && entry.questionId === input.questionId,
-    )
-  ) {
-    state.history.push({
-      id: uid('anki'),
-      chapterId: input.chapterId,
-      questionId: input.questionId,
-      statement: question.statement,
-      givenAnswers: input.givenAnswers,
-      correctAnswers: question.correctAnswers,
-      explanation: question.explanation,
-      status: input.status,
-      createdAt: new Date().toISOString(),
-    })
+  state.history.push({
+    id: uid('anki'),
+    chapterId: input.chapterId,
+    questionId: input.questionId,
+    statement: question.statement,
+    givenAnswers: input.givenAnswers,
+    correctAnswers: question.correctAnswers,
+    explanation: question.explanation,
+    status: input.status,
+    createdAt: new Date().toISOString(),
+  })
+
+  const progress = state.progress[input.chapterId] ?? { completedAt: null, questions: {} }
+  const previous = progress.questions[input.questionId]
+  const stateName =
+    input.status === 'correct'
+      ? 'mastered'
+      : input.status === 'skipped' || !input.canReturn
+        ? 'ignored'
+        : 'review'
+  progress.questions[input.questionId] = {
+    state: stateName,
+    attempts: (previous?.attempts ?? 0) + 1,
+    correctAnswers: (previous?.correctAnswers ?? 0) + (input.status === 'correct' ? 1 : 0),
+    lastSeenAt: new Date().toISOString(),
   }
 
-  const count = state.history.filter((entry) => entry.chapterId === input.chapterId).length
-  const level = 1 + Math.floor(count / 5)
-  const completedBlocks = Math.floor(count / 5)
-  const remaining = chapterQuestionBank(input.chapterId).filter(
-    (candidate) =>
-      !state.history.some(
-        (entry) => entry.chapterId === input.chapterId && entry.questionId === candidate.id,
-      ),
+  const correctAnswers = state.history.filter(
+    (entry) => entry.chapterId === input.chapterId && entry.status === 'correct',
   ).length
-  const completed = remaining === 0
+  const level = 1 + correctAnswers
+  const completed = chapterQuestionBank(input.chapterId).every((candidate) => {
+    const entry = progress.questions[candidate.id]
+    return entry?.state === 'mastered' || entry?.state === 'ignored'
+  })
   state.progress[input.chapterId] = {
-    level,
-    completedBlocks,
     completedAt: completed
-      ? (state.progress[input.chapterId]?.completedAt ?? new Date().toISOString())
-      : (state.progress[input.chapterId]?.completedAt ?? null),
+      ? (progress.completedAt ?? new Date().toISOString())
+      : (progress.completedAt ?? null),
+    questions: progress.questions,
   }
 
   const store = loadAnkiStore()
   store[ticket.code] = state
   saveAnkiStore(store)
-  return { level, completedBlocks, completed }
+  return { level, correctAnswers, completed }
 }
 
 /** Historique Anki du ticket courant, du plus récent au plus ancien. */

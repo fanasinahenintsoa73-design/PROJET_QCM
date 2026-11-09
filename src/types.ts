@@ -174,7 +174,7 @@ export interface TicketInfo {
 export interface AnkiChapterState {
   chapterId: string
   level: number
-  completedBlocks: number
+  correctAnswers: number
   completedAt: string | null
   totalQuestions: number
   answeredQuestions: number
@@ -183,7 +183,7 @@ export interface AnkiChapterState {
 /** Résultat de l'enregistrement d'une réponse Anki. */
 export interface AnkiAnswerResult {
   level: number
-  completedBlocks: number
+  correctAnswers: number
   completed: boolean
 }
 

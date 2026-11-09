@@ -490,9 +490,15 @@ export const api = {
     questionId: string
     givenAnswers: string[]
     status: AnkiHistoryEntry['status']
+    canReturn: boolean
   }): Promise<AnkiAnswerResult> {
     if (isSupabaseConfigured) return remote.recordAnkiAnswer(input)
     return Promise.resolve(demo.recordAnkiAnswer(input))
+  },
+
+  async restartAnkiChapter(chapterId: string): Promise<void> {
+    if (isSupabaseConfigured) return remote.restartAnkiChapter(chapterId)
+    return Promise.resolve(demo.restartAnkiChapter(chapterId))
   },
 
   async getAnkiHistory(): Promise<AnkiHistoryEntry[]> {

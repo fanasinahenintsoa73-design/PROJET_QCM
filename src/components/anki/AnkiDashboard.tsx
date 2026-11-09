@@ -331,7 +331,7 @@ export default function AnkiDashboard() {
                               {themeChapters.length} chapitre{themeChapters.length > 1 ? 's' : ''}
                             </span>
                             <span aria-hidden="true">·</span>
-                            <span>Blocs Anki de 5 questions</span>
+                            <span>Niveau +1 par bonne réponse</span>
                           </div>
                           <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[11px]">
                             <span className="font-medium text-ink">
@@ -453,12 +453,15 @@ export default function AnkiDashboard() {
                       <div className="mt-4 flex items-center justify-between gap-3">
                         <span className="flex items-center gap-1.5 text-[11px] text-mute">
                           <BookOpen size={13} />
-                          {chapter.completedBlocks} bloc{chapter.completedBlocks > 1 ? 's' : ''} de 5
+                          {chapter.correctAnswers} bonne{chapter.correctAnswers > 1 ? 's' : ''} réponse{chapter.correctAnswers > 1 ? 's' : ''}
                         </span>
                         {done ? (
-                          <span className="flex items-center gap-1.5 text-[12px] font-medium text-success">
-                            <Check size={14} /> Chapitre terminé
-                          </span>
+                          <Link
+                            to={`/app/anki/${chapter.chapterId}?replay=1`}
+                            className={buttonClasses('secondary', 'sm')}
+                          >
+                            Refaire le chapitre <ArrowRight size={14} />
+                          </Link>
                         ) : (
                           <Link
                             to={`/app/anki/${chapter.chapterId}`}

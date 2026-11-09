@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,6 +20,7 @@ import type { Question } from '@/types'
 
 export default function AnkiQuizPage() {
   const { chapterId = '' } = useParams()
+  const [searchParams] = useSearchParams()
   usePageTitle(`${chapterTitle(chapterId)} — Anki — MEDQCM mada`)
 
   const theme = findThemeForChapter(chapterId)
@@ -36,6 +37,9 @@ export default function AnkiQuizPage() {
   const loadQuestions = useCallback(async () => {
     setLoading(true)
     try {
+      if (searchParams.get('replay') === '1') {
+        await api.restartAnkiChapter(chapterId)
+      }
       const [nextQuestions, states] = await Promise.all([
         api.getAnkiQuestions(chapterId),
         api.getAnkiChapters(),
@@ -53,7 +57,7 @@ export default function AnkiQuizPage() {
     } finally {
       setLoading(false)
     }
-  }, [chapterId])
+  }, [chapterId, searchParams])
 
   useEffect(() => {
     void loadQuestions()
@@ -75,30 +79,27 @@ export default function AnkiQuizPage() {
     await loadQuestions()
   }, [index, questions.length, loadQuestions])
 
-  // Une bonne réponse passe automatiquement à la suite.
-  useEffect(() => {
-    if (result !== 'correct') return
-    const timer = window.setTimeout(() => {
-      void nextQuestion()
-    }, 1400)
-    return () => window.clearTimeout(timer)
-  }, [result, nextQuestion])
-
+  // Une bonne réponse affiche le vert et attend le bouton Suivant.
   async function submitAnswer(letter: string) {
     if (!question || result || saving) return
     const isCorrect = correctAnswers.length === 1 && correctAnswers[0] === letter
     setSelected(letter)
+    if (!isCorrect) {
+      setResult('wrong')
+      return
+    }
     setSaving(true)
     try {
       const answer = await api.recordAnkiAnswer({
         chapterId,
         questionId: question.id,
         givenAnswers: [letter],
-        status: isCorrect ? 'correct' : 'wrong',
+        status: 'correct',
+        canReturn: false,
       })
       setLevel(answer.level)
       setCompleted(answer.completed)
-      setResult(isCorrect ? 'correct' : 'wrong')
+      setResult('correct')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'La réponse n’a pas pu être enregistrée.')
     } finally {
@@ -108,17 +109,33 @@ export default function AnkiQuizPage() {
 
   async function revealAnswer() {
     if (!question || result || saving) return
+    setResult('revealed')
+  }
+
+  async function chooseNext() {
+    if (!question || saving) return
+    if (result === 'correct') {
+      await nextQuestion()
+      return
+    }
+    if (result !== 'wrong' && result !== 'revealed') return
     setSaving(true)
     try {
       const answer = await api.recordAnkiAnswer({
         chapterId,
         questionId: question.id,
-        givenAnswers: [],
-        status: 'revealed',
+        givenAnswers: result === 'wrong' && selected ? [selected] : [],
+        status: result,
+        canReturn: true,
       })
       setLevel(answer.level)
       setCompleted(answer.completed)
-      setResult('revealed')
+      if (answer.completed) {
+        setSelected(null)
+        setResult(null)
+        return
+      }
+      await nextQuestion()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'La réponse n’a pas pu être enregistrée.')
     } finally {
@@ -126,32 +143,52 @@ export default function AnkiQuizPage() {
     }
   }
 
-  async function skipQuestion() {
+  async function chooseIgnore() {
     if (!question || saving) return
     setSaving(true)
     try {
+      const status = result === 'wrong' || result === 'revealed' ? result : 'skipped'
       const answer = await api.recordAnkiAnswer({
         chapterId,
         questionId: question.id,
-        givenAnswers: [],
-        status: 'skipped',
+        givenAnswers: status === 'wrong' && selected ? [selected] : [],
+        status,
+        canReturn: false,
       })
       setLevel(answer.level)
       setCompleted(answer.completed)
-      if (answer.completed) {
-        setResult(null)
-        setSelected(null)
-        return
-      }
-      if (index + 1 < questions.length) {
+      if (answer.completed || index + 1 >= questions.length) {
+        if (answer.completed) {
+          setSelected(null)
+          setResult(null)
+          return
+        }
+        await loadQuestions()
+      } else {
         setIndex((value) => value + 1)
         setSelected(null)
         setResult(null)
-      } else {
-        await loadQuestions()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'La question n’a pas pu être ignorée.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function skipQuestion() {
+    await chooseIgnore()
+  }
+
+  async function restartChapter() {
+    if (saving) return
+    setSaving(true)
+    try {
+      await api.restartAnkiChapter(chapterId)
+      setCompleted(false)
+      await loadQuestions()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Le chapitre n’a pas pu être recommencé.')
     } finally {
       setSaving(false)
     }
@@ -162,7 +199,7 @@ export default function AnkiQuizPage() {
       <div className="mx-auto flex min-h-[60vh] max-w-content items-center justify-center px-5">
         <div className="text-center">
           <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          <p className="mt-4 text-sm text-mute">Préparation du bloc de 5 questions…</p>
+          <p className="mt-4 text-sm text-mute">Préparation des questions…</p>
         </div>
       </div>
     )
@@ -179,12 +216,14 @@ export default function AnkiQuizPage() {
             Félicitations, vous avez terminé le chapitre
           </h1>
           <p className="mt-3 text-[14px] leading-relaxed text-mute">
-            Ton niveau final est {level}. Tu peux retrouver toutes tes réponses dans l’historique
-            du mode Anki.
+            Ton niveau est {level}. Tu peux refaire ce chapitre pendant toute la durée du ticket pour bien mémoriser.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2.5">
-            <Link to="/app" className={buttonClasses('primary')}>
-              Retour au tableau de bord <ArrowRight size={16} />
+            <button type="button" onClick={() => void restartChapter()} disabled={saving} className={buttonClasses('primary')}>
+              Refaire le chapitre <ArrowRight size={16} />
+            </button>
+            <Link to="/app" className={buttonClasses('secondary')}>
+              Retour au tableau de bord
             </Link>
             <Link to="/app" className={buttonClasses('secondary')}>
               Voir l’historique
@@ -350,13 +389,26 @@ export default function AnkiQuizPage() {
               )}
             </div>
             {result && (
-              <button
-                type="button"
-                onClick={() => void nextQuestion()}
-                className={buttonClasses('primary', 'sm')}
-              >
-                Suivant <ArrowRight size={14} />
-              </button>
+              <>
+                {result === 'wrong' || result === 'revealed' ? (
+                  <button
+                    type="button"
+                    onClick={() => void chooseIgnore()}
+                    disabled={saving}
+                    className={buttonClasses('ghost', 'sm')}
+                  >
+                    <SkipForward size={14} /> Ignorer
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void chooseNext()}
+                  disabled={saving}
+                  className={buttonClasses('primary', 'sm')}
+                >
+                  Suivant <ArrowRight size={14} />
+                </button>
+              </>
             )}
             {result === 'correct' && (
               <span className="text-[11px] text-mute">Passage automatique…</span>
