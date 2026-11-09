@@ -24,7 +24,12 @@ import type { AnkiChapterState, AnkiHistoryEntry, Database } from '@/types'
 function questionCount(chapterId: string, db: Database): number {
   return db.subjects
     .filter((subject) => !subject.archived && subject.chapterId === chapterId)
-    .reduce((total, subject) => total + getUsableQuestions(subject.id, db).length, 0)
+    .reduce((total, subject) => {
+      const usable = getUsableQuestions(subject.id, db).length
+      // En production, la banque de questions n’est jamais chargée côté étudiant.
+      // On retombe alors sur le compteur publié du sujet, comme la sélection 30 séries.
+      return total + (usable > 0 ? usable : (subject.questionCount ?? 0))
+    }, 0)
 }
 
 function formatDay(value: string | null | undefined): string {
