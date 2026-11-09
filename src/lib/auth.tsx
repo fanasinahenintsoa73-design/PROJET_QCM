@@ -265,8 +265,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const homePath = useMemo(() => {
     if (!user) return isDoctorPortal ? '/' : '/acces'
     if (user.role === 'professor') return '/admin'
+    if (ticketInfo?.type === 'anki') return '/app/anki/choisir'
     return studentHomePath(user, db)
-  }, [db, user, clock])
+  }, [db, user, clock, ticketInfo])
 
   const login = useCallback(
     async (
@@ -365,7 +366,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTicketInfo(info)
       // L'historique côté admin : qui est entré, quand.
       await api.recordTicketLogin()
-      return result
+      return {
+        ...result,
+        homePath: info?.type === 'anki' ? '/app/anki/choisir' : result.homePath,
+      }
     },
     [login, logout],
   )
