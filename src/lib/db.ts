@@ -1781,7 +1781,9 @@ export function getAnkiChapters(): AnkiChapterState[] {
     const totalQuestions = chapterQuestionBank(chapterId, db).length
     const states = Object.values(progress.questions)
     const inProgressQuestions = states.filter((entry) => entry.state === 'review').length
-    const reviewQuestions = states.filter((entry) => entry.state === 'mastered').length
+    const reviewQuestions =
+      states.filter((entry) => entry.state === 'mastered').length +
+      states.filter((entry) => entry.state === 'ignored').length
     const answeredQuestions = states.length
     return {
       chapterId,
