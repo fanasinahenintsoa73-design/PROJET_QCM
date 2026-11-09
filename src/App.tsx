@@ -10,6 +10,8 @@ import {
   RequireGuest,
   RequireStudent,
   RequireStudentAccount,
+  RequireSeriesStudent,
+  RequireAnkiStudent,
   RequireBlocked,
   RequireAdmin,
   ScrollToTop,
@@ -77,7 +79,9 @@ function StudentRoutes() {
       <Route element={<RequireStudentAccount />}>
         {/* Le résultat de la 30e série reste consultable après la fermeture du cycle. */}
         <Route element={<StudentLayout />}>
-          <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
+          <Route element={<RequireSeriesStudent />}>
+            <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
+          </Route>
         </Route>
       </Route>
 
@@ -85,9 +89,13 @@ function StudentRoutes() {
         <Route path="/app/historique" element={<Navigate to="/app" replace />} />
         <Route element={<StudentLayout />}>
           <Route path="/app" element={<DashboardPage />} />
-          <Route path="/app/ue/:ueId" element={<ChapterSelectionPage />} />
-          <Route path="/app/entrainement" element={<QuizPage />} />
-          <Route path="/app/anki/:chapterId" element={<AnkiQuizPage />} />
+          <Route element={<RequireSeriesStudent />}>
+            <Route path="/app/ue/:ueId" element={<ChapterSelectionPage />} />
+            <Route path="/app/entrainement" element={<QuizPage />} />
+          </Route>
+          <Route element={<RequireAnkiStudent />}>
+            <Route path="/app/anki/:chapterId" element={<AnkiQuizPage />} />
+          </Route>
         </Route>
       </Route>
 

@@ -98,7 +98,7 @@ export function RequireStudentAccount() {
   return <Outlet />
 }
 
-/** A student with a currently usable ticket (30 séries, non suspendu). */
+/** A student with a currently usable ticket (non suspendu). */
 export function RequireStudent() {
   const { user, access, ticketBlocked } = useAuth()
   if (!user) return <Navigate to="/acces" replace />
@@ -106,6 +106,20 @@ export function RequireStudent() {
   if (ticketBlocked) return <Navigate to="/expiration" replace />
   if (access === 'pending') return <Navigate to="/acces" replace />
   if (access === 'expired' || access === 'rejected') return <Navigate to="/expiration" replace />
+  return <Outlet />
+}
+
+/** Parcours 30 séries uniquement : un ticket Anki est renvoyé vers /app. */
+export function RequireSeriesStudent() {
+  const { ticketType } = useAuth()
+  if (ticketType === 'anki') return <Navigate to="/app" replace />
+  return <Outlet />
+}
+
+/** Parcours Anki uniquement : un ticket 30 séries est renvoyé vers /app. */
+export function RequireAnkiStudent() {
+  const { ticketType } = useAuth()
+  if (ticketType === 'series') return <Navigate to="/app" replace />
   return <Outlet />
 }
 
