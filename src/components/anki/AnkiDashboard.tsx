@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  ArrowLeft,
   ArrowRight,
   BookOpen,
   Check,
@@ -8,6 +9,7 @@ import {
   ChevronUp,
   Clock3,
   History,
+  ListChecks,
   LockKeyhole,
   Sparkles,
   Trophy,
@@ -52,6 +54,7 @@ export default function AnkiDashboard() {
   const [chapters, setChapters] = useState<AnkiChapterState[]>([])
   const [history, setHistory] = useState<AnkiHistoryEntry[]>([])
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [activeUeId, setActiveUeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -92,6 +95,10 @@ export default function AnkiDashboard() {
     [db],
   )
 
+  const activeTheme = PACE_THEMES.find((theme) => theme.id === activeUeId) ?? null
+  const activeChapters =
+    selection.find((entry) => entry.theme.id === activeUeId)?.chapters ?? []
+
   const totalQuestions = chapters.reduce((total, chapter) => total + chapter.totalQuestions, 0)
   const answeredQuestions = chapters.reduce(
     (total, chapter) => total + chapter.answeredQuestions,
@@ -118,6 +125,7 @@ export default function AnkiDashboard() {
     try {
       await api.selectAnkiChapters([...selected])
       setSelected(new Set())
+      setActiveUeId(null)
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de choisir ces chapitres.')
@@ -187,14 +195,30 @@ export default function AnkiDashboard() {
                 </div>
               </div>
 
-              <div className="mt-6 space-y-6">
-                {selection.map(({ theme, chapters: themeChapters }) => (
-                  <div key={theme.id}>
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-mute">
-                      {theme.title}
-                    </p>
-                    <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
-                      {themeChapters.map((chapter) => {
+              {activeUeId && activeTheme ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveUeId(null)}
+                    className="mt-6 inline-flex items-center gap-2 text-[12px] font-medium text-mute transition hover:text-accent"
+                  >
+                    <ArrowLeft size={14} /> Toutes les UE
+                  </button>
+
+                  <div className="mt-4 rounded-2xl border border-line bg-canvas">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+                      <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
+                        <ListChecks size={16} className="text-accent" />
+                        {activeTheme.title}
+                      </div>
+                      <p className="text-[12px] text-mute">
+                        {activeChapters.length} chapitre{activeChapters.length > 1 ? 's' : ''} disponible
+                        {activeChapters.length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+
+                    <div className="divide-y divide-line">
+                      {activeChapters.map((chapter) => {
                         const active = selected.has(chapter.id)
                         const disabled = !active && selected.size >= 5
                         return (
@@ -205,50 +229,145 @@ export default function AnkiDashboard() {
                             disabled={disabled}
                             aria-pressed={active}
                             className={cn(
-                              'flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left text-[13px] transition',
-                              active
-                                ? 'border-accent bg-accent-soft text-ink'
-                                : 'border-line bg-canvas text-ink hover:border-accent/60',
+                              'flex w-full items-center gap-4 px-5 py-4 text-left transition sm:px-6',
+                              active ? 'bg-accent-soft/60' : 'hover:bg-cloud/50',
                               disabled && 'cursor-not-allowed opacity-40',
                             )}
                           >
-                            <span className="flex min-w-0 items-center gap-2.5">
-                              <span
-                                className={cn(
-                                  'grid h-5 w-5 shrink-0 place-items-center rounded-full border',
-                                  active
-                                    ? 'border-accent bg-accent text-white'
-                                    : 'border-line bg-surface text-transparent',
-                                )}
-                              >
-                                <Check size={12} />
-                              </span>
-                              <span className="truncate">{chapter.title}</span>
+                            <span
+                              className={cn(
+                                'grid h-5 w-5 shrink-0 place-items-center rounded border transition',
+                                active
+                                  ? 'border-accent bg-accent text-white'
+                                  : 'border-line bg-surface text-transparent',
+                              )}
+                            >
+                              <Check size={13} strokeWidth={3} />
                             </span>
-                            <span className="shrink-0 text-[11px] text-mute">{chapter.count} q.</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[14px] font-medium text-ink">
+                                {chapter.title}
+                              </span>
+                              <span className="mt-0.5 block text-[11px] text-mute">
+                                {chapter.count} question{chapter.count > 1 ? 's' : ''} Anki
+                              </span>
+                            </span>
+                            {active ? (
+                              <span className="shrink-0 rounded-full bg-accent-soft px-2 py-1 text-[9px] font-medium uppercase tracking-[0.08em] text-accent">
+                                Choisi
+                              </span>
+                            ) : null}
                           </button>
                         )
                       })}
                     </div>
                   </div>
-                ))}
-              </div>
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
-                <p className="text-[12px] text-mute">
-                  {selected.size} / 5 chapitre{selected.size > 1 ? 's' : ''} sélectionné
-                  {selected.size > 1 ? 's' : ''}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void startAnki()}
-                  disabled={selected.size === 0 || saving}
-                  className={buttonClasses('primary')}
-                >
-                  {saving ? 'Enregistrement…' : 'Commencer Anki'}
-                  <ArrowRight size={16} />
-                </button>
-              </div>
+                  {selected.size >= 5 ? (
+                    <p className="mt-3 text-[12px] leading-relaxed text-mute">
+                      5 chapitres déjà choisis au total. Décoche un chapitre pour en choisir un autre.
+                    </p>
+                  ) : null}
+
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+                    <p className="text-[12px] text-mute">
+                      {selected.size} / 5 chapitre{selected.size > 1 ? 's' : ''} sélectionné
+                      {selected.size > 1 ? 's' : ''} au total
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void startAnki()}
+                      disabled={selected.size === 0 || saving}
+                      className={buttonClasses('primary')}
+                    >
+                      {saving ? 'Enregistrement…' : 'Commencer Anki'}
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="mt-5 max-w-2xl text-[13px] leading-relaxed text-mute">
+                    Sélectionne une UE, puis un ou plusieurs chapitres. Tu peux choisir dans
+                    différentes UE, mais ton ticket Anki compte **5 chapitres maximum au total**.
+                  </p>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {PACE_THEMES.map((theme) => {
+                      const themeChapters =
+                        selection.find((entry) => entry.theme.id === theme.id)?.chapters ?? []
+                      const selectedInTheme = themeChapters.filter((chapter) =>
+                        selected.has(chapter.id),
+                      ).length
+                      const available = themeChapters.length > 0
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          disabled={!available}
+                          onClick={() => setActiveUeId(theme.id)}
+                          className={cn(
+                            'rounded-2xl border border-line bg-canvas p-5 text-left transition',
+                            available
+                              ? 'hover:border-accent/60 hover:shadow-sm'
+                              : 'cursor-not-allowed opacity-60',
+                          )}
+                        >
+                          {available ? null : (
+                            <span className="inline-block rounded-full bg-cloud px-2.5 py-1 text-[10px] font-medium text-mute">
+                              Bientôt disponible
+                            </span>
+                          )}
+                          <h3 className="mt-4 min-h-[3.2rem]">
+                            <span className="inline-block rounded-md bg-accent-soft px-2 py-1 text-[12px] font-semibold uppercase leading-snug tracking-[0.04em] text-accent">
+                              {theme.title}
+                            </span>
+                          </h3>
+                          <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-mute">
+                            {theme.description}
+                          </p>
+                          <div className="mt-4 flex gap-2 text-[10px] text-mute">
+                            <span>
+                              {themeChapters.length} chapitre{themeChapters.length > 1 ? 's' : ''}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>Blocs Anki de 5 questions</span>
+                          </div>
+                          <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[11px]">
+                            <span className="font-medium text-ink">
+                              {selectedInTheme > 0
+                                ? `${selectedInTheme} chapitre${selectedInTheme > 1 ? 's' : ''} choisi${selectedInTheme > 1 ? 's' : ''}`
+                                : available
+                                  ? 'Choisir des chapitres'
+                                  : 'Indisponible'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 font-medium text-accent">
+                              {selectedInTheme > 0 ? 'Modifier' : available ? 'Ouvrir' : ''}
+                              {available ? <ArrowRight size={13} /> : null}
+                            </span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
+                    <p className="text-[12px] text-mute">
+                      {selected.size} / 5 chapitre{selected.size > 1 ? 's' : ''} sélectionné
+                      {selected.size > 1 ? 's' : ''} au total
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void startAnki()}
+                      disabled={selected.size === 0 || saving}
+                      className={buttonClasses('primary')}
+                    >
+                      {saving ? 'Enregistrement…' : 'Commencer Anki'}
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         ) : (
