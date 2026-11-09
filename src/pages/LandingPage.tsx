@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth'
 
 const DOCTOR_PHOTO = '/docteur.jpg'
 
-export function LandingPage() {
+export function LandingPage({ showForAnki = false }: { showForAnki?: boolean }) {
   usePageTitle('MEDQCM mada — Chers PACES')
   const { user, homePath, ticketType } = useAuth()
   const studentUser = user?.role === 'student' ? user : null
@@ -32,7 +32,7 @@ export function LandingPage() {
 
   // Dans l'application Android, un étudiant Anki déjà connecté doit arriver
   // directement sur sa Page d'accueil Anki, sans repasser par la présentation.
-  if (studentUser && ticketType === 'anki') {
+  if (!showForAnki && studentUser && ticketType === 'anki') {
     return <Navigate to={homePath} replace />
   }
 

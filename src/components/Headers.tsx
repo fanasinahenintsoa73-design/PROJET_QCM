@@ -1,4 +1,5 @@
-import { LogOut } from 'lucide-react'
+import { LogOut, Stethoscope } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
 import { useAuth } from '@/lib/auth'
 
@@ -22,7 +23,16 @@ export function StudentHeader() {
       <div className="mx-auto flex h-[68px] max-w-content items-center justify-between px-5 lg:px-10">
         <Logo to="/app" />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            to="/message-du-docteur"
+            aria-label="Message du docteur"
+            title="Message du docteur"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-mute transition hover:bg-cloud hover:text-ink sm:px-2.5"
+          >
+            <Stethoscope size={16} />
+            <span className="hidden sm:inline">Message du docteur</span>
+          </Link>
           <span
             className="grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent"
             aria-hidden
