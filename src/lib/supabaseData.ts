@@ -1276,6 +1276,9 @@ export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
     completed_at: string | null
     total_questions: number
     answered_questions: number
+    new_questions: number
+    in_progress_questions: number
+    review_questions: number
   }>).map((row) => ({
     chapterId: row.chapter_id,
     level: row.level,
@@ -1283,6 +1286,9 @@ export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
     completedAt: row.completed_at,
     totalQuestions: row.total_questions,
     answeredQuestions: row.answered_questions,
+    newQuestions: row.new_questions ?? 0,
+    inProgressQuestions: row.in_progress_questions ?? 0,
+    reviewQuestions: row.review_questions ?? 0,
   }))
 }
 

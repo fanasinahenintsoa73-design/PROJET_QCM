@@ -1778,13 +1778,21 @@ export function getAnkiChapters(): AnkiChapterState[] {
     const correctAnswers = state.history.filter(
       (entry) => entry.chapterId === chapterId && entry.status === 'correct',
     ).length
+    const totalQuestions = chapterQuestionBank(chapterId, db).length
+    const states = Object.values(progress.questions)
+    const inProgressQuestions = states.filter((entry) => entry.state === 'review').length
+    const reviewQuestions = states.filter((entry) => entry.state === 'mastered').length
+    const answeredQuestions = states.length
     return {
       chapterId,
       level: 1 + correctAnswers,
       correctAnswers,
       completedAt: progress.completedAt,
-      totalQuestions: chapterQuestionBank(chapterId, db).length,
-      answeredQuestions: Object.keys(progress.questions).length,
+      totalQuestions,
+      answeredQuestions,
+      newQuestions: Math.max(0, totalQuestions - answeredQuestions),
+      inProgressQuestions,
+      reviewQuestions,
     }
   })
 }

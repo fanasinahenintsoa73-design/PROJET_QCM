@@ -402,10 +402,12 @@ export default function AnkiDashboard() {
                       : 0
                   const done = Boolean(chapter.completedAt)
                   return (
-                    <article
+                    <Link
                       key={chapter.chapterId}
+                      to={done ? `/app/anki/${chapter.chapterId}?replay=1` : `/app/anki/${chapter.chapterId}`}
+                      aria-label={`${done ? 'Refaire le chapitre' : 'Continuer le chapitre'} ${chapterTitle(chapter.chapterId)}`}
                       className={cn(
-                        'rounded-2xl border bg-surface p-5',
+                        'rounded-2xl border bg-surface p-5 transition hover:border-accent/60 hover:shadow-sm',
                         done ? 'border-success/30' : 'border-line',
                       )}
                     >
@@ -430,10 +432,25 @@ export default function AnkiDashboard() {
                         </span>
                       </div>
 
+                      <div className="mt-4 grid grid-cols-3 border-y border-line py-3 text-center">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">Nouvelles</p>
+                          <p className="mt-1 font-display text-[20px] leading-none text-ink">{chapter.newQuestions}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">En cours</p>
+                          <p className="mt-1 font-display text-[20px] leading-none text-sale">{chapter.inProgressQuestions}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mute">À réviser</p>
+                          <p className="mt-1 font-display text-[20px] leading-none text-success">{chapter.reviewQuestions}</p>
+                        </div>
+                      </div>
+
                       <div className="mt-4">
                         <div className="flex items-center justify-between text-[11px] text-mute">
                           <span>
-                            {chapter.answeredQuestions} / {chapter.totalQuestions} questions
+                            {chapter.answeredQuestions} / {chapter.totalQuestions} questions vues
                           </span>
                           <span>{percent}%</span>
                         </div>
@@ -450,23 +467,11 @@ export default function AnkiDashboard() {
                           <BookOpen size={13} />
                           {chapter.correctAnswers} bonne{chapter.correctAnswers > 1 ? 's' : ''} réponse{chapter.correctAnswers > 1 ? 's' : ''}
                         </span>
-                        {done ? (
-                          <Link
-                            to={`/app/anki/${chapter.chapterId}?replay=1`}
-                            className={buttonClasses('secondary', 'sm')}
-                          >
-                            Refaire le chapitre <ArrowRight size={14} />
-                          </Link>
-                        ) : (
-                          <Link
-                            to={`/app/anki/${chapter.chapterId}`}
-                            className={buttonClasses('primary', 'sm')}
-                          >
-                            Continuer <ArrowRight size={14} />
-                          </Link>
-                        )}
+                        <span className={buttonClasses(done ? 'secondary' : 'primary', 'sm')}>
+                          {done ? 'Refaire le chapitre' : 'Continuer'} <ArrowRight size={14} />
+                        </span>
                       </div>
-                    </article>
+                    </Link>
                   )
                 })}
               </div>

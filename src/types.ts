@@ -178,6 +178,9 @@ export interface AnkiChapterState {
   completedAt: string | null
   totalQuestions: number
   answeredQuestions: number
+  newQuestions: number
+  inProgressQuestions: number
+  reviewQuestions: number
 }
 
 /** Résultat de l'enregistrement d'une réponse Anki. */
