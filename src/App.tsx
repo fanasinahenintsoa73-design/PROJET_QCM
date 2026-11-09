@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
 import { ToastProvider } from '@/components/ui/Toast'
+import { UpdateWatcher } from '@/components/UpdateWatcher'
 import { isDoctorPortal } from '@/lib/portal'
 import {
   PublicLayout,
@@ -158,6 +159,7 @@ function DoctorRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
+      <UpdateWatcher />
       <AuthProvider>
         <ToastProvider>
           <ScrollToTop />

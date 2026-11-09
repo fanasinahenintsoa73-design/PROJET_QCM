@@ -1,9 +1,35 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
+/**
+ * Écrit dist/version.json avec le nom du bundle d'entrée.
+ * Le site compare ce fichier à son propre script pour détecter un déploiement.
+ */
+function versionFile(): Plugin {
+  return {
+    name: 'medqcm-version-file',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const entry = Object.values(bundle).find(
+        (item) => item.type === 'chunk' && item.isEntry,
+      )
+      const version = entry && entry.type === 'chunk' ? entry.fileName : 'unknown'
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify(
+          { version, builtAt: new Date().toISOString() },
+          null,
+          2,
+        ),
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), versionFile()],
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },

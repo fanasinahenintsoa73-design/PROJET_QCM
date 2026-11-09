@@ -71,7 +71,17 @@ public class MainActivity extends Activity {
         setContentView(root);
         configureWebView();
         webView.clearCache(true);
-        webView.loadUrl(getString(R.string.web_url));
+        webView.clearFormData();
+        webView.loadUrl(freshUrl(getString(R.string.web_url)));
+    }
+
+    /** Ajoute un paramètre unique pour ne jamais réutiliser un ancien index.html. */
+    private String freshUrl(String url) {
+        return Uri.parse(url)
+                .buildUpon()
+                .appendQueryParameter("v", String.valueOf(System.currentTimeMillis()))
+                .build()
+                .toString();
     }
 
     private void configureWebView() {
@@ -223,7 +233,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (webView != null) webView.onResume();
+        if (webView != null) {
+            webView.onResume();
+            // Au retour dans l'application, le site vérifie tout de suite
+            // s'il existe un nouveau déploiement.
+            webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('medqcm:check-update'));",
+                    null);
+        }
     }
 
     @Override
