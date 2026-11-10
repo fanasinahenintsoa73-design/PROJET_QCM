@@ -219,6 +219,10 @@ export interface AnkiReviewCard {
   attempts: number
   firstSeenAt: string
   lastSeenAt: string
+  /** Nombre de fois où la question a été ratée (faux ou réponse affichée). */
+  misses: number
+  /** Nombre de fois où la question a été ignorée. */
+  ignored: number
 }
 
 export interface Database {

@@ -1429,6 +1429,8 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     attempts: number
     first_seen_at: string
     last_seen_at: string
+    misses: number | null
+    ignored: number | null
   }>).map((row) => ({
     chapterId: row.chapter_id,
     questionId: row.question_id,
@@ -1440,5 +1442,7 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     attempts: row.attempts ?? 1,
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
+    misses: row.misses ?? 0,
+    ignored: row.ignored ?? 0,
   }))
 }

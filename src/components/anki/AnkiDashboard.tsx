@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Clock3,
   FileText,
+  History,
   Plus,
   Search,
   Trophy,
@@ -33,13 +34,95 @@ function statusLabel(status: AnkiReviewCard['status']): string {
   return 'Ignorée'
 }
 
+/** Une ligne par question : énoncé, dernier statut et nombre de ratés. */
+function ReviewCardRow({
+  card,
+  open,
+  onToggle,
+}: {
+  card: AnkiReviewCard
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <article className="overflow-hidden rounded-xl border border-line bg-surface">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-cloud/40"
+      >
+        <span
+          className={cn(
+            'mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold',
+            card.status === 'correct' && 'bg-success/10 text-success',
+            card.status === 'wrong' && 'bg-sale/10 text-sale',
+            card.status === 'revealed' && 'bg-accent-soft text-accent',
+            card.status === 'skipped' && 'bg-cloud text-mute',
+          )}
+        >
+          {statusLabel(card.status)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium leading-snug text-ink">
+            {card.statement}
+          </span>
+          <span className="mt-1 block text-[10px] text-mute">
+            Vue le {formatDay(card.lastSeenAt)} · {card.attempts} passage
+            {card.attempts > 1 ? 's' : ''}
+          </span>
+        </span>
+        {card.misses > 0 ? (
+          <span className="mt-0.5 shrink-0 rounded-full bg-sale/10 px-2 py-0.5 text-[9px] font-semibold text-sale">
+            Ratée {card.misses}×
+          </span>
+        ) : null}
+        {open ? (
+          <ChevronUp size={15} className="mt-0.5 shrink-0 text-mute" />
+        ) : (
+          <ChevronDown size={15} className="mt-0.5 shrink-0 text-mute" />
+        )}
+      </button>
+      {open && (
+        <div className="border-t border-line px-4 py-3">
+          <p className="text-[11px] font-medium text-mute">Bonne réponse</p>
+          <p className="mt-0.5 text-[13px] font-medium text-success">
+            {card.correctAnswers.join(', ')}
+          </p>
+          {card.explanation ? (
+            <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-[12px] leading-relaxed text-mute">
+              {card.explanation}
+            </p>
+          ) : null}
+          <div className="mt-3 grid gap-2 border-t border-line pt-3 text-[11px] text-mute sm:grid-cols-2">
+            <span>
+              Ta dernière réponse :{' '}
+              <strong className="font-medium text-ink">
+                {card.lastGivenAnswers.join(', ') || '—'}
+              </strong>
+            </span>
+            <span>
+              {card.attempts} passage{card.attempts > 1 ? 's' : ''} au total
+            </span>
+            <span>
+              Ratée {card.misses} fois
+              {card.ignored > 0 ? ` · ignorée ${card.ignored} fois` : ''}
+            </span>
+            <span>Première vue le {formatDay(card.firstSeenAt)}</span>
+          </div>
+        </div>
+      )}
+    </article>
+  )
+}
+
 export default function AnkiDashboard() {
   usePageTitle('Tableau Anki — MEDQCM mada')
   const { ticketExpiresAt } = useAuth()
   const navigate = useNavigate()
   const [chapters, setChapters] = useState<AnkiChapterState[]>([])
   const [reviewCards, setReviewCards] = useState<AnkiReviewCard[]>([])
-  const [tab, setTab] = useState<'chapters' | 'cards'>('chapters')
+  const [tab, setTab] = useState<'chapters' | 'cards' | 'history'>('chapters')
   const [search, setSearch] = useState('')
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -196,6 +279,24 @@ export default function AnkiDashboard() {
             >
               <FileText size={14} />
               Fiches
+              <span className="rounded-full bg-cloud px-1.5 py-0.5 text-[10px] text-mute">
+                {reviewCards.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'history'}
+              onClick={() => setTab('history')}
+              className={cn(
+                'inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-[13px] font-medium transition',
+                tab === 'history'
+                  ? 'border-accent text-ink'
+                  : 'border-transparent text-mute hover:text-ink',
+              )}
+            >
+              <History size={14} />
+              Historique
               <span className="rounded-full bg-cloud px-1.5 py-0.5 text-[10px] text-mute">
                 {reviewCards.length}
               </span>
@@ -361,8 +462,14 @@ export default function AnkiDashboard() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Rechercher une question ou un chapitre"
-                aria-label="Rechercher dans les fiches"
+                placeholder={
+                  tab === 'history'
+                    ? 'Rechercher dans l’historique'
+                    : 'Rechercher une question ou un chapitre'
+                }
+                aria-label={
+                  tab === 'history' ? 'Rechercher dans l’historique' : 'Rechercher dans les fiches'
+                }
                 className="h-11 w-full rounded-[10px] border border-line bg-surface pl-9 pr-9 text-[13px] text-ink outline-none transition placeholder:text-mute focus:border-accent"
               />
               {search ? (
@@ -379,17 +486,42 @@ export default function AnkiDashboard() {
 
             {reviewCards.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center">
-                <p className="text-[14px] font-medium text-ink">Aucune fiche pour le moment.</p>
+                <p className="text-[14px] font-medium text-ink">
+                  {tab === 'history'
+                    ? 'Aucune question passée pour le moment.'
+                    : 'Aucune fiche pour le moment.'}
+                </p>
                 <p className="mt-1 text-[12px] text-mute">
                   Réponds à une question dans un chapitre pour créer ta première fiche.
                 </p>
               </div>
             ) : filteredCards.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center">
-                <p className="text-[14px] font-medium text-ink">Aucune fiche trouvée.</p>
+                <p className="text-[14px] font-medium text-ink">
+                  {tab === 'history' ? 'Aucune question trouvée.' : 'Aucune fiche trouvée.'}
+                </p>
                 <p className="mt-1 text-[12px] text-mute">
                   Essaie un autre mot ou efface la recherche.
                 </p>
+              </div>
+            ) : tab === 'history' ? (
+              <div className="mt-6 space-y-2">
+                <p className="text-[12px] leading-relaxed text-mute">
+                  Une question = une seule ligne. « Ratée N× » = combien de fois tu l’as ratée.
+                </p>
+                {[...filteredCards]
+                  .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+                  .map((card) => {
+                    const key = `${card.chapterId}:${card.questionId}`
+                    return (
+                      <ReviewCardRow
+                        key={key}
+                        card={card}
+                        open={expandedCard === key}
+                        onToggle={() => setExpandedCard(expandedCard === key ? null : key)}
+                      />
+                    )
+                  })}
               </div>
             ) : (
               <div className="mt-6 space-y-6">
@@ -406,68 +538,13 @@ export default function AnkiDashboard() {
                     <div className="mt-2 space-y-2">
                       {group.cards.map((card) => {
                         const key = `${card.chapterId}:${card.questionId}`
-                        const open = expandedCard === key
                         return (
-                          <article
+                          <ReviewCardRow
                             key={key}
-                            className="overflow-hidden rounded-xl border border-line bg-surface"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => setExpandedCard(open ? null : key)}
-                              aria-expanded={open}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-cloud/40"
-                            >
-                              <span
-                                className={cn(
-                                  'mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold',
-                                  card.status === 'correct' && 'bg-success/10 text-success',
-                                  card.status === 'wrong' && 'bg-sale/10 text-sale',
-                                  card.status === 'revealed' && 'bg-accent-soft text-accent',
-                                  card.status === 'skipped' && 'bg-cloud text-mute',
-                                )}
-                              >
-                                {statusLabel(card.status)}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-[13px] font-medium leading-snug text-ink">
-                                  {card.statement}
-                                </span>
-                                <span className="mt-1 block text-[10px] text-mute">
-                                  Vue le {formatDay(card.lastSeenAt)}
-                                </span>
-                              </span>
-                              {open ? (
-                                <ChevronUp size={15} className="mt-0.5 shrink-0 text-mute" />
-                              ) : (
-                                <ChevronDown size={15} className="mt-0.5 shrink-0 text-mute" />
-                              )}
-                            </button>
-                            {open && (
-                              <div className="border-t border-line px-4 py-3">
-                                <p className="text-[11px] font-medium text-mute">Bonne réponse</p>
-                                <p className="mt-0.5 text-[13px] font-medium text-success">
-                                  {card.correctAnswers.join(', ')}
-                                </p>
-                                {card.explanation ? (
-                                  <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-[12px] leading-relaxed text-mute">
-                                    {card.explanation}
-                                  </p>
-                                ) : null}
-                                <div className="mt-3 grid gap-2 border-t border-line pt-3 text-[11px] text-mute sm:grid-cols-2">
-                                  <span>
-                                    Ta dernière réponse :{' '}
-                                    <strong className="font-medium text-ink">
-                                      {card.lastGivenAnswers.join(', ') || '—'}
-                                    </strong>
-                                  </span>
-                                  <span>
-                                    {card.attempts} essai{card.attempts > 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </article>
+                            card={card}
+                            open={expandedCard === key}
+                            onToggle={() => setExpandedCard(expandedCard === key ? null : key)}
+                          />
                         )
                       })}
                     </div>

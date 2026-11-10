@@ -2010,6 +2010,8 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
         attempts: progress?.attempts ?? 1,
         firstSeenAt: entry.createdAt,
         lastSeenAt: entry.createdAt,
+        misses: entry.status === 'wrong' || entry.status === 'revealed' ? 1 : 0,
+        ignored: entry.status === 'skipped' ? 1 : 0,
       })
       continue
     }
@@ -2020,6 +2022,8 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
     existing.lastGivenAnswers = entry.givenAnswers
     existing.attempts = progress?.attempts ?? existing.attempts + 1
     existing.lastSeenAt = entry.createdAt
+    if (entry.status === 'wrong' || entry.status === 'revealed') existing.misses += 1
+    if (entry.status === 'skipped') existing.ignored += 1
   }
 
   return [...cards.values()].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
