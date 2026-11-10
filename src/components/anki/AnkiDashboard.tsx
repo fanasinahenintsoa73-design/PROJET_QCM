@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
-  ChevronDown,
-  ChevronUp,
   Clock3,
   FileText,
   History,
@@ -34,27 +32,14 @@ function statusLabel(status: AnkiReviewCard['status']): string {
   return 'Ignorée'
 }
 
-/** Une ligne par question : énoncé, dernier statut et nombre de ratés. */
-function ReviewCardRow({
-  card,
-  open,
-  onToggle,
-}: {
-  card: AnkiReviewCard
-  open: boolean
-  onToggle: () => void
-}) {
+/** Un bloc par question : énoncé, réponse, explication et nombre de ratés. */
+function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
   return (
-    <article className="overflow-hidden rounded-xl border border-line bg-surface">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-cloud/40"
-      >
+    <article className="rounded-xl border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            'mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold',
+            'rounded-full px-2 py-0.5 text-[9px] font-semibold',
             card.status === 'correct' && 'bg-success/10 text-success',
             card.status === 'wrong' && 'bg-sale/10 text-sale',
             card.status === 'revealed' && 'bg-accent-soft text-accent',
@@ -63,55 +48,47 @@ function ReviewCardRow({
         >
           {statusLabel(card.status)}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium leading-snug text-ink">
-            {card.statement}
-          </span>
-          <span className="mt-1 block text-[10px] text-mute">
-            Vue le {formatDay(card.lastSeenAt)} · {card.attempts} passage
-            {card.attempts > 1 ? 's' : ''}
-          </span>
-        </span>
         {card.misses > 0 ? (
-          <span className="mt-0.5 shrink-0 rounded-full bg-sale/10 px-2 py-0.5 text-[9px] font-semibold text-sale">
+          <span className="rounded-full bg-sale/10 px-2 py-0.5 text-[9px] font-semibold text-sale">
             Ratée {card.misses}×
           </span>
         ) : null}
-        {open ? (
-          <ChevronUp size={15} className="mt-0.5 shrink-0 text-mute" />
-        ) : (
-          <ChevronDown size={15} className="mt-0.5 shrink-0 text-mute" />
-        )}
-      </button>
-      {open && (
-        <div className="border-t border-line px-4 py-3">
-          <p className="text-[11px] font-medium text-mute">Bonne réponse</p>
-          <p className="mt-0.5 text-[13px] font-medium text-success">
-            {card.correctAnswers.join(', ')}
-          </p>
-          {card.explanation ? (
-            <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-[12px] leading-relaxed text-mute">
-              {card.explanation}
+        <span className="ml-auto text-[10px] text-mute">
+          Vue le {formatDay(card.lastSeenAt)} · {card.attempts} passage
+          {card.attempts > 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <p className="mt-2.5 text-[14px] font-medium leading-snug text-ink">{card.statement}</p>
+
+      <div className="mt-3 rounded-lg border border-line bg-canvas px-3 py-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Réponse</p>
+        <p className="mt-1 text-[13px] font-medium text-success">
+          {card.correctAnswers.join(', ')}
+        </p>
+        {card.explanation ? (
+          <>
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+              Explication
             </p>
-          ) : null}
-          <div className="mt-3 grid gap-2 border-t border-line pt-3 text-[11px] text-mute sm:grid-cols-2">
-            <span>
-              Ta dernière réponse :{' '}
-              <strong className="font-medium text-ink">
-                {card.lastGivenAnswers.join(', ') || '—'}
-              </strong>
-            </span>
-            <span>
-              {card.attempts} passage{card.attempts > 1 ? 's' : ''} au total
-            </span>
-            <span>
-              Ratée {card.misses} fois
-              {card.ignored > 0 ? ` · ignorée ${card.ignored} fois` : ''}
-            </span>
-            <span>Première vue le {formatDay(card.firstSeenAt)}</span>
-          </div>
-        </div>
-      )}
+            <p className="mt-1 text-[12px] leading-relaxed text-mute">{card.explanation}</p>
+          </>
+        ) : null}
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-mute">
+        <span>
+          Ta dernière réponse :{' '}
+          <strong className="font-medium text-ink">
+            {card.lastGivenAnswers.join(', ') || '—'}
+          </strong>
+        </span>
+        <span>
+          Ratée {card.misses} fois
+          {card.ignored > 0 ? ` · ignorée ${card.ignored} fois` : ''}
+        </span>
+        <span>Première vue le {formatDay(card.firstSeenAt)}</span>
+      </div>
     </article>
   )
 }
@@ -124,7 +101,6 @@ export default function AnkiDashboard() {
   const [reviewCards, setReviewCards] = useState<AnkiReviewCard[]>([])
   const [tab, setTab] = useState<'chapters' | 'cards' | 'history'>('chapters')
   const [search, setSearch] = useState('')
-  const [expandedCard, setExpandedCard] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -507,21 +483,17 @@ export default function AnkiDashboard() {
             ) : tab === 'history' ? (
               <div className="mt-6 space-y-2">
                 <p className="text-[12px] leading-relaxed text-mute">
-                  Une question = une seule ligne. « Ratée N× » = combien de fois tu l’as ratée.
+                  Une question = un seul bloc : l’énoncé, la bonne réponse et l’explication.
+                  « Ratée N× » = combien de fois tu l’as ratée.
                 </p>
                 {[...filteredCards]
                   .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
-                  .map((card) => {
-                    const key = `${card.chapterId}:${card.questionId}`
-                    return (
-                      <ReviewCardRow
-                        key={key}
-                        card={card}
-                        open={expandedCard === key}
-                        onToggle={() => setExpandedCard(expandedCard === key ? null : key)}
-                      />
-                    )
-                  })}
+                  .map((card) => (
+                    <ReviewCardRow
+                      key={`${card.chapterId}:${card.questionId}`}
+                      card={card}
+                    />
+                  ))}
               </div>
             ) : (
               <div className="mt-6 space-y-6">
@@ -535,18 +507,13 @@ export default function AnkiDashboard() {
                         {group.cards.length} fiche{group.cards.length > 1 ? 's' : ''}
                       </span>
                     </div>
-                    <div className="mt-2 space-y-2">
-                      {group.cards.map((card) => {
-                        const key = `${card.chapterId}:${card.questionId}`
-                        return (
-                          <ReviewCardRow
-                            key={key}
-                            card={card}
-                            open={expandedCard === key}
-                            onToggle={() => setExpandedCard(expandedCard === key ? null : key)}
-                          />
-                        )
-                      })}
+                    <div className="mt-2 space-y-3">
+                      {group.cards.map((card) => (
+                        <ReviewCardRow
+                          key={`${card.chapterId}:${card.questionId}`}
+                          card={card}
+                        />
+                      ))}
                     </div>
                   </section>
                 ))}
