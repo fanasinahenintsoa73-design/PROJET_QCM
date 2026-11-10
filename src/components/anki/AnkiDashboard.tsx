@@ -223,7 +223,7 @@ export default function AnkiDashboard() {
                 const done = Boolean(chapter.completedAt)
                 const available = chapter.totalQuestions > 0
                 const cardClass = cn(
-                  'rounded-2xl border bg-surface p-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30',
+                  'group rounded-2xl border bg-surface p-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30',
                   available
                     ? 'border-line hover:border-accent/60 hover:shadow-sm'
                     : 'border-line/70 bg-cloud/30',
@@ -258,6 +258,33 @@ export default function AnkiDashboard() {
                       </span>
                     </div>
 
+                    <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4">
+                      <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
+                        <p className="font-display text-[22px] leading-none text-ink">
+                          {chapter.newQuestions}
+                        </p>
+                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                          Nouvelles
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
+                        <p className="font-display text-[22px] leading-none text-sale">
+                          {chapter.inProgressQuestions}
+                        </p>
+                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                          En cours
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
+                        <p className="font-display text-[22px] leading-none text-success">
+                          {chapter.reviewQuestions}
+                        </p>
+                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                          À réviser
+                        </p>
+                      </div>
+                    </div>
+
                     <div className="mt-4">
                       <div className="flex items-center justify-between text-[11px] text-mute">
                         <span>
@@ -265,7 +292,7 @@ export default function AnkiDashboard() {
                         </span>
                         <span>{percent}%</span>
                       </div>
-                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-cloud">
+                      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-cloud">
                         <div
                           className={cn('h-full rounded-full', done ? 'bg-success' : 'bg-accent')}
                           style={{ width: `${Math.min(100, percent)}%` }}
@@ -273,39 +300,16 @@ export default function AnkiDashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-cloud/70 px-4 py-3">
-                      <span className="flex items-center gap-2 text-[12px] text-mute">
-                        <span className="h-2 w-2 rounded-full bg-accent" />
-                        <span className="font-display text-[17px] leading-none text-ink">
-                          {chapter.newQuestions}
-                        </span>
-                        Nouvelles
-                      </span>
-                      <span className="flex items-center gap-2 text-[12px] text-mute">
-                        <span className="h-2 w-2 rounded-full bg-sale" />
-                        <span className="font-display text-[17px] leading-none text-sale">
-                          {chapter.inProgressQuestions}
-                        </span>
-                        En cours
-                      </span>
-                      <span className="flex items-center gap-2 text-[12px] text-mute">
-                        <span className="h-2 w-2 rounded-full bg-success" />
-                        <span className="font-display text-[17px] leading-none text-success">
-                          {chapter.reviewQuestions}
-                        </span>
-                        À réviser
-                      </span>
-                    </div>
-
                     <div className="mt-4">
                       {!available ? (
-                        <p className="text-[11px] text-mute">Sujet ou correction retiré.</p>
+                        <p className="mb-2 text-[11px] text-mute">Sujet ou correction retiré.</p>
                       ) : null}
                       <span
                         className={cn(
-                          buttonClasses(available ? 'primary' : 'secondary', 'md'),
-                          'mt-3 w-full',
-                          !available && 'opacity-60',
+                          'flex h-12 w-full items-center gap-2 rounded-xl border bg-surface px-4 text-[14px] font-medium transition',
+                          available
+                            ? 'border-line text-ink group-hover:border-accent/60'
+                            : 'border-line/70 text-mute opacity-70',
                         )}
                       >
                         {!available
@@ -313,7 +317,9 @@ export default function AnkiDashboard() {
                           : done
                             ? 'Refaire le chapitre'
                             : 'Continuer'}
-                        {available ? <ArrowRight size={16} /> : null}
+                        {available ? (
+                          <ArrowRight size={16} className="text-accent" />
+                        ) : null}
                       </span>
                     </div>
                   </>
