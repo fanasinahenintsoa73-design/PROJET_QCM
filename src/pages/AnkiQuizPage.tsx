@@ -225,7 +225,7 @@ export default function AnkiQuizPage() {
             <Link to="/app" className={buttonClasses('secondary')}>
               Retour au tableau de bord
             </Link>
-            <Link to="/app" className={buttonClasses('secondary')}>
+            <Link to="/app?tab=history" className={buttonClasses('secondary')}>
               Voir l’historique
             </Link>
           </div>

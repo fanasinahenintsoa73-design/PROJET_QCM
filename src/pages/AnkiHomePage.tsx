@@ -210,8 +210,8 @@ export default function AnkiHomePage() {
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
                     Elle passe <strong className="font-medium text-ink">À réviser</strong> : elle
                     sort de ce chapitre, mais reste dans l’onglet{' '}
-                    <strong className="font-medium text-ink">Fiches</strong>, où tu la retrouves
-                    quand tu veux.
+                    <strong className="font-medium text-ink">Historique</strong>, où tu la
+                    retrouves quand tu veux.
                   </p>
                 </div>
               </div>
@@ -236,7 +236,7 @@ export default function AnkiHomePage() {
                   <p className="text-[11px] font-semibold text-ink">À réviser</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
                     Acquise ou ignorée : elle a quitté le QCM et t’attend dans l’onglet{' '}
-                    <strong className="font-medium text-ink">Fiches</strong>.
+                    <strong className="font-medium text-ink">Historique</strong>.
                   </p>
                 </div>
               </div>
@@ -246,7 +246,7 @@ export default function AnkiHomePage() {
                 <strong className="font-medium text-ink">Suivant</strong> → elle revient en tête de
                 la série suivante.{' '}
                 <strong className="font-medium text-ink">Ignorer</strong> → elle sort du chapitre,
-                mais reste dans tes fiches.
+                mais reste dans ton historique.
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-mute">
                 Chaque bonne réponse fait monter ton{' '}

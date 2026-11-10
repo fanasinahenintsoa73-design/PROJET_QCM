@@ -2012,6 +2012,7 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
         lastSeenAt: entry.createdAt,
         misses: entry.status === 'wrong' || entry.status === 'revealed' ? 1 : 0,
         ignored: entry.status === 'skipped' ? 1 : 0,
+        state: progress?.state ?? null,
       })
       continue
     }

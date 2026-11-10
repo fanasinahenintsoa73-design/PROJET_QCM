@@ -223,6 +223,8 @@ export interface AnkiReviewCard {
   misses: number
   /** Nombre de fois où la question a été ignorée. */
   ignored: number
+  /** L'état du moteur : 'pending' | 'review' | 'mastered' | 'ignored'. */
+  state: 'pending' | 'review' | 'mastered' | 'ignored' | null
 }
 
 export interface Database {

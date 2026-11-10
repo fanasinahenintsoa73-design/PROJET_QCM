@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   Clock3,
-  FileText,
   History,
   Plus,
   Search,
@@ -32,6 +31,25 @@ function statusLabel(status: AnkiReviewCard['status']): string {
   return 'Ignorée'
 }
 
+/** L'état d'une question : encore ratée (« en cours ») ou sortie du QCM (« à réviser »). */
+function cardState(card: AnkiReviewCard): 'progress' | 'review' {
+  if (card.state === 'review') return 'progress'
+  if (card.state === 'mastered' || card.state === 'ignored') return 'review'
+  if (card.status === 'wrong' || card.status === 'revealed') return 'progress'
+  return 'review'
+}
+
+/** « Voir la question… » au singulier, « Voir les 3 questions… » au pluriel. */
+function questionsLabel(count: number): string {
+  return count > 1 ? `les ${count} questions` : 'la question'
+}
+
+const HISTORY_FILTERS: { value: 'all' | 'progress' | 'review'; label: string }[] = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'progress', label: 'En cours' },
+  { value: 'review', label: 'À réviser' },
+]
+
 /** Un bloc par question : énoncé, réponse, explication et nombre de ratés. */
 function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
   return (
@@ -59,7 +77,10 @@ function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
         </span>
       </div>
 
-      <p className="mt-2.5 text-[14px] font-medium leading-snug text-ink">{card.statement}</p>
+      <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+        {chapterTitle(card.chapterId)}
+      </p>
+      <p className="mt-1 text-[14px] font-medium leading-snug text-ink">{card.statement}</p>
 
       <div className="mt-3 rounded-lg border border-line bg-canvas px-3 py-2.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Réponse</p>
@@ -99,7 +120,11 @@ export default function AnkiDashboard() {
   const navigate = useNavigate()
   const [chapters, setChapters] = useState<AnkiChapterState[]>([])
   const [reviewCards, setReviewCards] = useState<AnkiReviewCard[]>([])
-  const [tab, setTab] = useState<'chapters' | 'cards' | 'history'>('chapters')
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState<'chapters' | 'history'>(
+    searchParams.get('tab') === 'history' ? 'history' : 'chapters',
+  )
+  const [filter, setFilter] = useState<'all' | 'progress' | 'review'>('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -141,23 +166,31 @@ export default function AnkiDashboard() {
 
   const filteredCards = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return reviewCards
-    return reviewCards.filter(
-      (card) =>
+    return reviewCards.filter((card) => {
+      if (filter !== 'all' && cardState(card) !== filter) return false
+      if (!term) return true
+      return (
         card.statement.toLowerCase().includes(term) ||
-        chapterTitle(card.chapterId).toLowerCase().includes(term),
-    )
-  }, [reviewCards, search])
+        chapterTitle(card.chapterId).toLowerCase().includes(term)
+      )
+    })
+  }, [reviewCards, search, filter])
 
-  const groupedCards = useMemo(() => {
-    const groups = new Map<string, AnkiReviewCard[]>()
-    for (const card of filteredCards) {
-      const list = groups.get(card.chapterId) ?? []
-      list.push(card)
-      groups.set(card.chapterId, list)
-    }
-    return [...groups.entries()].map(([chapterId, cards]) => ({ chapterId, cards }))
-  }, [filteredCards])
+  const historyCounts = useMemo(
+    () => ({
+      all: reviewCards.length,
+      progress: reviewCards.filter((card) => cardState(card) === 'progress').length,
+      review: reviewCards.filter((card) => cardState(card) === 'review').length,
+    }),
+    [reviewCards],
+  )
+
+  /** Ouvre l'historique filtré sur l'état choisi depuis une carte de chapitre. */
+  const openHistory = (next: 'progress' | 'review') => {
+    setFilter(next)
+    setSearch('')
+    setTab('history')
+  }
 
   if (loading) {
     return (
@@ -183,7 +216,7 @@ export default function AnkiDashboard() {
               BONJOUR PACES ; prêt à réviser avec Anki ?
             </h1>
             <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
-              Tes chapitres, tes fiches et ta progression, au même endroit.
+              Tes chapitres, ton historique et ta progression, au même endroit.
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-[12px] text-mute">
@@ -244,24 +277,6 @@ export default function AnkiDashboard() {
             <button
               type="button"
               role="tab"
-              aria-selected={tab === 'cards'}
-              onClick={() => setTab('cards')}
-              className={cn(
-                'inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-[13px] font-medium transition',
-                tab === 'cards'
-                  ? 'border-accent text-ink'
-                  : 'border-transparent text-mute hover:text-ink',
-              )}
-            >
-              <FileText size={14} />
-              Fiches
-              <span className="rounded-full bg-cloud px-1.5 py-0.5 text-[10px] text-mute">
-                {reviewCards.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              role="tab"
               aria-selected={tab === 'history'}
               onClick={() => setTab('history')}
               className={cn(
@@ -300,68 +315,86 @@ export default function AnkiDashboard() {
                 const done = Boolean(chapter.completedAt)
                 const available = chapter.totalQuestions > 0
                 const cardClass = cn(
-                  'group rounded-2xl border bg-surface p-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30',
+                  'group rounded-2xl border bg-surface p-5 transition',
                   available
                     ? 'border-line hover:border-accent/60 hover:shadow-sm'
                     : 'border-line/70 bg-cloud/30',
                   done && available && 'border-success/30',
                 )
-                const content = (
-                  <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-                          {theme?.title ?? 'UE'}
-                        </p>
-                        <h3 className="mt-1 truncate font-display text-[18px] tracking-[-0.01em] text-ink">
-                          {chapterTitle(chapter.chapterId)}
-                        </h3>
-                      </div>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                          !available
-                            ? 'bg-cloud text-mute'
-                            : done
-                              ? 'bg-success/10 text-success'
-                              : 'bg-accent-soft text-accent',
-                        )}
-                      >
-                        {!available
-                          ? 'Indisponible'
+                const href = done
+                  ? `/app/anki/${chapter.chapterId}?replay=1`
+                  : `/app/anki/${chapter.chapterId}`
+                const chapterLabel = `${done ? 'Refaire le chapitre' : 'Continuer le chapitre'} ${chapterTitle(chapter.chapterId)}`
+                const header = (
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                        {theme?.title ?? 'UE'}
+                      </p>
+                      <h3 className="mt-1 truncate font-display text-[18px] tracking-[-0.01em] text-ink">
+                        {chapterTitle(chapter.chapterId)}
+                      </h3>
+                    </div>
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                        !available
+                          ? 'bg-cloud text-mute'
                           : done
-                            ? 'Terminé · Niveau conservé'
-                            : `Niveau ${chapter.level}`}
-                      </span>
-                    </div>
+                            ? 'bg-success/10 text-success'
+                            : 'bg-accent-soft text-accent',
+                      )}
+                    >
+                      {!available
+                        ? 'Indisponible'
+                        : done
+                          ? 'Terminé · Niveau conservé'
+                          : `Niveau ${chapter.level}`}
+                    </span>
+                  </div>
+                )
 
-                    <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4">
-                      <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
-                        <p className="font-display text-[22px] leading-none text-ink">
-                          {chapter.newQuestions}
-                        </p>
-                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
-                          Nouvelles
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
-                        <p className="font-display text-[22px] leading-none text-sale">
-                          {chapter.inProgressQuestions}
-                        </p>
-                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
-                          En cours
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
-                        <p className="font-display text-[22px] leading-none text-success">
-                          {chapter.reviewQuestions}
-                        </p>
-                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
-                          À réviser
-                        </p>
-                      </div>
+                const counters = (
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4">
+                    <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
+                      <p className="font-display text-[22px] leading-none text-ink">
+                        {chapter.newQuestions}
+                      </p>
+                      <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                        Nouvelles
+                      </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => openHistory('progress')}
+                      aria-label={`Voir ${questionsLabel(chapter.inProgressQuestions)} en cours dans l’historique`}
+                      className="rounded-xl border border-line bg-surface px-2 py-3 text-center transition hover:border-accent/60 hover:shadow-sm"
+                    >
+                      <p className="font-display text-[22px] leading-none text-sale">
+                        {chapter.inProgressQuestions}
+                      </p>
+                      <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                        En cours
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openHistory('review')}
+                      aria-label={`Voir ${questionsLabel(chapter.reviewQuestions)} à réviser dans l’historique`}
+                      className="rounded-xl border border-line bg-surface px-2 py-3 text-center transition hover:border-accent/60 hover:shadow-sm"
+                    >
+                      <p className="font-display text-[22px] leading-none text-success">
+                        {chapter.reviewQuestions}
+                      </p>
+                      <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                        À réviser
+                      </p>
+                    </button>
+                  </div>
+                )
 
+                const footer = (
+                  <>
                     <div className="mt-4">
                       <div className="flex items-center justify-between text-[11px] text-mute">
                         <span>
@@ -405,83 +438,100 @@ export default function AnkiDashboard() {
                 if (!available) {
                   return (
                     <div key={chapter.chapterId} className={cardClass}>
-                      {content}
+                      {header}
+                      {counters}
+                      {footer}
                     </div>
                   )
                 }
 
                 return (
-                  <Link
-                    key={chapter.chapterId}
-                    to={
-                      done
-                        ? `/app/anki/${chapter.chapterId}?replay=1`
-                        : `/app/anki/${chapter.chapterId}`
-                    }
-                    aria-label={`${done ? 'Refaire le chapitre' : 'Continuer le chapitre'} ${chapterTitle(chapter.chapterId)}`}
-                    className={cardClass}
-                  >
-                    {content}
-                  </Link>
+                  <div key={chapter.chapterId} className={cardClass}>
+                    <Link
+                      to={href}
+                      aria-label={chapterLabel}
+                      className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
+                    >
+                      {header}
+                    </Link>
+                    {counters}
+                    <Link to={href} tabIndex={-1} aria-hidden="true" className="block rounded-lg">
+                      {footer}
+                    </Link>
+                  </div>
                 )
               })}
             </div>
           </section>
         ) : (
           <section className="mt-5">
-            <div className="relative max-w-md">
-              <Search
-                size={15}
-                aria-hidden
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
-              />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={
-                  tab === 'history'
-                    ? 'Rechercher dans l’historique'
-                    : 'Rechercher une question ou un chapitre'
-                }
-                aria-label={
-                  tab === 'history' ? 'Rechercher dans l’historique' : 'Rechercher dans les fiches'
-                }
-                className="h-11 w-full rounded-[10px] border border-line bg-surface pl-9 pr-9 text-[13px] text-ink outline-none transition placeholder:text-mute focus:border-accent"
-              />
-              {search ? (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  aria-label="Effacer la recherche"
-                  className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
-                >
-                  <X size={14} />
-                </button>
-              ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative max-w-md flex-1">
+                <Search
+                  size={15}
+                  aria-hidden
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Rechercher dans l’historique"
+                  aria-label="Rechercher dans l’historique"
+                  className="h-11 w-full rounded-[10px] border border-line bg-surface pl-9 pr-9 text-[13px] text-ink outline-none transition placeholder:text-mute focus:border-accent"
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label="Effacer la recherche"
+                    className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
+                  >
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {HISTORY_FILTERS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={filter === option.value}
+                    onClick={() => setFilter(option.value)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-[12px] font-medium transition',
+                      filter === option.value
+                        ? 'border-accent bg-accent-soft text-accent'
+                        : 'border-line text-mute hover:border-accent/60 hover:text-ink',
+                    )}
+                  >
+                    {option.label}
+                    <span className="ml-1.5 text-[10px] opacity-70">
+                      {historyCounts[option.value]}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {reviewCards.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center">
                 <p className="text-[14px] font-medium text-ink">
-                  {tab === 'history'
-                    ? 'Aucune question passée pour le moment.'
-                    : 'Aucune fiche pour le moment.'}
+                  Aucune question passée pour le moment.
                 </p>
                 <p className="mt-1 text-[12px] text-mute">
-                  Réponds à une question dans un chapitre pour créer ta première fiche.
+                  Réponds à une question dans un chapitre : elle apparaîtra ici avec sa réponse et
+                  son explication.
                 </p>
               </div>
             ) : filteredCards.length === 0 ? (
               <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center">
-                <p className="text-[14px] font-medium text-ink">
-                  {tab === 'history' ? 'Aucune question trouvée.' : 'Aucune fiche trouvée.'}
-                </p>
+                <p className="text-[14px] font-medium text-ink">Aucune question trouvée.</p>
                 <p className="mt-1 text-[12px] text-mute">
-                  Essaie un autre mot ou efface la recherche.
+                  Essaie un autre mot, efface la recherche ou change de filtre.
                 </p>
               </div>
-            ) : tab === 'history' ? (
-              <div className="mt-6 space-y-2">
+            ) : (
+              <div className="mt-6 space-y-3">
                 <p className="text-[12px] leading-relaxed text-mute">
                   Une question = un seul bloc : l’énoncé, la bonne réponse et l’explication.
                   « Ratée N× » = combien de fois tu l’as ratée.
@@ -494,29 +544,6 @@ export default function AnkiDashboard() {
                       card={card}
                     />
                   ))}
-              </div>
-            ) : (
-              <div className="mt-6 space-y-6">
-                {groupedCards.map((group) => (
-                  <section key={group.chapterId}>
-                    <div className="flex items-end justify-between gap-3">
-                      <h3 className="font-display text-[18px] tracking-[-0.01em] text-ink">
-                        {chapterTitle(group.chapterId)}
-                      </h3>
-                      <span className="text-[11px] text-mute">
-                        {group.cards.length} fiche{group.cards.length > 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="mt-2 space-y-3">
-                      {group.cards.map((card) => (
-                        <ReviewCardRow
-                          key={`${card.chapterId}:${card.questionId}`}
-                          card={card}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ))}
               </div>
             )}
           </section>
