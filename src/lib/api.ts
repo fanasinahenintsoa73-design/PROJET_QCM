@@ -2,6 +2,7 @@ import type {
   AnkiAnswerResult,
   AnkiChapterState,
   AnkiHistoryEntry,
+  AnkiReviewCard,
   GeneratedTicket,
   Question,
   Receipt,
@@ -438,6 +439,18 @@ export const api = {
     return demo.deleteTickets(codes)
   },
 
+  /** Archive des tickets : masqués des listes actives, données conservées. */
+  async archiveTickets(codes: string[]): Promise<void> {
+    if (isSupabaseConfigured) return remote.archiveTickets(codes)
+    return demo.archiveTickets(codes)
+  },
+
+  /** Désarchive des tickets. */
+  async unarchiveTickets(codes: string[]): Promise<void> {
+    if (isSupabaseConfigured) return remote.unarchiveTickets(codes)
+    return demo.unarchiveTickets(codes)
+  },
+
   /** Horodatage des connexions d'un ticket. */
   async ticketHistory(code: string): Promise<string[]> {
     if (isSupabaseConfigured) return remote.ticketHistory(code)
@@ -509,5 +522,10 @@ export const api = {
   async getAnkiHistory(): Promise<AnkiHistoryEntry[]> {
     if (isSupabaseConfigured) return remote.getAnkiHistory()
     return Promise.resolve(demo.getAnkiHistory())
+  },
+
+  async getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
+    if (isSupabaseConfigured) return remote.getAnkiReviewCards()
+    return Promise.resolve(demo.getAnkiReviewCards())
   },
 }

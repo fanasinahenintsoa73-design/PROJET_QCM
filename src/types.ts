@@ -154,6 +154,10 @@ export interface TicketItem {
   createdAt: string
   usedAt: string | null
   lastLoginAt: string | null
+  /** Date d'archivage : le ticket est masqué des listes actives. */
+  archivedAt: string | null
+  /** Dernière activité réelle : connexion ou réponse. */
+  lastActivityAt: string | null
 }
 
 /** Un ticket généré : le secret est affiché à la génération. */
@@ -201,6 +205,20 @@ export interface AnkiHistoryEntry {
   explanation: string
   status: 'correct' | 'wrong' | 'revealed' | 'skipped'
   createdAt: string
+}
+
+/** Une fiche de révision unique par question, quel que soit le nombre d'essais. */
+export interface AnkiReviewCard {
+  chapterId: string
+  questionId: string
+  statement: string
+  correctAnswers: string[]
+  explanation: string
+  status: AnkiHistoryEntry['status']
+  lastGivenAnswers: string[]
+  attempts: number
+  firstSeenAt: string
+  lastSeenAt: string
 }
 
 export interface Database {

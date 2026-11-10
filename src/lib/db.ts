@@ -3,6 +3,7 @@ import type {
   AnkiAnswerResult,
   AnkiChapterState,
   AnkiHistoryEntry,
+  AnkiReviewCard,
   Attempt,
   Database,
   GeneratedTicket,
@@ -1478,6 +1479,7 @@ interface DemoTicket {
   createdAt: string
   usedAt: string | null
   lastLoginAt: string | null
+  archivedAt: string | null
   logins: string[]
 }
 
@@ -1497,6 +1499,7 @@ function loadDemoTickets(): DemoTicket[] {
       createdAt: record.createdAt ?? new Date().toISOString(),
       usedAt: record.usedAt ?? null,
       lastLoginAt: record.lastLoginAt ?? null,
+      archivedAt: record.archivedAt ?? null,
       logins: Array.isArray(record.logins) ? record.logins : [],
     }))
   } catch {
@@ -1570,6 +1573,7 @@ export function generateTickets(count: number, type: TicketType = 'series'): Gen
       createdAt: now.toISOString(),
       usedAt: null,
       lastLoginAt: null,
+      archivedAt: null,
       logins: [],
     })
     created.push({ code, secret, type })
@@ -1587,6 +1591,15 @@ export function listTickets(): TicketItem[] {
   const ankiStore = loadAnkiStore()
   return loadDemoTickets().map((record) => {
     const anki = ankiStore[record.code]
+    const lastAnkiActivity = anki?.history.reduce(
+      (latest, entry) => (entry.createdAt > latest ? entry.createdAt : latest),
+      '',
+    )
+    const lastActivityAt =
+      [record.lastLoginAt, lastAnkiActivity, record.usedAt, record.createdAt]
+        .filter((value): value is string => Boolean(value))
+        .sort()
+        .slice(-1)[0] ?? null
     return {
       code: record.code,
       secret: record.secret,
@@ -1601,6 +1614,8 @@ export function listTickets(): TicketItem[] {
       createdAt: record.createdAt,
       usedAt: record.usedAt,
       lastLoginAt: record.lastLoginAt,
+      archivedAt: record.archivedAt,
+      lastActivityAt,
     }
   })
 }
@@ -1610,8 +1625,28 @@ export function setTicketStatus(code: string, status: 'suspended' | 'active'): v
   const records = loadDemoTickets()
   const record = records.find((candidate) => candidate.code === code)
   if (!record) throw new Error('Ticket introuvable.')
+  if (record.archivedAt) throw new Error('Désarchive le ticket avant de changer son statut.')
   record.status =
     status === 'suspended' ? 'suspended' : record.usedAt ? 'used' : 'available'
+  saveDemoTickets(records)
+}
+
+/** Archive des tickets sans supprimer leurs données. */
+export function archiveTickets(codes: string[]): void {
+  const records = loadDemoTickets()
+  const now = new Date().toISOString()
+  for (const record of records) {
+    if (codes.includes(record.code) && !record.archivedAt) record.archivedAt = now
+  }
+  saveDemoTickets(records)
+}
+
+/** Restaure des tickets archivés. */
+export function unarchiveTickets(codes: string[]): void {
+  const records = loadDemoTickets()
+  for (const record of records) {
+    if (codes.includes(record.code)) record.archivedAt = null
+  }
   saveDemoTickets(records)
 }
 
@@ -1619,12 +1654,22 @@ export function setTicketStatus(code: string, status: 'suspended' | 'active'): v
 export function deleteTickets(codes: string[]): void {
   if (codes.length === 0) return
   const records = loadDemoTickets()
-  const userIds = new Set(
-    records.filter((record) => codes.includes(record.code)).map((record) => record.userId),
+  const selected = records.filter((record) => codes.includes(record.code))
+  const db = getDB()
+  const blocked = selected.find(
+    (record) =>
+      record.usedAt ||
+      getSeriesUsage(record.userId, db).used > 0 ||
+      (loadAnkiStore()[record.code]?.chapters.length ?? 0) > 0,
   )
+  if (blocked) {
+    throw new Error(
+      `Le ticket ${blocked.code} a déjà été utilisé. Archive-le au lieu de le supprimer.`,
+    )
+  }
+  const userIds = new Set(selected.map((record) => record.userId))
   if (userIds.size === 0) return
   saveDemoTickets(records.filter((record) => !codes.includes(record.code)))
-  const db = getDB()
   commit({
     ...db,
     users: db.users.filter((user) => !userIds.has(user.id)),
@@ -1646,6 +1691,7 @@ export function recordTicketLogin(): void {
   const records = loadDemoTickets()
   const record = records.find((candidate) => candidate.userId === userId)
   if (!record) return
+  if (record.archivedAt) throw new Error('Ce ticket est archivé.')
   const now = new Date().toISOString()
   record.logins.push(now)
   record.usedAt = record.usedAt ?? now
@@ -1724,6 +1770,7 @@ function requireAnkiTicket(): DemoTicket {
   const ticket = currentDemoTicket()
   if (!ticket) throw new Error('Ticket introuvable.')
   if (ticket.type !== 'anki') throw new Error('Ce ticket n’est pas un ticket Anki.')
+  if (ticket.archivedAt) throw new Error('Ce ticket est archivé.')
   if (ticket.status === 'suspended') throw new Error('Ce ticket est suspendu.')
   if (ticket.expiresAt && new Date(ticket.expiresAt).getTime() < Date.now()) {
     throw new Error('Ticket Anki expiré.')
@@ -1939,4 +1986,41 @@ export function getAnkiHistory(): AnkiHistoryEntry[] {
   return [...ankiStateFor(ticket.code).history].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   )
+}
+
+/** Une fiche unique par question, mise à jour à chaque nouvelle tentative. */
+export function getAnkiReviewCards(): AnkiReviewCard[] {
+  const ticket = requireAnkiTicket()
+  const state = ankiStateFor(ticket.code)
+  const cards = new Map<string, AnkiReviewCard>()
+
+  for (const entry of [...state.history].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+    const key = `${entry.chapterId}:${entry.questionId}`
+    const progress = state.progress[entry.chapterId]?.questions[entry.questionId]
+    const existing = cards.get(key)
+    if (!existing) {
+      cards.set(key, {
+        chapterId: entry.chapterId,
+        questionId: entry.questionId,
+        statement: entry.statement,
+        correctAnswers: entry.correctAnswers,
+        explanation: entry.explanation,
+        status: entry.status,
+        lastGivenAnswers: entry.givenAnswers,
+        attempts: progress?.attempts ?? 1,
+        firstSeenAt: entry.createdAt,
+        lastSeenAt: entry.createdAt,
+      })
+      continue
+    }
+    existing.statement = entry.statement
+    existing.correctAnswers = entry.correctAnswers
+    existing.explanation = entry.explanation
+    existing.status = entry.status
+    existing.lastGivenAnswers = entry.givenAnswers
+    existing.attempts = progress?.attempts ?? existing.attempts + 1
+    existing.lastSeenAt = entry.createdAt
+  }
+
+  return [...cards.values()].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
 }

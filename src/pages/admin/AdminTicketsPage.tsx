@@ -1,34 +1,52 @@
-import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
-  type TouchEvent as ReactTouchEvent,
-} from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Ban, Copy, Play, RefreshCw, Search, Ticket, Trash2, X } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  Ban,
+  Copy,
+  Eye,
+  MoreHorizontal,
+  Play,
+  RefreshCw,
+  Search,
+  Ticket,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
 import { Field, Input } from '@/components/ui/Field'
-import { Button, ButtonLink, buttonClasses } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { useToast } from '@/components/ui/Toast'
 import { copyText } from '@/lib/downloadTickets'
 import { getGeneratedTickets, setGeneratedTickets } from '@/lib/generatedTicketsSession'
-import { usePressAndHold } from '@/lib/usePressAndHold'
-import { formatDateLong, formatDateTime } from '@/lib/utils'
+import { cn, formatDateLong, formatDateTime } from '@/lib/utils'
 import type { TicketItem, TicketType } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
-const ROW_HOLD_MS = 2000
-const DELETE_HOLD_MS = 3000
-/** Tolérance de déplacement du doigt pendant l'appui (en pixels). */
-const HOLD_MOVE_TOLERANCE = 18
 
 type Tone = 'success' | 'info' | 'neutral' | 'error'
+type FilterKey = 'available' | 'inProgress' | 'finished' | 'suspended'
+
+const FILTERS: Array<{ key: FilterKey; label: string; note: string; dot: string }> = [
+  { key: 'available', label: 'Disponible', note: 'Jamais utilisé', dot: 'bg-success' },
+  { key: 'inProgress', label: 'En cours', note: 'Activité commencée', dot: 'bg-info' },
+  { key: 'finished', label: 'Terminé', note: 'Parcours terminé ou expiré', dot: 'bg-stone' },
+  { key: 'suspended', label: 'Suspendu', note: 'Accès fermé', dot: 'bg-sale' },
+]
+
+const FILTER_TITLES: Record<FilterKey, string> = {
+  available: 'Tickets disponibles',
+  inProgress: 'Tickets en cours',
+  finished: 'Tickets terminés',
+  suspended: 'Tickets suspendus',
+}
+
+function isTicketFilter(value: string | null): value is FilterKey {
+  return value !== null && FILTERS.some((filter) => filter.key === value)
+}
 
 function isAnkiExpired(item: TicketItem): boolean {
   return Boolean(item.expiresAt && new Date(item.expiresAt).getTime() < Date.now())
@@ -42,46 +60,22 @@ function ticketDisplay(item: TicketItem): { label: string; tone: Tone } {
       return { label: 'Terminé', tone: 'neutral' }
     }
     if (item.ankiChapters > 0) {
-      return {
-        label: `En cours · ${item.ankiCompleted}/${item.ankiChapters}`,
-        tone: 'info',
-      }
+      return { label: `En cours · ${item.ankiCompleted}/${item.ankiChapters}`, tone: 'info' }
     }
     return { label: 'Disponible', tone: 'success' }
   }
   if (item.seriesUsed >= 30) return { label: 'Terminé', tone: 'neutral' }
-  if (item.status === 'used' || item.usedAt) return { label: `En cours · ${item.seriesUsed}/30`, tone: 'info' }
+  if (item.status === 'used' || item.usedAt) {
+    return { label: `En cours · ${item.seriesUsed}/30`, tone: 'info' }
+  }
   return { label: 'Disponible', tone: 'success' }
 }
 
-const TICKET_FILTERS = ['available', 'inProgress', 'finished', 'suspended'] as const
-type TicketFilter = (typeof TICKET_FILTERS)[number]
-
-const FILTER_LABELS: Record<TicketFilter, string> = {
-  available: 'Disponibles',
-  inProgress: 'En cours',
-  finished: 'Terminés',
-  suspended: 'Suspendus',
-}
-
-const FILTER_TITLES: Record<TicketFilter, string> = {
-  available: 'Tickets disponibles',
-  inProgress: 'Tickets en cours',
-  finished: 'Tickets terminés',
-  suspended: 'Tickets suspendus',
-}
-
-function isTicketFilter(value: string | null): value is TicketFilter {
-  return value !== null && (TICKET_FILTERS as readonly string[]).includes(value)
-}
-
-function matchesTicketFilter(item: TicketItem, filter: TicketFilter): boolean {
+function matchesTicketFilter(item: TicketItem, filter: FilterKey): boolean {
   if (filter === 'suspended') return item.status === 'suspended'
   if (item.status === 'suspended') return false
   if (item.type === 'anki') {
-    const finished =
-      isAnkiExpired(item) ||
-      (item.ankiChapters > 0 && item.ankiCompleted >= item.ankiChapters)
+    const finished = isAnkiExpired(item) || (item.ankiChapters > 0 && item.ankiCompleted >= item.ankiChapters)
     if (filter === 'finished') return finished
     if (filter === 'inProgress') return !finished && item.ankiChapters > 0
     return !finished && item.ankiChapters === 0
@@ -92,15 +86,15 @@ function matchesTicketFilter(item: TicketItem, filter: TicketFilter): boolean {
   return item.seriesUsed < 30 && !started
 }
 
-function isInteractive(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('button, a, input, select, textarea') !== null
+function isNeverUsed(item: TicketItem): boolean {
+  return !item.usedAt && item.seriesUsed === 0 && item.ankiChapters === 0
 }
 
 export default function AdminTicketsPage() {
   usePageTitle('Tickets — Espace docteur')
   const { toast } = useToast()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [tickets, setTickets] = useState<TicketItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -108,40 +102,67 @@ export default function AdminTicketsPage() {
   const [count, setCount] = useState('50')
   const [ticketType, setTicketType] = useState<TicketType>('series')
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'all' | TicketType>('all')
   const [generating, setGenerating] = useState(false)
   const [busyCode, setBusyCode] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
-  const [holdCode, setHoldCode] = useState<string | null>(null)
-  const holdCodeRef = useRef<string | null>(null)
-  const touchStartRef = useRef<{ id: number; x: number; y: number } | null>(null)
-  const rowHold = usePressAndHold(ROW_HOLD_MS)
-  const deleteHold = usePressAndHold(DELETE_HOLD_MS)
-  const suppressClickRef = useRef(false)
-  const selectedRef = useRef(selected)
+  const [archiving, setArchiving] = useState(false)
+  const [unarchiving, setUnarchiving] = useState(false)
+  const [menuCode, setMenuCode] = useState<string | null>(null)
+  const [detail, setDetail] = useState<TicketItem | null>(null)
+  const [deleteTargets, setDeleteTargets] = useState<TicketItem[]>([])
+
   const lastBatch = getGeneratedTickets()
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
-  const filterParam = searchParams.get('statut')
-  const activeFilter = isTicketFilter(filterParam) ? filterParam : null
-  const filteredTickets = activeFilter
-    ? tickets.filter((item) => matchesTicketFilter(item, activeFilter))
-    : tickets
-  const typeFilteredTickets =
-    typeFilter === 'all' ? filteredTickets : filteredTickets.filter((item) => item.type === typeFilter)
-  const normalizedSearch = search.trim().toUpperCase()
-  const searchActive = !activeFilter && normalizedSearch.length > 0
-  const visibleTickets = searchActive
-    ? typeFilteredTickets.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
-    : typeFilteredTickets
 
-  useEffect(() => {
-    selectedRef.current = selected
-  }, [selected])
+  const activeType: TicketType = searchParams.get('type') === 'anki' ? 'anki' : 'series'
+  const archivedView = searchParams.get('vue') === 'archives'
+  const filterParam = searchParams.get('statut')
+  const activeFilter = !archivedView && isTicketFilter(filterParam) ? filterParam : null
+  const normalizedSearch = search.trim().toUpperCase()
+
+  const seriesCount = tickets.filter((item) => item.type === 'series' && !item.archivedAt).length
+  const ankiCount = tickets.filter((item) => item.type === 'anki' && !item.archivedAt).length
+  const archivedCount = tickets.filter(
+    (item) => item.type === activeType && item.archivedAt !== null,
+  ).length
+
+  const activeTypeTickets = useMemo(
+    () => tickets.filter((item) => item.type === activeType),
+    [tickets, activeType],
+  )
+
+  const counts = useMemo(() => {
+    const current = activeTypeTickets.filter((item) => !item.archivedAt)
+    return {
+      available: current.filter((item) => matchesTicketFilter(item, 'available')).length,
+      inProgress: current.filter((item) => matchesTicketFilter(item, 'inProgress')).length,
+      finished: current.filter((item) => matchesTicketFilter(item, 'finished')).length,
+      suspended: current.filter((item) => matchesTicketFilter(item, 'suspended')).length,
+    } satisfies Record<FilterKey, number>
+  }, [activeTypeTickets])
+
+  const visibleTickets = useMemo(() => {
+    const base = activeTypeTickets.filter((item) =>
+      archivedView ? item.archivedAt !== null : item.archivedAt === null,
+    )
+    const filtered = activeFilter ? base.filter((item) => matchesTicketFilter(item, activeFilter)) : base
+    return normalizedSearch
+      ? filtered.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
+      : filtered
+  }, [activeTypeTickets, activeFilter, archivedView, normalizedSearch])
+
+  const selectedTickets = useMemo(
+    () => tickets.filter((item) => selected.has(item.code)),
+    [tickets, selected],
+  )
+  const canDeleteSelected = selectedTickets.length > 0 && selectedTickets.every(isNeverUsed)
+  const allVisibleSelected =
+    visibleTickets.length > 0 && visibleTickets.every((item) => selected.has(item.code))
 
   useEffect(() => {
     setSelected(new Set())
-  }, [activeFilter, normalizedSearch, typeFilter])
+  }, [activeType, activeFilter, archivedView, normalizedSearch])
 
   useEffect(() => {
     if (activeFilter) setSearch('')
@@ -168,6 +189,24 @@ export default function AdminTicketsPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  function updateParams(next: {
+    type?: TicketType
+    statut?: FilterKey | null
+    vue?: 'archives' | null
+  }) {
+    const params = new URLSearchParams(searchParams)
+    if (next.type !== undefined) params.set('type', next.type)
+    if (next.statut !== undefined) {
+      if (next.statut === null) params.delete('statut')
+      else params.set('statut', next.statut)
+    }
+    if (next.vue !== undefined) {
+      if (next.vue === null) params.delete('vue')
+      else params.set('vue', next.vue)
+    }
+    setSearchParams(params, { replace: true })
+  }
 
   async function handleGenerate() {
     const n = Number.parseInt(count, 10)
@@ -201,11 +240,83 @@ export default function AdminTicketsPage() {
     }
   }
 
+  async function handleArchive(codes: string[]) {
+    if (codes.length === 0) return
+    setArchiving(true)
+    try {
+      await api.archiveTickets(codes)
+      toast(`${codes.length} ticket${codes.length > 1 ? 's' : ''} archivé${codes.length > 1 ? 's' : ''}.`)
+      setSelected(new Set())
+      await load()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'L’archivage a échoué.', 'error')
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  async function handleUnarchive(codes: string[]) {
+    if (codes.length === 0) return
+    setUnarchiving(true)
+    try {
+      await api.unarchiveTickets(codes)
+      toast(`${codes.length} ticket${codes.length > 1 ? 's' : ''} désarchivé${codes.length > 1 ? 's' : ''}.`)
+      setSelected(new Set())
+      await load()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Le désarchivage a échoué.', 'error')
+    } finally {
+      setUnarchiving(false)
+    }
+  }
+
+  function requestDelete(codes: string[]) {
+    const targets = tickets.filter((item) => codes.includes(item.code))
+    if (targets.length === 0) return
+    if (!targets.every(isNeverUsed)) {
+      toast(
+        'La sélection contient un ticket déjà utilisé. Archive-le au lieu de le supprimer.',
+        'error',
+      )
+      return
+    }
+    setDeleteTargets(targets)
+  }
+
+  async function performDelete() {
+    const codes = deleteTargets.map((item) => item.code)
+    if (codes.length === 0) return
+    setDeleting(true)
+    try {
+      await api.deleteTickets(codes)
+      toast(`${codes.length} ticket${codes.length > 1 ? 's' : ''} supprimé${codes.length > 1 ? 's' : ''}.`)
+      setDeleteTargets([])
+      setSelected(new Set())
+      await load()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'La suppression a échoué.', 'error')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   function toggleSelected(code: string) {
     setSelected((previous) => {
       const next = new Set(previous)
       if (next.has(code)) next.delete(code)
       else next.add(code)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelected((previous) => {
+      const next = new Set(previous)
+      if (allVisibleSelected) {
+        for (const item of visibleTickets) next.delete(item.code)
+      } else {
+        for (const item of visibleTickets) next.add(item.code)
+      }
       return next
     })
   }
@@ -220,93 +331,7 @@ export default function AdminTicketsPage() {
     toast(ok ? 'Numéro copié !' : 'Copie impossible sur cet appareil.', ok ? 'success' : 'error')
   }
 
-  function beginRowHold(item: TicketItem, event?: ReactPointerEvent<HTMLTableRowElement>) {
-    if (holdCodeRef.current !== null) return
-    holdCodeRef.current = item.code
-    suppressClickRef.current = false
-    setHoldCode(item.code)
-    rowHold.start(() => {
-      suppressClickRef.current = true
-      holdCodeRef.current = null
-      setHoldCode(null)
-      setSelected((previous) => {
-        const next = new Set(previous)
-        next.add(item.code)
-        return next
-      })
-    }, event)
-  }
-
-  function startRowHold(event: ReactPointerEvent<HTMLTableRowElement>, item: TicketItem) {
-    // Le tactile passe par les événements touch, plus fiables que les
-    // événements pointer : le navigateur peut annuler un pointer pendant un
-    // défilement ou un menu contextuel, ce qui faisait échouer l'appui long.
-    if (event.pointerType === 'touch') return
-    if (isInteractive(event.target) || holdCodeRef.current !== null) return
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    beginRowHold(item, event)
-  }
-
-  function handleTouchStart(event: ReactTouchEvent<HTMLTableRowElement>, item: TicketItem) {
-    if (isInteractive(event.target) || holdCodeRef.current !== null) return
-    if (event.touches.length !== 1) return
-    const touch = event.touches[0]
-    touchStartRef.current = { id: touch.identifier, x: touch.clientX, y: touch.clientY }
-    beginRowHold(item)
-  }
-
-  function handleTouchMove(event: ReactTouchEvent<HTMLTableRowElement>) {
-    const start = touchStartRef.current
-    if (!start || holdCodeRef.current === null) return
-    const touch = Array.from(event.touches).find((candidate) => candidate.identifier === start.id)
-    if (!touch) return
-    const dx = touch.clientX - start.x
-    const dy = touch.clientY - start.y
-    if (Math.hypot(dx, dy) > HOLD_MOVE_TOLERANCE) cancelRowHold()
-  }
-
-  function handleTouchEnd() {
-    touchStartRef.current = null
-    cancelRowHold()
-  }
-
-  function handlePointerEnd(event: ReactPointerEvent<HTMLTableRowElement>) {
-    if (event.pointerType === 'touch') return
-    cancelRowHold()
-  }
-
-  function cancelRowHold() {
-    rowHold.cancel()
-    holdCodeRef.current = null
-    touchStartRef.current = null
-    setHoldCode(null)
-  }
-
-  function handleRowClick(event: ReactMouseEvent<HTMLTableRowElement>, item: TicketItem) {
-    if (isInteractive(event.target)) return
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false
-      return
-    }
-    if (selected.size === 0) return
-    toggleSelected(item.code)
-  }
-
-  async function handleDeleteSelected() {
-    const codes = [...selectedRef.current]
-    if (codes.length === 0) return
-    setDeleting(true)
-    try {
-      await api.deleteTickets(codes)
-      toast(`${codes.length} ticket${codes.length > 1 ? 's' : ''} supprimé${codes.length > 1 ? 's' : ''}.`)
-      setSelected(new Set())
-      await load()
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'La suppression a échoué.', 'error')
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const detailDisplay = detail ? ticketDisplay(detail) : null
 
   return (
     <div className="mx-auto max-w-content px-5 py-8 sm:px-8 lg:px-10">
@@ -316,8 +341,8 @@ export default function AdminTicketsPage() {
             Tickets d’accès.
           </h1>
           <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-mute">
-            Un ticket = un étudiant = 30 séries. Génère les tickets, donne les ID et numéros en
-            main propre. Après 30 séries, l’étudiant rachète un nouveau ticket.
+            Un ticket = un étudiant. Choisis le parcours 30 séries ou Anki, génère les ID et
+            numéros, puis suis l’activité. Un ticket utilisé ne se supprime pas : il s’archive.
           </p>
         </div>
         <Button variant="outline" onClick={() => void load()} loading={loading}>
@@ -325,7 +350,6 @@ export default function AdminTicketsPage() {
         </Button>
       </div>
 
-      {/* Génération */}
       <section className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-6">
         <div className="flex flex-wrap items-end gap-4">
           <Field label="Type de ticket" htmlFor="ticket-type" className="w-52">
@@ -371,137 +395,204 @@ export default function AdminTicketsPage() {
         </div>
       ) : null}
 
-      {/* Liste des tickets */}
       <section className="mt-8">
-        <div className="flex items-end justify-between gap-4 border-b border-line pb-4">
-          <div>
-            <h2 className="text-[22px] font-medium tracking-[-0.01em] text-ink">
-              {activeFilter ? FILTER_TITLES[activeFilter] : 'Tous les tickets'}
-            </h2>
-            <p className="mt-1 text-[11px] text-mute">
-              Disponible · En cours (séries faites) · Terminé (30 séries) · Suspendu · Filtre par type : 30 séries / Anki
-            </p>
-            <p className="mt-1 text-[11px] text-mute">
-              {selected.size === 0
-                ? 'Maintiens 2 secondes sur un ticket (pas sur les boutons) pour le sélectionner, puis touche les autres.'
-                : 'Touche un ticket pour l’ajouter ou le retirer de la sélection.'}
-            </p>
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line">
+          <div className="flex gap-5" role="tablist" aria-label="Type de ticket">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeType === 'series'}
+              onClick={() => updateParams({ type: 'series', statut: null, vue: null })}
+              className={cn(
+                'inline-flex items-center gap-2 border-b-2 pb-3 text-[13px] font-medium transition',
+                activeType === 'series'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-mute hover:text-ink',
+              )}
+            >
+              30 séries
+              <span className="rounded-full bg-cloud px-2 py-0.5 text-[10px] text-mute">{seriesCount}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeType === 'anki'}
+              onClick={() => updateParams({ type: 'anki', statut: null, vue: null })}
+              className={cn(
+                'inline-flex items-center gap-2 border-b-2 pb-3 text-[13px] font-medium transition',
+                activeType === 'anki'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-mute hover:text-ink',
+              )}
+            >
+              Anki
+              <span className="rounded-full bg-cloud px-2 py-0.5 text-[10px] text-mute">{ankiCount}</span>
+            </button>
           </div>
-          <span className="font-display text-[1.6rem] leading-none text-ink">{visibleTickets.length}</span>
+          <button
+            type="button"
+            onClick={() => updateParams({ vue: archivedView ? null : 'archives', statut: null })}
+            className="inline-flex items-center gap-1.5 pb-3 text-[12px] font-medium text-mute transition hover:text-accent"
+          >
+            <Archive size={14} />
+            {archivedView ? 'Tickets actifs' : `Archivés (${archivedCount})`}
+          </button>
         </div>
 
-        {!activeFilter ? (
-          <div className="mt-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative max-w-xs flex-1">
-                <Search
-                  size={15}
-                  aria-hidden
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
-                />
-                <Input
-                  id="ticket-search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value.toUpperCase())}
-                  placeholder="Rechercher un ID (ex. PACES0001)"
-                  aria-label="Rechercher un ticket par ID"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="pl-9 pr-9 uppercase"
-                />
-                {search ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    aria-label="Effacer la recherche"
-                    className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
-                  >
-                    <X size={14} />
-                  </button>
-                ) : null}
-              </div>
-              <select
-                id="ticket-type-filter"
-                value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value as 'all' | TicketType)}
-                aria-label="Filtrer par type de ticket"
-                className="h-11 rounded-[10px] border border-line bg-surface px-3 text-[14px] text-ink outline-none transition focus:border-accent"
-              >
-                <option value="all">Tous les types</option>
-                <option value="series">30 séries</option>
-                <option value="anki">Anki</option>
-              </select>
-            </div>
-            {searchActive ? (
-              <p className="mt-2 text-[11px] text-mute">
-                {visibleTickets.length} résultat{visibleTickets.length > 1 ? 's' : ''} pour « {normalizedSearch} ».
-              </p>
-            ) : (
-              <p className="mt-2 text-[11px] text-mute">
-                Tape l’ID complet (PACES0001) ou seulement les chiffres (0001).
-              </p>
-            )}
+        {!archivedView ? (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {FILTERS.map((filter) => {
+              const active = activeFilter === filter.key
+              return (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() =>
+                    updateParams({ statut: activeFilter === filter.key ? null : filter.key, vue: null })
+                  }
+                  aria-pressed={active}
+                  className={cn(
+                    'rounded-xl border px-4 py-3 text-left transition',
+                    active
+                      ? 'border-accent bg-accent-soft/60'
+                      : 'border-line bg-surface hover:border-accent/50',
+                  )}
+                >
+                  <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
+                    <span className={cn('size-1.5 rounded-full', filter.dot)} />
+                    {filter.label}
+                  </span>
+                  <span className="mt-1 block font-display text-[1.6rem] leading-none text-ink">
+                    {counts[filter.key]}
+                  </span>
+                  <span className="mt-1 block text-[10px] text-mute">{filter.note}</span>
+                </button>
+              )
+            })}
           </div>
-        ) : null}
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
+            <Archive size={15} className="text-mute" />
+            <p className="text-[12px] text-mute">
+              Les tickets archivés sont masqués des listes actives. Leur accès étudiant est fermé,
+              mais leurs données sont conservées.
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => updateParams({ vue: null })}
+            >
+              Retour aux tickets actifs
+            </Button>
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="relative max-w-xs flex-1">
+            <Search
+              size={15}
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
+            />
+            <Input
+              id="ticket-search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value.toUpperCase())}
+              placeholder={`Rechercher un ID (ex. ${activeType === 'anki' ? 'ANKI0001' : 'PACES0001'})`}
+              aria-label="Rechercher un ticket par ID"
+              autoComplete="off"
+              spellCheck={false}
+              className="pl-9 pr-9 uppercase"
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Effacer la recherche"
+                className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
+              >
+                <X size={14} />
+              </button>
+            ) : null}
+          </div>
+          <span className="text-[11px] text-mute">
+            {normalizedSearch
+              ? `${visibleTickets.length} résultat${visibleTickets.length > 1 ? 's' : ''}`
+              : `${visibleTickets.length} ticket${visibleTickets.length > 1 ? 's' : ''}`}
+          </span>
+        </div>
 
         {activeFilter ? (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-accent/20 bg-accent-soft/40 px-4 py-3">
             <p className="text-[13px] text-ink">
-              Filtre : <strong>{FILTER_LABELS[activeFilter]}</strong> · {filteredTickets.length} ticket
-              {filteredTickets.length > 1 ? 's' : ''}
+              Filtre : <strong>{FILTER_TITLES[activeFilter]}</strong> · {visibleTickets.length}{' '}
+              ticket{visibleTickets.length > 1 ? 's' : ''}
             </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => updateParams({ statut: null })}
+            >
+              Effacer le filtre
+            </Button>
           </div>
         ) : null}
 
         {selected.size > 0 ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3">
-            <p className="text-[13px] font-medium text-ink">
-              {selected.size} ticket{selected.size > 1 ? 's' : ''} sélectionné{selected.size > 1 ? 's' : ''}
-            </p>
-            <p className="text-[11px] text-mute">
-              Maintiens le bouton 3 secondes sans relâcher pour supprimer.
-            </p>
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={deleting}>
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
+            <div>
+              <p className="text-[13px] font-medium text-ink">
+                {selected.size} ticket{selected.size > 1 ? 's' : ''} sélectionné
+                {selected.size > 1 ? 's' : ''}
+              </p>
+              <p className={cn('text-[11px]', canDeleteSelected ? 'text-mute' : 'text-sale')}>
+                {canDeleteSelected
+                  ? 'Suppression définitive possible uniquement pour les tickets jamais utilisés.'
+                  : 'La sélection contient un ticket déjà utilisé : la suppression est bloquée. Archive-le.'}
+              </p>
+            </div>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
                 Annuler
               </Button>
-              <button
-                type="button"
-                onPointerDown={(event) => deleteHold.start(() => void handleDeleteSelected(), event)}
-                onPointerUp={deleteHold.cancel}
-                onPointerCancel={deleteHold.cancel}
-                onKeyDown={(event) => {
-                  if ((event.key === 'Enter' || event.key === ' ') && !deleting) {
-                    event.preventDefault()
-                    deleteHold.start(() => void handleDeleteSelected())
-                  }
-                }}
-                onKeyUp={deleteHold.cancel}
-                onContextMenu={(event) => event.preventDefault()}
-                disabled={deleting}
-                aria-label={`Supprimer ${selected.size} ticket${selected.size > 1 ? 's' : ''} sélectionnés (maintenir 3 secondes)`}
-                className={buttonClasses('danger', 'sm', 'relative select-none overflow-hidden')}
+              {archivedView ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={unarchiving}
+                  onClick={() => void handleUnarchive([...selected])}
+                >
+                  <ArchiveRestore size={13} /> Désarchiver
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={archiving}
+                  onClick={() => void handleArchive([...selected])}
+                >
+                  <Archive size={13} /> Archiver
+                </Button>
+              )}
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={!canDeleteSelected}
+                onClick={() => requestDelete([...selected])}
               >
-                <span
-                  aria-hidden
-                  className="absolute inset-y-0 left-0 bg-white/25"
-                  style={{ width: `${deleteHold.progress * 100}%` }}
-                />
-                {deleteHold.progress > 0 ? (
-                  <span aria-hidden className="text-[13px] font-bold tabular-nums">
-                    {Math.ceil((1 - deleteHold.progress) * (DELETE_HOLD_MS / 1000))}
-                  </span>
-                ) : (
-                  <Trash2 size={13} />
-                )}
-                Supprimer
-              </button>
+                <Trash2 size={13} /> Supprimer
+              </Button>
             </div>
           </div>
         ) : null}
 
         {error ? (
-          <div className="mt-4 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3 text-[13px] text-sale" role="alert">
+          <div
+            className="mt-4 rounded-lg border border-sale/20 bg-danger-soft px-4 py-3 text-[13px] text-sale"
+            role="alert"
+          >
             {error}
           </div>
         ) : null}
@@ -513,39 +604,45 @@ export default function AdminTicketsPage() {
             <p className="text-[14px] font-medium text-ink">Aucun ticket pour le moment.</p>
             <p className="mt-1 text-[12px] text-mute">Génère un premier lot ci-dessus.</p>
           </div>
-        ) : searchActive && visibleTickets.length === 0 ? (
+        ) : visibleTickets.length === 0 ? (
           <div className="py-10 text-center">
             <p className="text-[14px] font-medium text-ink">
-              Aucun ticket trouvé pour « {normalizedSearch} ».
-            </p>
-            <p className="mt-1 text-[12px] text-mute">Vérifie l’ID ou efface la recherche.</p>
-          </div>
-        ) : filteredTickets.length === 0 ? (
-          <div className="py-10 text-center">
-            <p className="text-[14px] font-medium text-ink">
-              {activeFilter
-                ? `Aucun ticket ${FILTER_LABELS[activeFilter].toLowerCase()}.`
-                : 'Aucun ticket dans cette catégorie.'}
+              {archivedView
+                ? 'Aucun ticket archivé pour ce parcours.'
+                : activeFilter
+                  ? `Aucun ticket ${FILTER_TITLES[activeFilter].toLowerCase()}.`
+                  : normalizedSearch
+                    ? `Aucun ticket trouvé pour « ${normalizedSearch} ».`
+                    : 'Aucun ticket dans cette catégorie.'}
             </p>
             <p className="mt-1 text-[12px] text-mute">
-              {activeFilter
-                ? 'Ouvre « Tickets » dans le menu pour voir tous les tickets.'
-                : 'Génère un premier lot ci-dessus.'}
+              {archivedView
+                ? 'Les tickets archivés apparaissent ici.'
+                : activeFilter
+                  ? 'Efface le filtre pour voir tous les tickets.'
+                  : 'Change de recherche ou génère un nouveau lot.'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left text-[13px]">
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[920px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-line text-[10px] uppercase tracking-[0.12em] text-mute">
+                  <th className="w-8 py-3 pr-2">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Sélectionner les tickets visibles"
+                      className="h-4 w-4 accent-accent"
+                    />
+                  </th>
                   <th className="py-3 pr-4 font-semibold">Ticket</th>
-                  <th className="py-3 pr-4 font-semibold">Numéro d’enregistrement</th>
-                  <th className="py-3 pr-4 font-semibold">Type</th>
+                  <th className="py-3 pr-4 font-semibold">Numéro</th>
                   <th className="py-3 pr-4 font-semibold">Statut</th>
                   <th className="py-3 pr-4 font-semibold">Progression</th>
-                  <th className="py-3 pr-4 font-semibold">Créé</th>
-                  <th className="py-3 pr-4 font-semibold">1ʳᵉ connexion</th>
-                  <th className="py-3 pr-4 font-semibold">Dernière connexion</th>
+                  <th className="py-3 pr-4 font-semibold">Dernière activité</th>
+                  <th className="py-3 pr-4 font-semibold">Expiration</th>
                   <th className="py-3 text-right font-semibold">Action</th>
                 </tr>
               </thead>
@@ -553,138 +650,173 @@ export default function AdminTicketsPage() {
                 {visibleTickets.map((item) => {
                   const display = ticketDisplay(item)
                   const isSelected = selected.has(item.code)
-                  const isHolding = holdCode === item.code
                   const secret = item.secret ?? batchSecrets.get(item.code) ?? null
                   return (
-                    <Fragment key={item.code}>
-                      <tr
-                        tabIndex={0}
-                        aria-selected={isSelected}
-                        onPointerDown={(event) => startRowHold(event, item)}
-                        onPointerUp={handlePointerEnd}
-                        onPointerCancel={handlePointerEnd}
-                        onTouchStart={(event) => handleTouchStart(event, item)}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
-                        onTouchCancel={handleTouchEnd}
-                        onClick={(event) => handleRowClick(event, item)}
-                        onKeyDown={(event) => {
-                          if (event.target !== event.currentTarget || event.repeat) return
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            toggleSelected(item.code)
-                          }
-                        }}
-                        onContextMenu={(event) => {
-                          if (!isInteractive(event.target)) event.preventDefault()
-                        }}
-                        style={
-                          isHolding
-                            ? {
-                                background: `linear-gradient(to right, rgba(11, 107, 79, 0.26) ${rowHold.progress * 100}%, transparent ${rowHold.progress * 100}%)`,
-                                boxShadow:
-                                  rowHold.progress > 0.05 ? 'inset 3px 0 0 #0B6B4F' : undefined,
-                              }
-                            : undefined
-                        }
-                        className={`select-none border-b border-line/60 align-middle transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
-                          isSelected
-                            ? 'bg-accent-soft/60'
-                            : selected.size > 0
-                              ? 'cursor-pointer hover:bg-cloud/50'
-                              : 'hover:bg-cloud/30'
-                        }`}
-                      >
-                        <td className="py-3 pr-4 font-semibold tracking-wide text-ink">
+                    <tr
+                      key={item.code}
+                      className={cn(
+                        'border-b border-line/60 align-middle transition-colors',
+                        isSelected ? 'bg-accent-soft/60' : 'hover:bg-cloud/30',
+                      )}
+                    >
+                      <td className="py-3 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelected(item.code)}
+                          aria-label={`Sélectionner ${item.code}`}
+                          className="h-4 w-4 accent-accent"
+                        />
+                      </td>
+                      <td className="py-3 pr-4 font-semibold tracking-wide text-ink">
+                        <span className="inline-flex items-center gap-1.5">
+                          {item.code}
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyId(item.code)}
+                            aria-label={`Copier l’ID ${item.code}`}
+                            title="Copier l’ID"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
+                          >
+                            <Copy size={13} />
+                          </button>
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        {secret ? (
                           <span className="inline-flex items-center gap-1.5">
-                            {item.code}
                             <button
                               type="button"
-                              onClick={() => void handleCopyId(item.code)}
-                              aria-label={`Copier l’ID ${item.code}`}
-                              title="Copier l’ID"
+                              onClick={() => void handleCopySecret(secret)}
+                              aria-label={`Copier le numéro de ${item.code}`}
+                              title="Copier le numéro"
                               className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
                             >
                               <Copy size={13} />
                             </button>
-                            {isHolding && rowHold.progress > 0.08 ? (
-                              <span
-                                aria-hidden
-                                className="inline-flex items-center rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-accent"
-                              >
-                                {Math.max(1, Math.ceil((1 - rowHold.progress) * (ROW_HOLD_MS / 1000)))} s
-                              </span>
-                            ) : null}
+                            <span className="font-mono text-[12px] tracking-widest text-ink">
+                              {secret}
+                            </span>
                           </span>
-                        </td>
-                        <td className="py-3 pr-4">
-                          {secret ? (
-                            <span className="inline-flex items-center gap-1.5">
+                        ) : (
+                          <span className="text-mute">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          <StatusPill tone={display.tone}>{display.label}</StatusPill>
+                          {item.archivedAt ? <StatusPill tone="neutral">Archivé</StatusPill> : null}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-mute">
+                        {item.type === 'anki'
+                          ? item.ankiChapters > 0
+                            ? `${item.ankiCompleted}/${item.ankiChapters} chapitres`
+                            : 'Aucun chapitre'
+                          : `${item.seriesUsed}/30 séries`}
+                      </td>
+                      <td className="py-3 pr-4 text-mute">
+                        {item.lastActivityAt ? formatDateTime(item.lastActivityAt) : '—'}
+                      </td>
+                      <td className="py-3 pr-4 text-mute">
+                        {item.expiresAt ? formatDateLong(item.expiresAt) : '—'}
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="relative inline-flex">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setMenuCode(menuCode === item.code ? null : item.code)}
+                            aria-label={`Actions pour ${item.code}`}
+                            aria-expanded={menuCode === item.code}
+                          >
+                            <MoreHorizontal size={16} />
+                          </Button>
+                          {menuCode === item.code ? (
+                            <>
                               <button
                                 type="button"
-                                onClick={() => void handleCopySecret(secret)}
-                                aria-label={`Copier le numéro de ${item.code}`}
-                                title="Copier le numéro"
-                                className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-accent"
-                              >
-                                <Copy size={13} />
-                              </button>
-                              <span className="font-mono text-[12px] tracking-widest text-ink">{secret}</span>
-                            </span>
-                          ) : (
-                            <span className="text-mute">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <StatusPill tone={item.type === 'anki' ? 'info' : 'neutral'}>
-                            {item.type === 'anki' ? 'Anki' : '30 séries'}
-                          </StatusPill>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <StatusPill tone={display.tone}>{display.label}</StatusPill>
-                        </td>
-                        <td className="py-3 pr-4 text-mute">
-                          {item.type === 'anki' ? (
-                            <>
-                              <span className="block">
-                                {item.ankiCompleted}/{item.ankiChapters || 5} chapitres
-                              </span>
-                              {item.expiresAt ? (
-                                <span className="mt-0.5 block text-[10px] text-mute">
-                                  expire le {formatDateLong(item.expiresAt)}
-                                </span>
-                              ) : null}
+                                tabIndex={-1}
+                                aria-hidden="true"
+                                className="fixed inset-0 z-10 cursor-default"
+                                onClick={() => setMenuCode(null)}
+                              />
+                              <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-lg">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuCode(null)
+                                    setDetail(item)
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
+                                >
+                                  <Eye size={14} /> Vérifier l’état
+                                </button>
+                                {!item.archivedAt ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuCode(null)
+                                      void handleStatus(
+                                        item,
+                                        item.status === 'suspended' ? 'active' : 'suspended',
+                                      )
+                                    }}
+                                    disabled={busyCode === item.code}
+                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
+                                  >
+                                    {item.status === 'suspended' ? (
+                                      <>
+                                        <Play size={14} /> Réactiver
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Ban size={14} /> Suspendre
+                                      </>
+                                    )}
+                                  </button>
+                                ) : null}
+                                {item.archivedAt ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuCode(null)
+                                      void handleUnarchive([item.code])
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
+                                  >
+                                    <ArchiveRestore size={14} /> Désarchiver
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuCode(null)
+                                      void handleArchive([item.code])
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
+                                  >
+                                    <Archive size={14} /> Archiver
+                                  </button>
+                                )}
+                                {isNeverUsed(item) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuCode(null)
+                                      requestDelete([item.code])
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-sale transition hover:bg-danger-soft"
+                                  >
+                                    <Trash2 size={14} /> Supprimer
+                                  </button>
+                                ) : null}
+                              </div>
                             </>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td className="py-3 pr-4 text-mute">{formatDateLong(item.createdAt)}</td>
-                        <td className="py-3 pr-4 text-mute">{item.usedAt ? formatDateLong(item.usedAt) : '—'}</td>
-                        <td className="py-3 pr-4 text-mute">{item.lastLoginAt ? formatDateTime(item.lastLoginAt) : '—'}</td>
-                        <td className="py-3 text-right">
-                          {item.status === 'suspended' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              loading={busyCode === item.code}
-                              onClick={() => void handleStatus(item, 'active')}
-                            >
-                              <Play size={13} /> Réactiver
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              loading={busyCode === item.code}
-                              onClick={() => void handleStatus(item, 'suspended')}
-                            >
-                              <Ban size={13} /> Suspendre
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    </Fragment>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>
@@ -692,6 +824,155 @@ export default function AdminTicketsPage() {
           </div>
         )}
       </section>
+
+      {detail ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-ink/30 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-detail-title"
+        >
+          <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                  Vérifier l’état
+                </p>
+                <h2
+                  id="ticket-detail-title"
+                  className="mt-1 font-display text-[24px] tracking-[-0.02em] text-ink"
+                >
+                  {detail.code}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                aria-label="Fermer"
+                className="grid h-8 w-8 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <dl className="mt-4 grid gap-2 text-[12px] sm:grid-cols-2">
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Parcours</dt>
+                <dd className="font-medium text-ink">{detail.type === 'anki' ? 'Anki' : '30 séries'}</dd>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Statut</dt>
+                <dd>
+                  {detailDisplay ? (
+                    <StatusPill tone={detailDisplay.tone}>{detailDisplay.label}</StatusPill>
+                  ) : null}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Créé le</dt>
+                <dd className="text-ink">{formatDateLong(detail.createdAt)}</dd>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Expire le</dt>
+                <dd className="text-ink">
+                  {detail.expiresAt ? formatDateLong(detail.expiresAt) : '—'}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Dernière activité</dt>
+                <dd className="text-ink">
+                  {detail.lastActivityAt ? formatDateTime(detail.lastActivityAt) : '—'}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Dernière connexion</dt>
+                <dd className="text-ink">
+                  {detail.lastLoginAt ? formatDateTime(detail.lastLoginAt) : '—'}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Séries utilisées</dt>
+                <dd className="text-ink">{detail.seriesUsed} / 30</dd>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-line/60 py-1.5">
+                <dt className="text-mute">Chapitres Anki</dt>
+                <dd className="text-ink">
+                  {detail.ankiCompleted} / {detail.ankiChapters || 5}
+                </dd>
+              </div>
+            </dl>
+
+            <div
+              className={cn(
+                'mt-4 rounded-xl border px-4 py-3 text-[12px]',
+                isNeverUsed(detail)
+                  ? 'border-success/20 bg-accent-soft/50 text-accent'
+                  : 'border-sale/20 bg-danger-soft text-sale',
+              )}
+            >
+              {isNeverUsed(detail)
+                ? 'Disponible · jamais utilisé. La suppression définitive est possible.'
+                : 'Déjà utilisé · suppression définitive bloquée. Archive-le pour le retirer des listes actives.'}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <Button variant="outline" onClick={() => setDetail(null)}>
+                Fermer
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteTargets.length > 0 ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-ink/30 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-delete-title"
+        >
+          <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-xl">
+            <h2
+              id="ticket-delete-title"
+              className="font-display text-[24px] tracking-[-0.02em] text-ink"
+            >
+              Supprimer définitivement ?
+            </h2>
+            <p className="mt-2 text-[12px] leading-relaxed text-mute">
+              {deleteTargets.length} ticket{deleteTargets.length > 1 ? 's' : ''} jamais utilisé
+              {deleteTargets.length > 1 ? 's' : ''}. Cette action supprime le compte étudiant et
+              toutes ses données.
+            </p>
+            <ul className="mt-3 max-h-40 divide-y divide-line overflow-y-auto rounded-lg border border-line">
+              {deleteTargets.map((item) => {
+                const display = ticketDisplay(item)
+                return (
+                  <li
+                    key={item.code}
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-[12px]"
+                  >
+                    <span className="font-mono text-ink">{item.code}</span>
+                    <StatusPill tone={display.tone}>{display.label}</StatusPill>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-3 text-[12px] font-medium text-sale">Impossible à annuler.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => setDeleteTargets([])}
+                disabled={deleting}
+              >
+                Annuler
+              </Button>
+              <Button variant="danger" loading={deleting} onClick={() => void performDelete()}>
+                Supprimer définitivement
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

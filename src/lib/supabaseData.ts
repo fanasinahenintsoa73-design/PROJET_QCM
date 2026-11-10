@@ -3,6 +3,7 @@ import type {
   AnkiAnswerResult,
   AnkiChapterState,
   AnkiHistoryEntry,
+  AnkiReviewCard,
   Attempt,
   Database,
   GeneratedTicket,
@@ -1188,6 +1189,8 @@ export async function listTickets(): Promise<TicketItem[]> {
     expires_at: string | null
     anki_chapters: number
     anki_completed: number
+    archived_at?: string | null
+    last_activity_at?: string | null
   }>).map((row) => ({
     code: row.code,
     secret: row.secret,
@@ -1200,6 +1203,8 @@ export async function listTickets(): Promise<TicketItem[]> {
     createdAt: row.created_at,
     usedAt: row.used_at,
     lastLoginAt: row.last_login_at,
+    archivedAt: row.archived_at ?? null,
+    lastActivityAt: row.last_activity_at ?? row.last_login_at ?? null,
   }))
 }
 
@@ -1218,6 +1223,20 @@ export async function setTicketStatus(code: string, status: 'suspended' | 'activ
 export async function deleteTickets(codes: string[]): Promise<void> {
   const client = requireSupabase()
   const { error } = await client.rpc('delete_tickets', { p_codes: codes })
+  if (error) throw asFrenchError(error)
+}
+
+/** Archive des tickets : ils disparaissent des listes actives, sans perte de données. */
+export async function archiveTickets(codes: string[]): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('archive_tickets', { p_codes: codes })
+  if (error) throw asFrenchError(error)
+}
+
+/** Restaure des tickets archivés. */
+export async function unarchiveTickets(codes: string[]): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('unarchive_tickets', { p_codes: codes })
   if (error) throw asFrenchError(error)
 }
 
@@ -1391,5 +1410,35 @@ export async function getAnkiHistory(): Promise<AnkiHistoryEntry[]> {
     explanation: row.explanation ?? '',
     status: row.status,
     createdAt: row.created_at,
+  }))
+}
+
+/** Une fiche unique par question, pour la révision rapide. */
+export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_get_review_cards')
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    chapter_id: string
+    question_id: string
+    statement: string
+    correct_answers: string[]
+    explanation: string | null
+    status: AnkiHistoryEntry['status']
+    last_given_answers: string[] | null
+    attempts: number
+    first_seen_at: string
+    last_seen_at: string
+  }>).map((row) => ({
+    chapterId: row.chapter_id,
+    questionId: row.question_id,
+    statement: row.statement,
+    correctAnswers: row.correct_answers ?? [],
+    explanation: row.explanation ?? '',
+    status: row.status,
+    lastGivenAnswers: row.last_given_answers ?? [],
+    attempts: row.attempts ?? 1,
+    firstSeenAt: row.first_seen_at,
+    lastSeenAt: row.last_seen_at,
   }))
 }
