@@ -7,7 +7,6 @@ import {
   Clock3,
   ListChecks,
   LockKeyhole,
-  Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
@@ -142,10 +141,7 @@ export default function AnkiHomePage() {
         )}
 
         <section className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-7">
-          <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
-              <Sparkles size={18} />
-            </span>
+          <div>
             <div className="min-w-0">
               <h2 className="font-display text-[22px] tracking-[-0.02em] text-ink">
                 Comment ça marche
