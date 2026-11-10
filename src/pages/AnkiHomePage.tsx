@@ -147,17 +147,18 @@ export default function AnkiHomePage() {
                 Comment ça marche
               </h2>
               <p className="mt-1 text-[12px] text-mute">
-                Trois gestes, une seule logique : tu choisis, tu réponds, tu décides.
+                5 questions à la fois : assez court pour tenir entre deux cours, assez répété pour
+                que ça rentre.
               </p>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl bg-cloud/70 p-3">
                   <span className="grid h-5 w-5 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">
                     1
                   </span>
                   <p className="mt-2 text-[12px] font-semibold text-ink">Choisis</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-mute">
-                    Un chapitre à la fois, dans l’UE que tu veux. Maximum 5 chapitres au total.
+                    Un chapitre, dans l’UE que tu veux. 5 chapitres maximum au total.
                   </p>
                 </div>
                 <div className="rounded-xl bg-cloud/70 p-3">
@@ -166,16 +167,31 @@ export default function AnkiHomePage() {
                   </span>
                   <p className="mt-2 text-[12px] font-semibold text-ink">Réponds</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-mute">
-                    Réponds au QCM, ou affiche la correction si tu bloques.
+                    5 questions tirées au hasard. Tu réponds, ou tu affiches la réponse si tu
+                    bloques.
                   </p>
                 </div>
                 <div className="rounded-xl bg-cloud/70 p-3">
                   <span className="grid h-5 w-5 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">
                     3
                   </span>
+                  <p className="mt-2 text-[12px] font-semibold text-ink">Mémorise</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-mute">
+                    Juste : la question est acquise, elle ne revient plus. Ratée : elle reste{' '}
+                    <strong className="font-medium text-ink">En cours</strong> et revient en tête de
+                    la série suivante. Tu ne peux pas la perdre.
+                  </p>
+                </div>
+                <div className="rounded-xl bg-cloud/70 p-3">
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-accent text-[10px] font-semibold text-white">
+                    4
+                  </span>
                   <p className="mt-2 text-[12px] font-semibold text-ink">Décide</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-mute">
-                    Suivant pour retravailler, Ignorer pour retirer du passage.
+                    Après une question ratée :{' '}
+                    <strong className="font-medium text-ink">Suivant</strong> (elle revient) ou{' '}
+                    <strong className="font-medium text-ink">Ignorer</strong> (elle part dans « À
+                    réviser »).
                   </p>
                 </div>
               </div>
@@ -184,29 +200,71 @@ export default function AnkiHomePage() {
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">Suivant</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    La question reste <strong className="font-medium text-ink">En cours</strong> et
-                    peut revenir dans les 5 questions suivantes.
+                    Elle reste <strong className="font-medium text-ink">En cours</strong> et revient
+                    en tête de la prochaine série de 5, avant les questions nouvelles. Chaque
+                    passage la fait rentrer un peu plus.
                   </p>
                 </div>
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">Ignorer</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    La question passe{' '}
-                    <strong className="font-medium text-ink">À réviser</strong> et ne revient plus
-                    dans ce passage.
+                    Elle passe <strong className="font-medium text-ink">À réviser</strong> : elle
+                    sort de ce chapitre, mais reste dans l’onglet{' '}
+                    <strong className="font-medium text-ink">Fiches</strong>, où tu la retrouves
+                    quand tu veux.
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                Les 3 états d’une question
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-ink">Nouvelle</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
+                    Jamais vue. Elle peut sortir dans ta prochaine série.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-ink">En cours</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
+                    Ratée. Elle revient en tête de la série suivante, avant les nouvelles.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
+                  <p className="text-[11px] font-semibold text-ink">À réviser</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
+                    Acquise ou ignorée : elle a quitté le QCM et t’attend dans l’onglet{' '}
+                    <strong className="font-medium text-ink">Fiches</strong>.
                   </p>
                 </div>
               </div>
 
               <p className="mt-3 border-l-2 border-line pl-3 text-[11px] leading-relaxed text-mute">
-                Exemple : tu réponds faux à la Q3. <strong className="font-medium text-ink">Suivant</strong>{' '}
-                → elle peut revenir. <strong className="font-medium text-ink">Ignorer</strong> → elle
-                ne revient plus, mais tu la retrouves dans tes fiches et dans « À réviser ».
+                Exemple : tu rates la Q3.{' '}
+                <strong className="font-medium text-ink">Suivant</strong> → elle revient en tête de
+                la série suivante.{' '}
+                <strong className="font-medium text-ink">Ignorer</strong> → elle sort du chapitre,
+                mais reste dans tes fiches.
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-mute">
-                Une bonne réponse = question maîtrisée et niveau +1. Le niveau ne baisse jamais. À
-                la fin du chapitre : félicitations, et tu peux le refaire pendant le mois du ticket.
+                Chaque bonne réponse fait monter ton{' '}
+                <strong className="font-medium text-ink">niveau</strong> de 1 — et il ne descend
+                jamais. Quand toutes les questions sont maîtrisées ou ignorées, le chapitre est
+                terminé : bravo. Tu peux le refaire pendant tout le mois de ton ticket.
               </p>
+
+              <div className="mt-3 rounded-xl border border-accent/20 bg-accent-soft/50 px-3 py-2.5 text-[11px] leading-relaxed text-ink">
+                <p>
+                  <strong className="font-medium">Résultat :</strong> aucune question ne se perd, et
+                  une question acquise ne revient plus dans le QCM.
+                </p>
+                <p className="mt-1 text-mute">
+                  Astuce : si tu bloques, affiche la réponse plutôt que d’ignorer — elle reviendra,
+                  et tu la maîtriseras.
+                </p>
+              </div>
             </div>
           </div>
         </section>
