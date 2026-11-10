@@ -273,44 +273,38 @@ export default function AnkiDashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-cloud/70 px-3 py-2.5">
-                      <div className="text-center">
-                        <p className="flex items-center justify-center gap-1 text-[9px] uppercase tracking-[0.06em] text-mute">
-                          <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Nouvelles
-                        </p>
-                        <p className="mt-0.5 font-display text-[16px] leading-none text-ink">
+                    <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-cloud/70 px-4 py-3">
+                      <span className="flex items-center gap-2 text-[12px] text-mute">
+                        <span className="h-2 w-2 rounded-full bg-accent" />
+                        <span className="font-display text-[17px] leading-none text-ink">
                           {chapter.newQuestions}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="flex items-center justify-center gap-1 text-[9px] uppercase tracking-[0.06em] text-mute">
-                          <span className="h-1.5 w-1.5 rounded-full bg-sale" /> En cours
-                        </p>
-                        <p className="mt-0.5 font-display text-[16px] leading-none text-sale">
+                        </span>
+                        Nouvelles
+                      </span>
+                      <span className="flex items-center gap-2 text-[12px] text-mute">
+                        <span className="h-2 w-2 rounded-full bg-sale" />
+                        <span className="font-display text-[17px] leading-none text-sale">
                           {chapter.inProgressQuestions}
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="flex items-center justify-center gap-1 text-[9px] uppercase tracking-[0.06em] text-mute">
-                          <span className="h-1.5 w-1.5 rounded-full bg-success" /> À réviser
-                        </p>
-                        <p className="mt-0.5 font-display text-[16px] leading-none text-success">
+                        </span>
+                        En cours
+                      </span>
+                      <span className="flex items-center gap-2 text-[12px] text-mute">
+                        <span className="h-2 w-2 rounded-full bg-success" />
+                        <span className="font-display text-[17px] leading-none text-success">
                           {chapter.reviewQuestions}
-                        </p>
-                      </div>
+                        </span>
+                        À réviser
+                      </span>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <span className="text-[11px] text-mute">
-                        {!available
-                          ? 'Sujet ou correction retiré.'
-                          : done
-                            ? 'Tu peux le refaire pendant ton ticket.'
-                            : 'Reprends là où tu t’es arrêté.'}
-                      </span>
+                    <div className="mt-4">
+                      {!available ? (
+                        <p className="text-[11px] text-mute">Sujet ou correction retiré.</p>
+                      ) : null}
                       <span
                         className={cn(
-                          buttonClasses(!available || done ? 'secondary' : 'primary', 'sm'),
+                          buttonClasses(available ? 'primary' : 'secondary', 'md'),
+                          'mt-3 w-full',
                           !available && 'opacity-60',
                         )}
                       >
@@ -319,7 +313,7 @@ export default function AnkiDashboard() {
                           : done
                             ? 'Refaire le chapitre'
                             : 'Continuer'}
-                        {available ? <ArrowRight size={14} /> : null}
+                        {available ? <ArrowRight size={16} /> : null}
                       </span>
                     </div>
                   </>
