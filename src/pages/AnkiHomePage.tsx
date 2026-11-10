@@ -367,9 +367,8 @@ export default function AnkiHomePage() {
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2 text-[10px] text-mute">
                       <span>
-                        {availableCount} / {chapters.length} chapitre
-                        {chapters.length > 1 ? 's' : ''} disponible
-                        {availableCount > 1 ? 's' : ''}
+                        {availableCount} chapitre{availableCount > 1 ? 's' : ''} disponible
+                        {availableCount > 1 ? 's' : ''} sur {chapters.length}
                       </span>
                       {chosenInTheme > 0 && (
                         <>
