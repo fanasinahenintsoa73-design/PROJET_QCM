@@ -1,6 +1,7 @@
 import type {
   AccessRequest,
   AnkiAnswerResult,
+  AnkiAnswerStatus,
   AnkiChapterState,
   AnkiHistoryEntry,
   AnkiReviewCard,
@@ -1296,7 +1297,6 @@ export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
     total_questions: number
     answered_questions: number
     new_questions: number
-    in_progress_questions: number
     review_questions: number
   }>).map((row) => ({
     chapterId: row.chapter_id,
@@ -1306,7 +1306,6 @@ export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
     totalQuestions: row.total_questions,
     answeredQuestions: row.answered_questions,
     newQuestions: row.new_questions ?? 0,
-    inProgressQuestions: row.in_progress_questions ?? 0,
     reviewQuestions: row.review_questions ?? 0,
   }))
 }
@@ -1358,8 +1357,7 @@ export async function recordAnkiAnswer(input: {
   chapterId: string
   questionId: string
   givenAnswers: string[]
-  status: AnkiHistoryEntry['status']
-  canReturn: boolean
+  status: AnkiAnswerStatus
 }): Promise<AnkiAnswerResult> {
   const client = requireSupabase()
   const { data, error } = await client.rpc('anki_record_answer', {
@@ -1367,7 +1365,6 @@ export async function recordAnkiAnswer(input: {
     p_question_id: input.questionId,
     p_given_answers: input.givenAnswers,
     p_status: input.status,
-    p_can_return: input.canReturn,
   })
   if (error) throw asFrenchError(error)
   const row = data as { level: number; correctAnswers: number; completedBlocks?: number; completed: boolean }
@@ -1429,9 +1426,7 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     attempts: number
     first_seen_at: string
     last_seen_at: string
-    misses: number | null
-    ignored: number | null
-    state: 'pending' | 'review' | 'mastered' | 'ignored' | null
+    state: 'pending' | 'review' | null
     options: Question['options'] | null
   }>).map((row) => ({
     chapterId: row.chapter_id,
@@ -1444,14 +1439,12 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     attempts: row.attempts ?? 1,
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
-    misses: row.misses ?? 0,
-    ignored: row.ignored ?? 0,
     state: row.state ?? null,
     options: row.options ?? {},
   }))
 }
 
-/** Les questions à réviser d'un chapitre : les « en cours » d'abord, puis les ignorées. */
+/** Les questions à réviser d'un chapitre : celles déjà réussies, en QCM. */
 export async function getAnkiReviewQuestions(chapterId: string): Promise<Question[]> {
   const client = requireSupabase()
   const { data, error } = await client.rpc('anki_next_review_questions', {

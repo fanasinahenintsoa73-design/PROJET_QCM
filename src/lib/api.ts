@@ -1,5 +1,6 @@
 import type {
   AnkiAnswerResult,
+  AnkiAnswerStatus,
   AnkiChapterState,
   AnkiHistoryEntry,
   AnkiReviewCard,
@@ -512,8 +513,7 @@ export const api = {
     chapterId: string
     questionId: string
     givenAnswers: string[]
-    status: AnkiHistoryEntry['status']
-    canReturn: boolean
+    status: AnkiAnswerStatus
   }): Promise<AnkiAnswerResult> {
     if (isSupabaseConfigured) return remote.recordAnkiAnswer(input)
     return Promise.resolve(demo.recordAnkiAnswer(input))

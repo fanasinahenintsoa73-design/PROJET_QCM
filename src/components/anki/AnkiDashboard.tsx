@@ -30,24 +30,17 @@ function statusLabel(status: AnkiReviewCard['status']): string {
   if (status === 'correct') return 'Juste'
   if (status === 'wrong') return 'Faux'
   if (status === 'revealed') return 'Réponse affichée'
-  return 'Ignorée'
+  return 'Sans réponse'
 }
 
-type CardBucket = 'progress' | 'review' | 'mastered'
+type CardBucket = 'all' | 'review'
 
 /**
- * Les états d'une question d'après le moteur : « en cours » (encore ratée, elle
- * reste dans le QCM), « à réviser » (pas encore maîtrisée : les ignorées + celles
- * revenues par « Suivant ») et « acquise ». Une question « en cours » est donc
- * aussi « à réviser ».
+ * « À réviser » = une question déjà réussie : le bloc Réviser te la repose en QCM.
+ * Les autres restent dans le bloc de 5 du chapitre.
  */
-function cardBuckets(card: AnkiReviewCard): CardBucket[] {
-  if (card.state === 'review') return ['progress', 'review']
-  if (card.state === 'ignored') return ['review']
-  if (card.state === 'mastered') return ['mastered']
-  if (card.status === 'wrong' || card.status === 'revealed') return ['progress', 'review']
-  if (card.status === 'skipped') return ['review']
-  return ['mastered']
+function isReviewCard(card: AnkiReviewCard): boolean {
+  return card.state === 'review'
 }
 
 /** « Voir la question… » au singulier, « Voir les 3 questions… » au pluriel. */
@@ -55,11 +48,9 @@ function questionsLabel(count: number): string {
   return count > 1 ? `les ${count} questions` : 'la question'
 }
 
-const HISTORY_FILTERS: { value: 'all' | CardBucket; label: string }[] = [
+const HISTORY_FILTERS: { value: CardBucket; label: string }[] = [
   { value: 'all', label: 'Toutes' },
   { value: 'review', label: 'À réviser' },
-  { value: 'progress', label: 'En cours' },
-  { value: 'mastered', label: 'Acquises' },
 ]
 
 /** Le texte de la bonne réponse, à partir des propositions de la question. */
@@ -71,7 +62,7 @@ function cardAnswer(card: AnkiReviewCard): string {
   return texts.length > 0 ? texts.join(' · ') : card.correctAnswers.join(', ')
 }
 
-/** Un bloc par question : question, réponse, explication et nombre de fois raté. */
+/** Un bloc par question : question, réponse et explication. */
 function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
   return (
     <article className="rounded-xl border border-line bg-surface p-4">
@@ -88,8 +79,7 @@ function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
           {statusLabel(card.status)}
         </span>
         <span className="ml-auto text-[10px] text-mute">
-          Vue le {formatDay(card.lastSeenAt)} · {card.attempts} passage
-          {card.attempts > 1 ? 's' : ''}
+          Vue le {formatDay(card.lastSeenAt)}
         </span>
       </div>
 
@@ -110,23 +100,6 @@ function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
             <p className="mt-1 text-[12px] leading-relaxed text-mute">{card.explanation}</p>
           </div>
         ) : null}
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
-            Nombre de fois raté
-          </p>
-          <p className="mt-1 text-[13px] font-medium text-ink">{card.misses}</p>
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-line pt-2.5 text-[11px] text-mute">
-        <span>
-          Ta dernière réponse :{' '}
-          <strong className="font-medium text-ink">
-            {card.lastGivenAnswers.join(', ') || '—'}
-          </strong>
-        </span>
-        <span>Ignorée {card.ignored} fois</span>
-        <span>Première vue le {formatDay(card.firstSeenAt)}</span>
       </div>
     </article>
   )
@@ -142,7 +115,7 @@ export default function AnkiDashboard() {
   const [tab, setTab] = useState<'chapters' | 'history'>(
     searchParams.get('tab') === 'history' ? 'history' : 'chapters',
   )
-  const [filter, setFilter] = useState<'all' | CardBucket>('all')
+  const [filter, setFilter] = useState<CardBucket>('all')
   const [openChapter, setOpenChapter] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -186,7 +159,7 @@ export default function AnkiDashboard() {
   const filteredCards = useMemo(() => {
     const term = search.trim().toLowerCase()
     return reviewCards.filter((card) => {
-      if (filter !== 'all' && !cardBuckets(card).includes(filter)) return false
+      if (filter === 'review' && !isReviewCard(card)) return false
       if (!term) return true
       return (
         card.statement.toLowerCase().includes(term) ||
@@ -195,16 +168,13 @@ export default function AnkiDashboard() {
     })
   }, [reviewCards, search, filter])
 
-  const historyCounts = useMemo(() => {
-    const count = (bucket: CardBucket) =>
-      reviewCards.filter((card) => cardBuckets(card).includes(bucket)).length
-    return {
+  const historyCounts = useMemo(
+    () => ({
       all: reviewCards.length,
-      progress: count('progress'),
-      review: count('review'),
-      mastered: count('mastered'),
-    }
-  }, [reviewCards])
+      review: reviewCards.filter((card) => isReviewCard(card)).length,
+    }),
+    [reviewCards],
+  )
 
   /** Ouvre l'historique filtré sur l'état choisi depuis une carte de chapitre. */
   const openHistory = (next: CardBucket, chapterId?: string) => {
@@ -399,10 +369,6 @@ export default function AnkiDashboard() {
                   </div>
                 )
 
-                const ignoredCount = Math.max(
-                  0,
-                  chapter.reviewQuestions - chapter.inProgressQuestions,
-                )
                 const counters = (
                   <div className="mt-4 border-t border-line pt-4">
                     <div className="grid grid-cols-2 gap-2">
@@ -428,10 +394,6 @@ export default function AnkiDashboard() {
                         </p>
                       </button>
                     </div>
-                    <p className="mt-2 text-center text-[10px] text-mute">
-                      À réviser : dont {chapter.inProgressQuestions} en cours · {ignoredCount} ignorée
-                      {ignoredCount > 1 ? 's' : ''}
-                    </p>
                   </div>
                 )
 
@@ -573,9 +535,8 @@ export default function AnkiDashboard() {
               <div className="mt-6 space-y-3">
                 <p className="text-[12px] leading-relaxed text-mute">
                   Un bloc par chapitre. Clique sur un chapitre pour voir ses questions : une
-                  question = un seul bloc (question, réponse, explication, nombre de fois raté).
-                  « À réviser » = tout ce qui n’est pas encore maîtrisé (les ignorées + celles
-                  revenues par « Suivant »).
+                  question = un seul bloc (question, réponse, explication). « À réviser » = les
+                  questions déjà réussies, celles que le bloc Réviser te repose en QCM.
                 </p>
                 {historyGroups.map((group) => {
                   const open = openChapter === group.chapterId

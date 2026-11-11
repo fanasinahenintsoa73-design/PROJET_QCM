@@ -183,9 +183,11 @@ export interface AnkiChapterState {
   totalQuestions: number
   answeredQuestions: number
   newQuestions: number
-  inProgressQuestions: number
   reviewQuestions: number
 }
+
+/** Statut d'une réponse envoyée au moteur Anki. */
+export type AnkiAnswerStatus = 'correct' | 'wrong' | 'revealed'
 
 /** Résultat de l'enregistrement d'une réponse Anki. */
 export interface AnkiAnswerResult {
@@ -219,12 +221,8 @@ export interface AnkiReviewCard {
   attempts: number
   firstSeenAt: string
   lastSeenAt: string
-  /** Nombre de fois où la question a été ratée (faux ou réponse affichée). */
-  misses: number
-  /** Nombre de fois où la question a été ignorée. */
-  ignored: number
-  /** L'état du moteur : 'pending' | 'review' | 'mastered' | 'ignored'. */
-  state: 'pending' | 'review' | 'mastered' | 'ignored' | null
+  /** L'état du moteur : 'pending' (pas encore réussie) | 'review' (déjà réussie). */
+  state: 'pending' | 'review' | null
   /** Les propositions de la question, pour afficher le texte de la bonne réponse. */
   options: Partial<QuestionOptions>
 }

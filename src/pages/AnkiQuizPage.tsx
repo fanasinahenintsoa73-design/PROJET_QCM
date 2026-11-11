@@ -6,7 +6,6 @@ import {
   Check,
   Eye,
   Lightbulb,
-  SkipForward,
   Sparkles,
   Trophy,
   X,
@@ -34,9 +33,11 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
   const [selected, setSelected] = useState<string | null>(null)
   const [result, setResult] = useState<'correct' | 'wrong' | 'revealed' | null>(null)
   const [level, setLevel] = useState(1)
+  const [succeeded, setSucceeded] = useState(0)
+  const [total, setTotal] = useState(0)
   const [completed, setCompleted] = useState(false)
   const [sessionDone, setSessionDone] = useState(false)
-  const [mastered, setMastered] = useState(0)
+  const [sessionCorrect, setSessionCorrect] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,11 +54,14 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
       ])
       const state = states.find((candidate) => candidate.chapterId === chapterId)
       setLevel(state?.level ?? 1)
+      setSucceeded(state?.reviewQuestions ?? 0)
+      setTotal(state?.totalQuestions ?? 0)
       setQuestions(nextQuestions)
       setIndex(0)
       setSelected(null)
       setResult(null)
       setSessionDone(false)
+      setSessionCorrect(0)
       setCompleted(!revision && nextQuestions.length === 0)
       setError('')
     } catch (err) {
@@ -71,7 +75,8 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
     void loadQuestions()
   }, [loadQuestions])
 
-  const question = questions[index]
+  // En mode QCM, le bloc tourne : la question courante est toujours la première.
+  const question = revision ? questions[index] : questions[0]
   const options = question
     ? answerLetters.filter((letter) => Boolean(question.options[letter]))
     : []
@@ -82,27 +87,46 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
       .filter((text): text is string => Boolean(text))
       .join(' · ') || correctAnswers.join(', ')
 
-  const nextQuestion = useCallback(async () => {
+  /** Session de révision : on passe à la question suivante, ou on termine. */
+  const nextRevisionQuestion = useCallback(() => {
+    setSelected(null)
+    setResult(null)
     if (index + 1 < questions.length) {
       setIndex((value) => value + 1)
-      setSelected(null)
-      setResult(null)
-      return
-    }
-    if (revision) {
+    } else {
       setSessionDone(true)
-      return
     }
-    await loadQuestions()
-  }, [index, questions.length, loadQuestions, revision])
+  }, [index, questions.length])
 
-  // Une bonne réponse affiche le vert et attend le bouton Suivant.
+  /**
+   * Bloc roulant : la question répondue sort du bloc (si elle est réussie) et une
+   * nouvelle question prend sa place pour garder 5 questions en jeu.
+   */
+  const advanceBlock = useCallback(async () => {
+    const remaining = questions.slice(1)
+    const fresh = await api.getAnkiQuestions(chapterId)
+    const merged = [
+      ...remaining,
+      ...fresh.filter((candidate) => !remaining.some((item) => item.id === candidate.id)),
+    ].slice(0, 5)
+    setQuestions(merged)
+    setIndex(0)
+    setSelected(null)
+    setResult(null)
+    if (merged.length === 0) setCompleted(true)
+  }, [chapterId, questions])
+
   async function submitAnswer(letter: string) {
     if (!question || result || saving) return
     const isCorrect = correctAnswers.length === 1 && correctAnswers[0] === letter
     setSelected(letter)
     if (!isCorrect) {
       setResult('wrong')
+      return
+    }
+    if (revision) {
+      setSessionCorrect((value) => value + 1)
+      setResult('correct')
       return
     }
     setSaving(true)
@@ -112,11 +136,10 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
         questionId: question.id,
         givenAnswers: [letter],
         status: 'correct',
-        canReturn: false,
       })
       setLevel(answer.level)
-      setCompleted(answer.completed)
-      if (revision) setMastered((value) => value + 1)
+      setSucceeded((value) => value + 1)
+      if (answer.completed) setCompleted(true)
       setResult('correct')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'La réponse n’a pas pu être enregistrée.')
@@ -133,10 +156,18 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
   async function chooseNext() {
     if (!question || saving) return
     if (result === 'correct') {
-      await nextQuestion()
+      if (revision) {
+        nextRevisionQuestion()
+        return
+      }
+      await advanceBlock()
       return
     }
     if (result !== 'wrong' && result !== 'revealed') return
+    if (revision) {
+      nextRevisionQuestion()
+      return
+    }
     setSaving(true)
     try {
       const answer = await api.recordAnkiAnswer({
@@ -144,70 +175,21 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
         questionId: question.id,
         givenAnswers: result === 'wrong' && selected ? [selected] : [],
         status: result,
-        canReturn: true,
       })
       setLevel(answer.level)
-      setCompleted(answer.completed)
-      if (!revision && answer.completed) {
-        setSelected(null)
-        setResult(null)
-        return
-      }
-      await nextQuestion()
+      // La question ratée reste dans le bloc : elle y revient au hasard.
+      const rest = questions.slice(1)
+      const position = rest.length > 0 ? 1 + Math.floor(Math.random() * rest.length) : 0
+      rest.splice(position, 0, question)
+      setQuestions(rest)
+      setIndex(0)
+      setSelected(null)
+      setResult(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'La réponse n’a pas pu être enregistrée.')
     } finally {
       setSaving(false)
     }
-  }
-
-  async function chooseIgnore() {
-    if (!question || saving) return
-    setSaving(true)
-    try {
-      const status = result === 'wrong' || result === 'revealed' ? result : 'skipped'
-      const answer = await api.recordAnkiAnswer({
-        chapterId,
-        questionId: question.id,
-        givenAnswers: status === 'wrong' && selected ? [selected] : [],
-        status,
-        canReturn: false,
-      })
-      setLevel(answer.level)
-      setCompleted(answer.completed)
-      if (revision) {
-        if (index + 1 >= questions.length) {
-          setSessionDone(true)
-          setSelected(null)
-          setResult(null)
-        } else {
-          setIndex((value) => value + 1)
-          setSelected(null)
-          setResult(null)
-        }
-        return
-      }
-      if (answer.completed || index + 1 >= questions.length) {
-        if (answer.completed) {
-          setSelected(null)
-          setResult(null)
-          return
-        }
-        await loadQuestions()
-      } else {
-        setIndex((value) => value + 1)
-        setSelected(null)
-        setResult(null)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'La question n’a pas pu être ignorée.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function skipQuestion() {
-    await chooseIgnore()
   }
 
   async function restartChapter() {
@@ -248,12 +230,13 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
             Révision terminée
           </h1>
           <p className="mt-3 text-[14px] leading-relaxed text-mute">
-            {mastered > 0
-              ? `${mastered} question${mastered > 1 ? 's' : ''} maîtrisée${
-                  mastered > 1 ? 's' : ''
-                } sur cette session. Ton niveau est ${level}.`
-              : `Aucune question maîtrisée sur cette session. Ton niveau est ${level}.`}{' '}
-            Les questions restées à réviser te seront reproposées la prochaine fois.
+            {sessionCorrect > 0
+              ? `${sessionCorrect} bonne${sessionCorrect > 1 ? 's' : ''} réponse${
+                  sessionCorrect > 1 ? 's' : ''
+                } sur cette session.`
+              : 'Aucune bonne réponse sur cette session.'}{' '}
+            Ton niveau est {level} : la révision ne le change pas. Ces questions restent dans le bloc
+            Réviser, tu peux les revoir quand tu veux.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2.5">
             <Link to="/app" className={buttonClasses('primary')}>
@@ -287,7 +270,7 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
             Rien à réviser pour l’instant
           </h1>
           <p className="mt-3 text-[14px] leading-relaxed text-mute">
-            Toutes les questions de ce chapitre sont maîtrisées. Continue le chapitre pour
+            Aucune question de ce chapitre n’est encore à réviser. Continue le chapitre pour
             découvrir de nouvelles questions, ou reviens plus tard.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2.5">
@@ -314,11 +297,23 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
             Félicitations, vous avez terminé le chapitre
           </h1>
           <p className="mt-3 text-[14px] leading-relaxed text-mute">
-            Ton niveau est {level}. Tu peux refaire ce chapitre pendant toute la durée du ticket pour bien mémoriser.
+            Toutes les questions sont réussies ({succeeded} / {total}). Ton niveau est {level}. Tu
+            peux revoir ce chapitre dans le bloc Réviser, ou le refaire pendant toute la durée du
+            ticket.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2.5">
-            <button type="button" onClick={() => void restartChapter()} disabled={saving} className={buttonClasses('primary')}>
-              Refaire le chapitre <ArrowRight size={16} />
+            {succeeded > 0 && (
+              <Link to={`/app/anki/${chapterId}/reviser`} className={buttonClasses('primary')}>
+                Réviser ({succeeded}) <ArrowRight size={16} />
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => void restartChapter()}
+              disabled={saving}
+              className={buttonClasses('secondary')}
+            >
+              Refaire le chapitre
             </button>
             <Link to="/app" className={buttonClasses('secondary')}>
               Retour au tableau de bord
@@ -331,6 +326,12 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
       </div>
     )
   }
+
+  const progress = revision
+    ? ((index + 1) / Math.max(1, questions.length)) * 100
+    : total > 0
+      ? (succeeded / total) * 100
+      : 0
 
   return (
     <div className="bg-canvas">
@@ -358,11 +359,13 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cloud">
               <div
                 className="h-full rounded-full bg-accent transition-all"
-                style={{ width: `${((index + 1) / questions.length) * 100}%` }}
+                style={{ width: `${progress}%` }}
               />
             </div>
             <span className="shrink-0 text-[11px] text-mute">
-              {revision ? 'Révision · question' : 'Question'} {index + 1} / {questions.length}
+              {revision
+                ? `Révision · question ${index + 1} / ${questions.length}`
+                : `${succeeded} / ${total} réussies`}
             </span>
           </div>
         </div>
@@ -464,62 +467,33 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
           <div className="mt-5 flex flex-wrap items-center justify-between gap-2.5 border-t border-line pt-4">
             <div className="flex flex-wrap gap-2">
               {!result && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void revealAnswer()}
-                    disabled={saving}
-                    className={buttonClasses('secondary', 'sm')}
-                  >
-                    <Eye size={14} /> Afficher la réponse
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void skipQuestion()}
-                    disabled={saving}
-                    className={buttonClasses('ghost', 'sm')}
-                  >
-                    <SkipForward size={14} /> Ignorer
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => void revealAnswer()}
+                  disabled={saving}
+                  className={buttonClasses('secondary', 'sm')}
+                >
+                  <Eye size={14} /> Afficher la réponse
+                </button>
               )}
             </div>
             {result && (
-              <>
-                {result === 'wrong' || result === 'revealed' ? (
-                  <button
-                    type="button"
-                    onClick={() => void chooseIgnore()}
-                    disabled={saving}
-                    className={buttonClasses('ghost', 'sm')}
-                  >
-                    <SkipForward size={14} /> Ignorer
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => void chooseNext()}
-                  disabled={saving}
-                  className={buttonClasses('primary', 'sm')}
-                >
-                  Suivant <ArrowRight size={14} />
-                </button>
-              </>
-            )}
-            {result === 'correct' && (
-              <span className="text-[11px] text-mute">Passage automatique…</span>
+              <button
+                type="button"
+                onClick={() => void chooseNext()}
+                disabled={saving}
+                className={buttonClasses('primary', 'sm')}
+              >
+                Suivant <ArrowRight size={14} />
+              </button>
             )}
           </div>
 
-          {revision ? (
-            <p className="mt-3 text-[11px] leading-relaxed text-mute">
-              {result === 'correct'
-                ? 'Bien joué : la question est acquise, elle quitte le bloc Réviser et ton niveau monte de 1.'
-                : result === 'wrong' || result === 'revealed'
-                  ? 'Suivant : elle reste à réviser et revient dans le QCM normal. Ignorer : elle sort du QCM normal mais reste à réviser.'
-                  : 'Bonne réponse : la question est acquise. Sinon, Suivant ou Ignorer la gardent à réviser.'}
-            </p>
-          ) : null}
+          <p className="mt-3 text-[11px] leading-relaxed text-mute">
+            {revision
+              ? 'Révision : ton niveau ne change pas. Ces questions restent dans le bloc Réviser, tu peux les revoir quand tu veux.'
+              : 'Juste : la question part dans le bloc Réviser et une nouvelle prend sa place. Ratée : Suivant la fait revenir au hasard dans le bloc.'}
+          </p>
         </article>
       </div>
     </div>

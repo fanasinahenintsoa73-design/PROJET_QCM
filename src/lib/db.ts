@@ -1,6 +1,7 @@
 import type {
   AccessRequest,
   AnkiAnswerResult,
+  AnkiAnswerStatus,
   AnkiChapterState,
   AnkiHistoryEntry,
   AnkiReviewCard,
@@ -1722,11 +1723,14 @@ export function myTicketInfo(): TicketInfo | null {
 const ANKI_KEY = 'medqcm.anki.v2'
 
 interface DemoAnkiQuestionProgress {
-  state: 'pending' | 'review' | 'mastered' | 'ignored'
+  state: 'pending' | 'review'
   attempts: number
   correctAnswers: number
   lastSeenAt: string | null
 }
+
+/** Les états de l'ancien moteur (4 états), migrés à la lecture. */
+type LegacyAnkiState = DemoAnkiQuestionProgress['state'] | 'mastered' | 'ignored'
 
 interface DemoAnkiChapterProgress {
   completedAt: string | null
@@ -1746,7 +1750,19 @@ function loadAnkiStore(): DemoAnkiStore {
     const raw = localStorage.getItem(ANKI_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? (parsed as DemoAnkiStore) : {}
+    if (!parsed || typeof parsed !== 'object') return {}
+    const store = parsed as DemoAnkiStore
+    // Migration de l'ancien moteur (4 états) vers le modèle simplifié à 2 états.
+    for (const state of Object.values(store)) {
+      for (const chapter of Object.values(state.progress ?? {})) {
+        for (const entry of Object.values(chapter.questions ?? {})) {
+          const legacy = entry as { state: LegacyAnkiState }
+          if (legacy.state === 'mastered') legacy.state = 'review'
+          else if (legacy.state === 'review' || legacy.state === 'ignored') legacy.state = 'pending'
+        }
+      }
+    }
+    return store
   } catch {
     return {}
   }
@@ -1827,10 +1843,7 @@ export function getAnkiChapters(): AnkiChapterState[] {
     ).length
     const totalQuestions = chapterQuestionBank(chapterId, db).length
     const states = Object.values(progress.questions)
-    const inProgressQuestions = states.filter((entry) => entry.state === 'review').length
-    const reviewQuestions =
-      states.filter((entry) => entry.state === 'mastered').length +
-      states.filter((entry) => entry.state === 'ignored').length
+    const reviewQuestions = states.filter((entry) => entry.state === 'review').length
     const answeredQuestions = states.length
     return {
       chapterId,
@@ -1839,8 +1852,7 @@ export function getAnkiChapters(): AnkiChapterState[] {
       completedAt: progress.completedAt,
       totalQuestions,
       answeredQuestions,
-      newQuestions: Math.max(0, totalQuestions - answeredQuestions),
-      inProgressQuestions,
+      newQuestions: Math.max(0, totalQuestions - reviewQuestions),
       reviewQuestions,
     }
   })
@@ -1899,7 +1911,7 @@ export function restartAnkiChapter(chapterId: string): void {
   saveAnkiStore(store)
 }
 
-/** 5 questions pour le bloc suivant, avec les questions à revoir en priorité. */
+/** Les questions pas encore réussies : le bloc de 5 en jeu. */
 export function getAnkiQuestions(chapterId: string): Question[] {
   const ticket = requireAnkiTicket()
   const state = ankiStateFor(ticket.code)
@@ -1909,11 +1921,9 @@ export function getAnkiQuestions(chapterId: string): Question[] {
   const progress = state.progress[chapterId]?.questions ?? {}
   const candidates = chapterQuestionBank(chapterId).filter((question) => {
     const entry = progress[question.id]
-    return !entry || entry.state === 'pending' || entry.state === 'review'
+    return !entry || entry.state === 'pending'
   })
-  const review = candidates.filter((question) => progress[question.id]?.state === 'review')
-  const fresh = candidates.filter((question) => progress[question.id]?.state !== 'review')
-  return [...shuffleQuestions(review), ...shuffleQuestions(fresh)].slice(0, 5)
+  return shuffleQuestions(candidates).slice(0, 5)
 }
 
 /** Enregistre une réponse Anki et met à jour le niveau / la progression. */
@@ -1921,8 +1931,7 @@ export function recordAnkiAnswer(input: {
   chapterId: string
   questionId: string
   givenAnswers: string[]
-  status: AnkiHistoryEntry['status']
-  canReturn: boolean
+  status: AnkiAnswerStatus
 }): AnkiAnswerResult {
   const ticket = requireAnkiTicket()
   const state = ankiStateFor(ticket.code)
@@ -1946,12 +1955,8 @@ export function recordAnkiAnswer(input: {
 
   const progress = state.progress[input.chapterId] ?? { completedAt: null, questions: {} }
   const previous = progress.questions[input.questionId]
-  const stateName =
-    input.status === 'correct'
-      ? 'mastered'
-      : input.status === 'skipped' || !input.canReturn
-        ? 'ignored'
-        : 'review'
+  // 2 états : une question réussie part en révision, sinon elle reste dans le bloc.
+  const stateName = input.status === 'correct' ? 'review' : 'pending'
   progress.questions[input.questionId] = {
     state: stateName,
     attempts: (previous?.attempts ?? 0) + 1,
@@ -1965,7 +1970,7 @@ export function recordAnkiAnswer(input: {
   const level = 1 + correctAnswers
   const completed = chapterQuestionBank(input.chapterId).every((candidate) => {
     const entry = progress.questions[candidate.id]
-    return entry?.state === 'mastered' || entry?.state === 'ignored'
+    return entry?.state === 'review'
   })
   state.progress[input.chapterId] = {
     completedAt: completed
@@ -2010,8 +2015,6 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
         attempts: progress?.attempts ?? 1,
         firstSeenAt: entry.createdAt,
         lastSeenAt: entry.createdAt,
-        misses: entry.status === 'wrong' || entry.status === 'revealed' ? 1 : 0,
-        ignored: entry.status === 'skipped' ? 1 : 0,
         state: progress?.state ?? null,
         options: getDB().questions.find((candidate) => candidate.id === entry.questionId)?.options ?? {},
       })
@@ -2025,14 +2028,12 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
     existing.lastGivenAnswers = entry.givenAnswers
     existing.attempts = progress?.attempts ?? existing.attempts + 1
     existing.lastSeenAt = entry.createdAt
-    if (entry.status === 'wrong' || entry.status === 'revealed') existing.misses += 1
-    if (entry.status === 'skipped') existing.ignored += 1
   }
 
   return [...cards.values()].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
 }
 
-/** Les questions à réviser d'un chapitre : les « en cours » d'abord, puis les ignorées. */
+/** Les questions à réviser d'un chapitre : celles déjà réussies, en QCM. */
 export function getAnkiReviewQuestions(chapterId: string): Question[] {
   const ticket = requireAnkiTicket()
   const state = ankiStateFor(ticket.code)
@@ -2042,9 +2043,7 @@ export function getAnkiReviewQuestions(chapterId: string): Question[] {
   const progress = state.progress[chapterId]?.questions ?? {}
   const candidates = chapterQuestionBank(chapterId).filter((question) => {
     const entry = progress[question.id]
-    return entry?.state === 'review' || entry?.state === 'ignored'
+    return entry?.state === 'review'
   })
-  const inProgress = candidates.filter((question) => progress[question.id]?.state === 'review')
-  const ignored = candidates.filter((question) => progress[question.id]?.state === 'ignored')
-  return [...shuffleQuestions(inProgress), ...shuffleQuestions(ignored)].slice(0, 5)
+  return shuffleQuestions(candidates).slice(0, 5)
 }
