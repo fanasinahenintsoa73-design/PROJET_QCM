@@ -49,7 +49,7 @@ export default function NotFoundPage() {
                 </span>
               </p>
               <p className="mt-1 text-[12px] leading-relaxed text-mute">
-                Des séries de 10 questions. 30 séries. Aucune impasse.
+                Des QCM à votre rythme. 30 séries ou le mode Anki. Aucune impasse.
               </p>
             </div>
           </div>

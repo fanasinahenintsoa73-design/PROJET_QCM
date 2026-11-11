@@ -60,8 +60,7 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Long message, même police et même style que
-            « Des séries de dix questions… » */}
+        {/* Long message, même police et même style que le corps de la lettre */}
         <div className="mt-8 space-y-5">
           <p className="text-[16px] leading-[1.65] text-mute">Chers PACES,</p>
 
@@ -87,8 +86,8 @@ export function LandingPage() {
           </p>
 
           <p className="text-[16px] leading-[1.65] text-mute">
-            Des séries de dix questions, à votre rythme. Trente séries par cycle, avec la
-            correction détaillée après chaque envoi.
+            Des QCM à votre rythme : 30 séries de dix questions, ou le mode Anki, chapitre par
+            chapitre.
           </p>
 
           <p className="text-[16px] leading-[1.65] text-mute">
