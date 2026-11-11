@@ -251,6 +251,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         // Différé : Supabase interdit les appels Auth dans le callback.
         window.setTimeout(() => {
+          // L'événement de session arrive juste après le chargement initial :
+          // on ne relance pas un second chargement complet de la base.
+          if (Date.now() - lastFullRefreshAt.current < 3_000) return
           if (active) void load()
         }, 0)
       }
@@ -258,11 +261,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const interval = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
+      // Rafraîchissement léger : uniquement l'état du ticket (suspension,
+      // expiration). Recharger toute la base toutes les 20 s faisait
+      // rafraîchir l'app en boucle.
+      void refreshTicket()
+    }, 20_000)
+    // Rechargement complet de la base : une fois par minute, pour prendre en
+    // compte une validation du docteur.
+    const fullInterval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
       // Pas de rafale : on ne recharge pas toute la base si un rechargement
       // vient d'avoir lieu.
       if (Date.now() - lastFullRefreshAt.current < 10_000) return
       void refresh()
-    }, 20_000)
+    }, 60_000)
     // Au retour dans l'app : on vérifie seulement le ticket (suspension,
     // expiration), pas toute la base.
     const onFocus = () => void refreshTicket()
@@ -272,6 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false
       data.subscription.unsubscribe()
       window.clearInterval(interval)
+      window.clearInterval(fullInterval)
       window.removeEventListener('focus', onFocus)
     }
   }, [refresh, refreshTicket])
