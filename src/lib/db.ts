@@ -1538,7 +1538,8 @@ export function generateTickets(count: number, type: TicketType = 'series'): Gen
   const created: GeneratedTicket[] = []
   const now = new Date()
   const prefix = type === 'anki' ? 'ANKI' : 'PACES'
-  const expiresAt = type === 'anki' ? addDays(now, 30).toISOString() : null
+  // Le mois Anki part du lancement (1re connexion), pas de la création.
+  const expiresAt: string | null = null
   let next = nextTicketNumber(records, prefix)
 
   for (let i = 0; i < count; i += 1) {
@@ -1695,6 +1696,10 @@ export function recordTicketLogin(): void {
   if (record.archivedAt) throw new Error('Ce ticket est archivé.')
   const now = new Date().toISOString()
   record.logins.push(now)
+  // Le mois Anki démarre à la première connexion et ne bouge plus ensuite.
+  if (record.type === 'anki' && !record.usedAt) {
+    record.expiresAt = addDays(new Date(now), 30).toISOString()
+  }
   record.usedAt = record.usedAt ?? now
   record.lastLoginAt = now
   if (record.status === 'available') record.status = 'used'

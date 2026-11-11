@@ -416,12 +416,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           error: 'Ton ticket Anki a expiré. Contacte le docteur pour un nouveau ticket.',
         }
       }
-      setTicketInfo(info)
       // L'historique côté admin : qui est entré, quand.
       await api.recordTicketLogin()
+      // À la première connexion, le mois Anki est posé par la base :
+      // on relit le ticket pour afficher la bonne date.
+      const freshInfo = await api.myTicketInfo().catch(() => info)
+      setTicketInfo(freshInfo)
       return {
         ...result,
-        homePath: info?.type === 'anki' ? '/app/anki/choisir' : result.homePath,
+        homePath: freshInfo?.type === 'anki' ? '/app/anki/choisir' : result.homePath,
       }
     },
     [login, logout],
