@@ -13,6 +13,7 @@ import { api } from '@/lib/api'
 import { getUsableQuestions } from '@/lib/db'
 import { chaptersForTheme, chapterTitle, PACE_THEMES } from '@/lib/themes'
 import { buttonClasses } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { usePageTitle } from '@/components/Layouts'
 import { cn } from '@/lib/utils'
 import type { AnkiChapterState, Database } from '@/types'
@@ -34,6 +35,11 @@ export default function AnkiHomePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [pendingChapter, setPendingChapter] = useState<{
+    id: string
+    title: string
+    count: number
+  } | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -73,18 +79,26 @@ export default function AnkiHomePage() {
   const full = selectedChapters.length >= 5
 
   async function addChapter(chapterId: string) {
-    if (saving || selectedIds.has(chapterId) || full) return
+    if (saving || selectedIds.has(chapterId) || full) {
+      setPendingChapter(null)
+      return
+    }
     const chapter = selection
       .flatMap((entry) => entry.chapters)
       .find((item) => item.id === chapterId)
-    if (!chapter?.available) return
+    if (!chapter?.available) {
+      setPendingChapter(null)
+      return
+    }
     setSaving(true)
     try {
       await api.addAnkiChapter(chapterId)
       await load()
       setActiveUeId(null)
+      setPendingChapter(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Le chapitre n’a pas pu être ajouté.')
+      setPendingChapter(null)
     } finally {
       setSaving(false)
     }
@@ -298,7 +312,13 @@ export default function AnkiHomePage() {
                     key={chapter.id}
                     type="button"
                     disabled={disabled}
-                    onClick={() => void addChapter(chapter.id)}
+                    onClick={() =>
+                      setPendingChapter({
+                        id: chapter.id,
+                        title: chapter.title,
+                        count: chapter.count,
+                      })
+                    }
                     aria-pressed={chosen}
                     className={cn(
                       'flex w-full items-center gap-4 px-5 py-4 text-left transition sm:px-6',
@@ -427,6 +447,49 @@ export default function AnkiHomePage() {
             </div>
           </section>
         )}
+
+        <Modal
+          open={pendingChapter !== null}
+          onClose={() => setPendingChapter(null)}
+          title="Vous voulez vous entraîner avec ce chapitre ?"
+          size="sm"
+          footer={
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setPendingChapter(null)}
+                className={buttonClasses('secondary', 'md', 'w-full')}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  if (pendingChapter) void addChapter(pendingChapter.id)
+                }}
+                className={buttonClasses('primary', 'md', 'w-full')}
+              >
+                {saving ? 'Ajout…' : 'Confirmer'}
+              </button>
+            </div>
+          }
+        >
+          {pendingChapter ? (
+            <div className="space-y-4">
+              <p className="text-[13px] leading-relaxed text-mute">
+                <span className="font-medium text-ink">{pendingChapter.title}</span>
+                {' · '}
+                {pendingChapter.count} question{pendingChapter.count > 1 ? 's' : ''} Anki
+              </p>
+              <div className="rounded-xl border border-sale/25 bg-sale/5 px-4 py-3 text-[12px] leading-relaxed text-sale">
+                <strong className="font-semibold">Ce choix est irréversible.</strong> Une fois
+                confirmé, tu ne pourras plus retirer ce chapitre de ta sélection : les 5 places de
+                ton ticket sont définitives.
+              </div>
+            </div>
+          ) : null}
+        </Modal>
       </div>
     </div>
   )
