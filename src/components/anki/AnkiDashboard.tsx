@@ -359,14 +359,18 @@ export default function AnkiDashboard() {
                 const counters = (
                   <div className="mt-4 border-t border-line pt-4">
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-line bg-surface px-2 py-3 text-center">
+                      <Link
+                        to={`/app/anki/${chapter.chapterId}`}
+                        aria-label={`Commencer le chapitre : ${chapter.newQuestions} nouvelles questions`}
+                        className="rounded-xl border border-line bg-surface px-2 py-3 text-center transition hover:border-accent/60 hover:shadow-sm"
+                      >
                         <p className="font-display text-[22px] leading-none text-ink">
                           {chapter.newQuestions}
                         </p>
                         <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
                           Nouvelles
                         </p>
-                      </div>
+                      </Link>
                       <Link
                         to={`/app/anki/${chapter.chapterId}/reviser`}
                         aria-label={`Réviser les ${chapter.reviewQuestions} questions réussies en QCM`}
