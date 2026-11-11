@@ -147,8 +147,8 @@ export default function AnkiHomePage() {
                 Comment ça marche
               </h2>
               <p className="mt-1 text-[12px] text-mute">
-                5 questions à la fois : assez court pour tenir entre deux cours, assez répété pour
-                que ça rentre.
+                Le chapitre te pose 5 questions à la fois : tu réponds, tu avances, et ce que tu
+                rates ou ignores, tu le reverras dans le bloc Réviser.
               </p>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -158,7 +158,7 @@ export default function AnkiHomePage() {
                   </span>
                   <p className="mt-2 text-[12px] font-semibold text-ink">Choisis</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-mute">
-                    Un chapitre, dans l’UE que tu veux. 5 chapitres maximum au total.
+                    Un chapitre, dans l’UE que tu veux. 5 chapitres maximum.
                   </p>
                 </div>
                 <div className="rounded-xl bg-cloud/70 p-3">
@@ -177,9 +177,8 @@ export default function AnkiHomePage() {
                   </span>
                   <p className="mt-2 text-[12px] font-semibold text-ink">Mémorise</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-mute">
-                    Juste : la question est acquise, elle ne revient plus. Ratée : elle reste{' '}
-                    <strong className="font-medium text-ink">En cours</strong> et revient en tête de
-                    la série suivante. Tu ne peux pas la perdre.
+                    Juste : acquise, elle ne revient plus. Ratée : elle revient en tête du bloc
+                    suivant.
                   </p>
                 </div>
                 <div className="rounded-xl bg-cloud/70 p-3">
@@ -188,10 +187,9 @@ export default function AnkiHomePage() {
                   </span>
                   <p className="mt-2 text-[12px] font-semibold text-ink">Décide</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-mute">
-                    Après une question ratée :{' '}
+                    Tu bloques ?{' '}
                     <strong className="font-medium text-ink">Suivant</strong> (elle revient) ou{' '}
-                    <strong className="font-medium text-ink">Ignorer</strong> (elle part dans « À
-                    réviser »).
+                    <strong className="font-medium text-ink">Ignorer</strong> (elle sort du QCM).
                   </p>
                 </div>
               </div>
@@ -200,17 +198,14 @@ export default function AnkiHomePage() {
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">Suivant</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    Elle reste <strong className="font-medium text-ink">En cours</strong> et revient
-                    en tête de la prochaine série de 5, avant les questions nouvelles. Chaque
-                    passage la fait rentrer un peu plus — et tu la retrouves aussi dans le bloc{' '}
-                    <strong className="font-medium text-ink">Réviser</strong>.
+                    Elle reste <strong className="font-medium text-ink">En cours</strong> : elle
+                    revient en tête du bloc suivant.
                   </p>
                 </div>
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">Ignorer</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    Elle passe <strong className="font-medium text-ink">À réviser</strong> : elle
-                    sort de ce QCM, mais tu la retrouves dans le bloc{' '}
+                    Elle sort du QCM, mais tu la retrouves dans le bloc{' '}
                     <strong className="font-medium text-ink">Réviser</strong>, quand tu veux.
                   </p>
                 </div>
@@ -223,48 +218,43 @@ export default function AnkiHomePage() {
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">Nouvelle</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    Jamais vue. Elle peut sortir dans ta prochaine série.
+                    Jamais vue.
                   </p>
                 </div>
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">En cours</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    Ratée. Elle revient en tête de la série suivante, et tu peux la retravailler
-                    dans le bloc <strong className="font-medium text-ink">Réviser</strong>.
+                    Ratée : elle revient au bloc suivant.
                   </p>
                 </div>
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">À réviser</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    Pas encore maîtrisée : ratée ou ignorée. Le bloc{' '}
-                    <strong className="font-medium text-ink">Réviser</strong> de ton tableau Anki
-                    te la sert en QCM.
+                    Pas encore maîtrisée : le bloc{' '}
+                    <strong className="font-medium text-ink">Réviser</strong> te la sert en QCM.
                   </p>
                 </div>
               </div>
 
               <p className="mt-3 border-l-2 border-line pl-3 text-[11px] leading-relaxed text-mute">
-                Exemple : tu rates la Q3.{' '}
-                <strong className="font-medium text-ink">Suivant</strong> → elle revient en tête de
-                la série suivante.{' '}
+                Tu rates la Q3 :{' '}
+                <strong className="font-medium text-ink">Suivant</strong> → elle revient au bloc
+                suivant.{' '}
                 <strong className="font-medium text-ink">Ignorer</strong> → elle sort du QCM, mais
-                reste à réviser dans le bloc Réviser.
+                reste à réviser.
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-mute">
                 Chaque bonne réponse fait monter ton{' '}
-                <strong className="font-medium text-ink">niveau</strong> de 1 — et il ne descend
-                jamais. Quand toutes les questions sont maîtrisées ou ignorées, le chapitre est
-                terminé : bravo. Tu peux le refaire pendant tout le mois de ton ticket.
+                <strong className="font-medium text-ink">niveau</strong> de 1. Il ne descend
+                jamais.
               </p>
 
               <div className="mt-3 rounded-xl border border-accent/20 bg-accent-soft/50 px-3 py-2.5 text-[11px] leading-relaxed text-ink">
                 <p>
-                  <strong className="font-medium">Résultat :</strong> aucune question ne se perd, et
-                  une question acquise ne revient plus dans le QCM.
-                </p>
-                <p className="mt-1 text-mute">
-                  Les questions à réviser te sont servies <strong className="font-medium">en QCM</strong>{' '}
-                  : tu y réponds, ce n’est pas une liste à lire.
+                  <strong className="font-medium">Résultat :</strong> aucune question ne se perd.
+                  Les questions à réviser te sont servies{' '}
+                  <strong className="font-medium">en QCM</strong> : tu y réponds, ce n’est pas une
+                  liste à lire.
                 </p>
                 <p className="mt-1 text-mute">
                   Astuce : si tu bloques, affiche la réponse plutôt que d’ignorer — elle reviendra,
