@@ -6,7 +6,6 @@ import {
   Check,
   Eye,
   Lightbulb,
-  Sparkles,
   Trophy,
   X,
 } from 'lucide-react'
@@ -344,7 +343,7 @@ export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revis
             <ArrowLeft size={14} /> Retour au mode Anki
           </Link>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[11px] font-semibold text-accent">
-            <Sparkles size={12} /> Niveau {level}
+            Niveau {level}
           </span>
         </div>
 

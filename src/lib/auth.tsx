@@ -88,9 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ticketBlocked, setTicketBlocked] = useState(false)
   const [initialising, setInitialising] = useState(isSupabaseConfigured)
   const mounted = useRef(true)
+  // Date du dernier rechargement complet : évite les rafales de rafraîchissements
+  // au chargement (session + focus + premier tick).
+  const lastFullRefreshAt = useRef(0)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { syncFeedbacks?: boolean }) => {
     if (!isSupabaseConfigured || !supabase) return
+    lastFullRefreshAt.current = Date.now()
     try {
       const { data } = await supabase.auth.getSession()
       if (!data.session?.user) {
@@ -124,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Dès la connexion, migration automatique des étoiles restées en local
       // vers le backend (tous les téléphones partagent ensuite les mêmes
       // notes). En arrière-plan, sans bloquer l'ouverture de l'app.
-      if (profile.role !== 'professor') {
+      if (options?.syncFeedbacks && profile.role !== 'professor') {
         void api.syncPendingSeriesFeedbacks()
       }
     } catch (error) {
@@ -132,6 +136,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Chargement du compte impossible.', error)
       setRemoteDb(emptyDatabase())
       setRemoteUser(null)
+    }
+  }, [])
+
+  // Rafraîchissement léger : uniquement l'état du ticket (suspension,
+  // expiration). Inutile de recharger toute la base à chaque retour dans
+  // l'app : c'était la source des rafraîchissements visibles.
+  const refreshTicket = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) return
+    try {
+      const { data } = await supabase.auth.getSession()
+      if (!data.session?.user) return
+      const info = await api.myTicketInfo().catch(() => null)
+      if (!mounted.current) return
+      setTicketInfo(info)
+      const expired =
+        info?.type === 'anki' && info.expiresAt
+          ? new Date(info.expiresAt).getTime() < Date.now()
+          : false
+      setTicketBlocked(info?.status === 'suspended' || expired)
+    } catch {
+      // L'état du ticket n'est pas critique : on garde la valeur actuelle.
     }
   }, [])
 
@@ -197,9 +222,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return
     let active = true
+    let loading = false
 
     const load = async () => {
-      await refresh()
+      // Un seul chargement à la fois : l'événement de session de Supabase
+      // arrive juste après le chargement initial et le doublait.
+      if (loading) return
+      loading = true
+      try {
+        await refresh({ syncFeedbacks: true })
+      } finally {
+        loading = false
+      }
       if (active) setInitialising(false)
     }
 
@@ -223,9 +257,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refresh()
+      if (document.visibilityState !== 'visible') return
+      // Pas de rafale : on ne recharge pas toute la base si un rechargement
+      // vient d'avoir lieu.
+      if (Date.now() - lastFullRefreshAt.current < 10_000) return
+      void refresh()
     }, 20_000)
-    const onFocus = () => void refresh()
+    // Au retour dans l'app : on vérifie seulement le ticket (suspension,
+    // expiration), pas toute la base.
+    const onFocus = () => void refreshTicket()
     window.addEventListener('focus', onFocus)
 
     return () => {
@@ -234,7 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.clearInterval(interval)
       window.removeEventListener('focus', onFocus)
     }
-  }, [refresh])
+  }, [refresh, refreshTicket])
 
   const db = isSupabaseConfigured ? remoteDb : demoDb
 

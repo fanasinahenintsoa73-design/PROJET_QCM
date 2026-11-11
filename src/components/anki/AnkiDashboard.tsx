@@ -43,11 +43,6 @@ function isReviewCard(card: AnkiReviewCard): boolean {
   return card.state === 'review'
 }
 
-/** « Voir la question… » au singulier, « Voir les 3 questions… » au pluriel. */
-function questionsLabel(count: number): string {
-  return count > 1 ? `les ${count} questions` : 'la question'
-}
-
 const HISTORY_FILTERS: { value: CardBucket; label: string }[] = [
   { value: 'all', label: 'Toutes' },
   { value: 'review', label: 'À réviser' },
@@ -175,14 +170,6 @@ export default function AnkiDashboard() {
     }),
     [reviewCards],
   )
-
-  /** Ouvre l'historique filtré sur l'état choisi depuis une carte de chapitre. */
-  const openHistory = (next: CardBucket, chapterId?: string) => {
-    setFilter(next)
-    setSearch('')
-    setTab('history')
-    if (chapterId) setOpenChapter(chapterId)
-  }
 
   /** L'historique, regroupé par chapitre : un bloc par chapitre choisi. */
   const historyGroups = useMemo(() => {
@@ -380,10 +367,9 @@ export default function AnkiDashboard() {
                           Nouvelles
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => openHistory('review', chapter.chapterId)}
-                        aria-label={`Voir ${questionsLabel(chapter.reviewQuestions)} à réviser dans l’historique`}
+                      <Link
+                        to={`/app/anki/${chapter.chapterId}/reviser`}
+                        aria-label={`Réviser les ${chapter.reviewQuestions} questions réussies en QCM`}
                         className="rounded-xl border border-line bg-surface px-2 py-3 text-center transition hover:border-accent/60 hover:shadow-sm"
                       >
                         <p className="font-display text-[22px] leading-none text-success">
@@ -392,7 +378,7 @@ export default function AnkiDashboard() {
                         <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
                           À réviser
                         </p>
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 )
