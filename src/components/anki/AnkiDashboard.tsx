@@ -529,6 +529,7 @@ export default function AnkiDashboard() {
                 </p>
                 {historyGroups.map((group) => {
                   const open = openChapters.includes(group.chapterId)
+                  const theme = findThemeForChapter(group.chapterId)
                   return (
                     <section
                       key={group.chapterId}
@@ -547,7 +548,12 @@ export default function AnkiDashboard() {
                         className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-cloud/40"
                       >
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[14px] font-medium text-ink">
+                          {theme ? (
+                            <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                              {theme.title}
+                            </span>
+                          ) : null}
+                          <span className="mt-1 block truncate text-[14px] font-medium text-ink">
                             {group.title}
                           </span>
                           <span className="mt-0.5 block text-[11px] text-mute">
