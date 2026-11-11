@@ -219,6 +219,8 @@ export interface AnkiReviewCard {
   status: AnkiHistoryEntry['status']
   lastGivenAnswers: string[]
   attempts: number
+  /** Combien de fois la question a été ratée (réponse fausse ou réponse affichée). */
+  misses: number
   firstSeenAt: string
   lastSeenAt: string
   /** L'état du moteur : 'pending' (pas encore réussie) | 'review' (déjà réussie). */

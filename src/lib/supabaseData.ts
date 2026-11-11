@@ -1424,6 +1424,7 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     status: AnkiHistoryEntry['status']
     last_given_answers: string[] | null
     attempts: number
+    misses: number
     first_seen_at: string
     last_seen_at: string
     state: 'pending' | 'review' | null
@@ -1437,6 +1438,7 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     status: row.status,
     lastGivenAnswers: row.last_given_answers ?? [],
     attempts: row.attempts ?? 1,
+    misses: row.misses ?? 0,
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
     state: row.state ?? null,

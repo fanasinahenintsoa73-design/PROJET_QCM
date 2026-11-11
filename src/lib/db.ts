@@ -1999,6 +1999,14 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
   const state = ankiStateFor(ticket.code)
   const cards = new Map<string, AnkiReviewCard>()
 
+  // Nombre de fois ratées par question (réponse fausse ou réponse affichée).
+  const missesByQuestion = new Map<string, number>()
+  for (const entry of state.history) {
+    if (entry.status !== 'wrong' && entry.status !== 'revealed') continue
+    const missKey = `${entry.chapterId}:${entry.questionId}`
+    missesByQuestion.set(missKey, (missesByQuestion.get(missKey) ?? 0) + 1)
+  }
+
   for (const entry of [...state.history].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
     const key = `${entry.chapterId}:${entry.questionId}`
     const progress = state.progress[entry.chapterId]?.questions[entry.questionId]
@@ -2013,6 +2021,7 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
         status: entry.status,
         lastGivenAnswers: entry.givenAnswers,
         attempts: progress?.attempts ?? 1,
+        misses: missesByQuestion.get(key) ?? 0,
         firstSeenAt: entry.createdAt,
         lastSeenAt: entry.createdAt,
         state: progress?.state ?? null,

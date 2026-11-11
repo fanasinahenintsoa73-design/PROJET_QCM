@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
@@ -24,13 +24,6 @@ function formatDay(value: string | null | undefined): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
-}
-
-function statusLabel(status: AnkiReviewCard['status']): string {
-  if (status === 'correct') return 'Juste'
-  if (status === 'wrong') return 'Faux'
-  if (status === 'revealed') return 'Réponse affichée'
-  return 'Sans réponse'
 }
 
 type CardBucket = 'all' | 'review'
@@ -61,24 +54,7 @@ function cardAnswer(card: AnkiReviewCard): string {
 function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
   return (
     <article className="rounded-xl border border-line bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-[9px] font-semibold',
-            card.status === 'correct' && 'bg-success/10 text-success',
-            card.status === 'wrong' && 'bg-sale/10 text-sale',
-            card.status === 'revealed' && 'bg-accent-soft text-accent',
-            card.status === 'skipped' && 'bg-cloud text-mute',
-          )}
-        >
-          {statusLabel(card.status)}
-        </span>
-        <span className="ml-auto text-[10px] text-mute">
-          Vue le {formatDay(card.lastSeenAt)}
-        </span>
-      </div>
-
-      <div className="mt-3 space-y-2.5">
+      <div className="space-y-2.5">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Question</p>
           <p className="mt-1 text-[14px] font-medium leading-snug text-ink">{card.statement}</p>
@@ -111,7 +87,7 @@ export default function AnkiDashboard() {
     searchParams.get('tab') === 'history' ? 'history' : 'chapters',
   )
   const [filter, setFilter] = useState<CardBucket>('all')
-  const [openChapter, setOpenChapter] = useState<string | null>(null)
+  const [openChapters, setOpenChapters] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -171,28 +147,51 @@ export default function AnkiDashboard() {
     [reviewCards],
   )
 
-  /** L'historique, regroupé par chapitre : un bloc par chapitre choisi. */
+  /**
+   * L'historique, regroupé par chapitre : un bloc par chapitre qui a des
+   * questions vues. Le filtre et la recherche ne s'appliquent qu'à
+   * l'intérieur du bloc : l'en-tête (nombre de questions, nombre de fois
+   * ratées) reste stable.
+   */
   const historyGroups = useMemo(() => {
     const byChapter = new Map<string, AnkiReviewCard[]>()
-    for (const card of filteredCards) {
+    for (const card of reviewCards) {
       const list = byChapter.get(card.chapterId) ?? []
       list.push(card)
       byChapter.set(card.chapterId, list)
     }
-    return chapters.map((chapter) => ({
-      chapterId: chapter.chapterId,
-      title: chapterTitle(chapter.chapterId),
-      cards: [...(byChapter.get(chapter.chapterId) ?? [])].sort((a, b) =>
-        b.lastSeenAt.localeCompare(a.lastSeenAt),
-      ),
-    }))
-  }, [filteredCards, chapters])
+    const filteredByChapter = new Map<string, AnkiReviewCard[]>()
+    for (const card of filteredCards) {
+      const list = filteredByChapter.get(card.chapterId) ?? []
+      list.push(card)
+      filteredByChapter.set(card.chapterId, list)
+    }
+    return chapters
+      .map((chapter) => {
+        const all = byChapter.get(chapter.chapterId) ?? []
+        return {
+          chapterId: chapter.chapterId,
+          title: chapterTitle(chapter.chapterId),
+          totalCards: all.length,
+          totalMisses: all.reduce((total, card) => total + card.misses, 0),
+          cards: [...(filteredByChapter.get(chapter.chapterId) ?? [])].sort((a, b) =>
+            b.lastSeenAt.localeCompare(a.lastSeenAt),
+          ),
+        }
+      })
+      .filter((group) => group.totalCards > 0)
+  }, [filteredCards, reviewCards, chapters])
 
+  // Ouvre automatiquement le premier bloc une seule fois : ensuite, c'est
+  // l'élève qui décide quels chapitres restent ouverts ou repliés.
+  const autoOpened = useRef(false)
   useEffect(() => {
-    if (tab !== 'history' || openChapter !== null) return
-    const first = historyGroups.find((group) => group.cards.length > 0)
-    if (first) setOpenChapter(first.chapterId)
-  }, [tab, openChapter, historyGroups])
+    if (tab !== 'history' || autoOpened.current) return
+    const first = historyGroups.find((group) => group.totalCards > 0)
+    if (!first) return
+    autoOpened.current = true
+    setOpenChapters([first.chapterId])
+  }, [tab, historyGroups])
 
   if (loading) {
     return (
@@ -524,12 +523,12 @@ export default function AnkiDashboard() {
             ) : (
               <div className="mt-6 space-y-3">
                 <p className="text-[12px] leading-relaxed text-mute">
-                  Un bloc par chapitre. Clique sur un chapitre pour voir ses questions : une
-                  question = un seul bloc (question, réponse, explication). « À réviser » = les
-                  questions déjà réussies, celles que le bloc Réviser te repose en QCM.
+                  Un bloc par chapitre. Clique sur le chevron pour ouvrir ou replier : une question
+                  = un bloc (question, réponse, explication). « À réviser » = les questions déjà
+                  réussies.
                 </p>
                 {historyGroups.map((group) => {
-                  const open = openChapter === group.chapterId
+                  const open = openChapters.includes(group.chapterId)
                   return (
                     <section
                       key={group.chapterId}
@@ -537,7 +536,13 @@ export default function AnkiDashboard() {
                     >
                       <button
                         type="button"
-                        onClick={() => setOpenChapter(open ? null : group.chapterId)}
+                        onClick={() =>
+                          setOpenChapters((current) =>
+                            current.includes(group.chapterId)
+                              ? current.filter((id) => id !== group.chapterId)
+                              : [...current, group.chapterId],
+                          )
+                        }
                         aria-expanded={open}
                         className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-cloud/40"
                       >
@@ -546,8 +551,8 @@ export default function AnkiDashboard() {
                             {group.title}
                           </span>
                           <span className="mt-0.5 block text-[11px] text-mute">
-                            {group.cards.length} question{group.cards.length > 1 ? 's' : ''} dans
-                            l’historique
+                            {group.totalCards} question{group.totalCards > 1 ? 's' : ''} ·{' '}
+                            {group.totalMisses} fois ratée{group.totalMisses > 1 ? 's' : ''}
                           </span>
                         </span>
                         {open ? (
