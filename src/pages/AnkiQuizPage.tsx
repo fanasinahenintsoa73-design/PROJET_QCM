@@ -16,12 +16,17 @@ import { buttonClasses } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { chapterTitle, findThemeForChapter } from '@/lib/themes'
 import { answerLetters, cn } from '@/lib/utils'
-import type { Question } from '@/types'
+import type { Question, QuestionOptions } from '@/types'
 
-export default function AnkiQuizPage() {
+export default function AnkiQuizPage({ mode = 'quiz' }: { mode?: 'quiz' | 'revision' }) {
   const { chapterId = '' } = useParams()
   const [searchParams] = useSearchParams()
-  usePageTitle(`${chapterTitle(chapterId)} — Anki — MEDQCM mada`)
+  const revision = mode === 'revision'
+  usePageTitle(
+    revision
+      ? `Révision — ${chapterTitle(chapterId)} — Anki — MEDQCM mada`
+      : `${chapterTitle(chapterId)} — Anki — MEDQCM mada`,
+  )
 
   const theme = findThemeForChapter(chapterId)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -30,6 +35,8 @@ export default function AnkiQuizPage() {
   const [result, setResult] = useState<'correct' | 'wrong' | 'revealed' | null>(null)
   const [level, setLevel] = useState(1)
   const [completed, setCompleted] = useState(false)
+  const [sessionDone, setSessionDone] = useState(false)
+  const [mastered, setMastered] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -37,11 +44,11 @@ export default function AnkiQuizPage() {
   const loadQuestions = useCallback(async () => {
     setLoading(true)
     try {
-      if (searchParams.get('replay') === '1') {
+      if (!revision && searchParams.get('replay') === '1') {
         await api.restartAnkiChapter(chapterId)
       }
       const [nextQuestions, states] = await Promise.all([
-        api.getAnkiQuestions(chapterId),
+        revision ? api.getAnkiReviewQuestions(chapterId) : api.getAnkiQuestions(chapterId),
         api.getAnkiChapters(),
       ])
       const state = states.find((candidate) => candidate.chapterId === chapterId)
@@ -50,14 +57,15 @@ export default function AnkiQuizPage() {
       setIndex(0)
       setSelected(null)
       setResult(null)
-      setCompleted(nextQuestions.length === 0)
+      setSessionDone(false)
+      setCompleted(!revision && nextQuestions.length === 0)
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de charger les questions Anki.')
     } finally {
       setLoading(false)
     }
-  }, [chapterId, searchParams])
+  }, [chapterId, searchParams, revision])
 
   useEffect(() => {
     void loadQuestions()
@@ -68,6 +76,11 @@ export default function AnkiQuizPage() {
     ? answerLetters.filter((letter) => Boolean(question.options[letter]))
     : []
   const correctAnswers = question?.correctAnswers ?? []
+  const answerText =
+    correctAnswers
+      .map((letter) => question?.options[letter as keyof QuestionOptions])
+      .filter((text): text is string => Boolean(text))
+      .join(' · ') || correctAnswers.join(', ')
 
   const nextQuestion = useCallback(async () => {
     if (index + 1 < questions.length) {
@@ -76,8 +89,12 @@ export default function AnkiQuizPage() {
       setResult(null)
       return
     }
+    if (revision) {
+      setSessionDone(true)
+      return
+    }
     await loadQuestions()
-  }, [index, questions.length, loadQuestions])
+  }, [index, questions.length, loadQuestions, revision])
 
   // Une bonne réponse affiche le vert et attend le bouton Suivant.
   async function submitAnswer(letter: string) {
@@ -99,6 +116,7 @@ export default function AnkiQuizPage() {
       })
       setLevel(answer.level)
       setCompleted(answer.completed)
+      if (revision) setMastered((value) => value + 1)
       setResult('correct')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'La réponse n’a pas pu être enregistrée.')
@@ -130,7 +148,7 @@ export default function AnkiQuizPage() {
       })
       setLevel(answer.level)
       setCompleted(answer.completed)
-      if (answer.completed) {
+      if (!revision && answer.completed) {
         setSelected(null)
         setResult(null)
         return
@@ -157,6 +175,18 @@ export default function AnkiQuizPage() {
       })
       setLevel(answer.level)
       setCompleted(answer.completed)
+      if (revision) {
+        if (index + 1 >= questions.length) {
+          setSessionDone(true)
+          setSelected(null)
+          setResult(null)
+        } else {
+          setIndex((value) => value + 1)
+          setSelected(null)
+          setResult(null)
+        }
+        return
+      }
       if (answer.completed || index + 1 >= questions.length) {
         if (answer.completed) {
           setSelected(null)
@@ -199,7 +229,75 @@ export default function AnkiQuizPage() {
       <div className="mx-auto flex min-h-[60vh] max-w-content items-center justify-center px-5">
         <div className="text-center">
           <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          <p className="mt-4 text-sm text-mute">Préparation des questions…</p>
+          <p className="mt-4 text-sm text-mute">
+            {revision ? 'Préparation de la révision…' : 'Préparation des questions…'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (revision && sessionDone) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center justify-center px-5 py-12">
+        <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-7 text-center sm:p-10">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-success/10 text-success">
+            <Trophy size={26} />
+          </span>
+          <h1 className="mt-5 font-display text-[clamp(1.8rem,4vw,2.5rem)] leading-[1.1] tracking-[-0.03em] text-ink">
+            Révision terminée
+          </h1>
+          <p className="mt-3 text-[14px] leading-relaxed text-mute">
+            {mastered > 0
+              ? `${mastered} question${mastered > 1 ? 's' : ''} maîtrisée${
+                  mastered > 1 ? 's' : ''
+                } sur cette session. Ton niveau est ${level}.`
+              : `Aucune question maîtrisée sur cette session. Ton niveau est ${level}.`}{' '}
+            Les questions restées à réviser te seront reproposées la prochaine fois.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2.5">
+            <Link to="/app" className={buttonClasses('primary')}>
+              Retour au tableau de bord <ArrowRight size={16} />
+            </Link>
+            <button
+              type="button"
+              onClick={() => void loadQuestions()}
+              disabled={saving}
+              className={buttonClasses('secondary')}
+            >
+              Réviser à nouveau
+            </button>
+            <Link to="/app?tab=history" className={buttonClasses('secondary')}>
+              Voir l’historique
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (revision && questions.length === 0) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-content items-center justify-center px-5 py-12">
+        <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-7 text-center sm:p-10">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
+            <Check size={26} />
+          </span>
+          <h1 className="mt-5 font-display text-[clamp(1.8rem,4vw,2.5rem)] leading-[1.1] tracking-[-0.03em] text-ink">
+            Rien à réviser pour l’instant
+          </h1>
+          <p className="mt-3 text-[14px] leading-relaxed text-mute">
+            Toutes les questions de ce chapitre sont maîtrisées. Continue le chapitre pour
+            découvrir de nouvelles questions, ou reviens plus tard.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2.5">
+            <Link to="/app" className={buttonClasses('primary')}>
+              Retour au tableau de bord <ArrowRight size={16} />
+            </Link>
+            <Link to={`/app/anki/${chapterId}`} className={buttonClasses('secondary')}>
+              Continuer le chapitre
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -251,7 +349,7 @@ export default function AnkiQuizPage() {
 
         <div className="mt-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-            {theme?.title ?? 'Anki'}
+            {revision ? 'Révision' : (theme?.title ?? 'Anki')}
           </p>
           <h1 className="mt-1 font-display text-[24px] tracking-[-0.02em] text-ink">
             {chapterTitle(chapterId)}
@@ -264,7 +362,7 @@ export default function AnkiQuizPage() {
               />
             </div>
             <span className="shrink-0 text-[11px] text-mute">
-              Question {index + 1} / {questions.length}
+              {revision ? 'Révision · question' : 'Question'} {index + 1} / {questions.length}
             </span>
           </div>
         </div>
@@ -352,9 +450,7 @@ export default function AnkiQuizPage() {
               </p>
               <p className="mt-2 text-[13px] text-ink">
                 Bonne réponse :{' '}
-                <strong className="font-semibold text-success">
-                  {correctAnswers.join(', ')}
-                </strong>
+                <strong className="font-semibold text-success">{answerText}</strong>
               </p>
               {question.explanation && (
                 <p className="mt-2 flex items-start gap-2 text-[12px] leading-relaxed text-mute">
@@ -414,6 +510,16 @@ export default function AnkiQuizPage() {
               <span className="text-[11px] text-mute">Passage automatique…</span>
             )}
           </div>
+
+          {revision ? (
+            <p className="mt-3 text-[11px] leading-relaxed text-mute">
+              {result === 'correct'
+                ? 'Bien joué : la question est acquise, elle quitte le bloc Réviser et ton niveau monte de 1.'
+                : result === 'wrong' || result === 'revealed'
+                  ? 'Suivant : elle reste à réviser et revient dans le QCM normal. Ignorer : elle sort du QCM normal mais reste à réviser.'
+                  : 'Bonne réponse : la question est acquise. Sinon, Suivant ou Ignorer la gardent à réviser.'}
+            </p>
+          ) : null}
         </article>
       </div>
     </div>

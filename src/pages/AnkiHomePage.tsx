@@ -202,16 +202,16 @@ export default function AnkiHomePage() {
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
                     Elle reste <strong className="font-medium text-ink">En cours</strong> et revient
                     en tête de la prochaine série de 5, avant les questions nouvelles. Chaque
-                    passage la fait rentrer un peu plus.
+                    passage la fait rentrer un peu plus — et tu la retrouves aussi dans le bloc{' '}
+                    <strong className="font-medium text-ink">Réviser</strong>.
                   </p>
                 </div>
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">Ignorer</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
                     Elle passe <strong className="font-medium text-ink">À réviser</strong> : elle
-                    sort de ce chapitre, mais reste dans l’onglet{' '}
-                    <strong className="font-medium text-ink">Historique</strong>, où tu la
-                    retrouves quand tu veux.
+                    sort de ce QCM, mais tu la retrouves dans le bloc{' '}
+                    <strong className="font-medium text-ink">Réviser</strong>, quand tu veux.
                   </p>
                 </div>
               </div>
@@ -229,14 +229,16 @@ export default function AnkiHomePage() {
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">En cours</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    Ratée. Elle revient en tête de la série suivante, avant les nouvelles.
+                    Ratée. Elle revient en tête de la série suivante, et tu peux la retravailler
+                    dans le bloc <strong className="font-medium text-ink">Réviser</strong>.
                   </p>
                 </div>
                 <div className="rounded-xl border border-line bg-surface px-3 py-2.5">
                   <p className="text-[11px] font-semibold text-ink">À réviser</p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-mute">
-                    Acquise ou ignorée : elle a quitté le QCM et t’attend dans l’onglet{' '}
-                    <strong className="font-medium text-ink">Historique</strong>.
+                    Pas encore maîtrisée : ratée ou ignorée. Le bloc{' '}
+                    <strong className="font-medium text-ink">Réviser</strong> de ton tableau Anki
+                    te la sert en QCM.
                   </p>
                 </div>
               </div>
@@ -245,8 +247,8 @@ export default function AnkiHomePage() {
                 Exemple : tu rates la Q3.{' '}
                 <strong className="font-medium text-ink">Suivant</strong> → elle revient en tête de
                 la série suivante.{' '}
-                <strong className="font-medium text-ink">Ignorer</strong> → elle sort du chapitre,
-                mais reste dans ton historique.
+                <strong className="font-medium text-ink">Ignorer</strong> → elle sort du QCM, mais
+                reste à réviser dans le bloc Réviser.
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-mute">
                 Chaque bonne réponse fait monter ton{' '}
@@ -259,6 +261,10 @@ export default function AnkiHomePage() {
                 <p>
                   <strong className="font-medium">Résultat :</strong> aucune question ne se perd, et
                   une question acquise ne revient plus dans le QCM.
+                </p>
+                <p className="mt-1 text-mute">
+                  Les questions à réviser te sont servies <strong className="font-medium">en QCM</strong>{' '}
+                  : tu y réponds, ce n’est pas une liste à lire.
                 </p>
                 <p className="mt-1 text-mute">
                   Astuce : si tu bloques, affiche la réponse plutôt que d’ignorer — elle reviendra,

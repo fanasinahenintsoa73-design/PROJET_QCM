@@ -225,6 +225,8 @@ export interface AnkiReviewCard {
   ignored: number
   /** L'état du moteur : 'pending' | 'review' | 'mastered' | 'ignored'. */
   state: 'pending' | 'review' | 'mastered' | 'ignored' | null
+  /** Les propositions de la question, pour afficher le texte de la bonne réponse. */
+  options: Partial<QuestionOptions>
 }
 
 export interface Database {

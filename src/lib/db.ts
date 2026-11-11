@@ -2013,12 +2013,14 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
         misses: entry.status === 'wrong' || entry.status === 'revealed' ? 1 : 0,
         ignored: entry.status === 'skipped' ? 1 : 0,
         state: progress?.state ?? null,
+        options: getDB().questions.find((candidate) => candidate.id === entry.questionId)?.options ?? {},
       })
       continue
     }
     existing.statement = entry.statement
     existing.correctAnswers = entry.correctAnswers
     existing.explanation = entry.explanation
+    existing.options = getDB().questions.find((candidate) => candidate.id === entry.questionId)?.options ?? {}
     existing.status = entry.status
     existing.lastGivenAnswers = entry.givenAnswers
     existing.attempts = progress?.attempts ?? existing.attempts + 1
@@ -2028,4 +2030,21 @@ export function getAnkiReviewCards(): AnkiReviewCard[] {
   }
 
   return [...cards.values()].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+}
+
+/** Les questions à réviser d'un chapitre : les « en cours » d'abord, puis les ignorées. */
+export function getAnkiReviewQuestions(chapterId: string): Question[] {
+  const ticket = requireAnkiTicket()
+  const state = ankiStateFor(ticket.code)
+  if (!state.chapters.includes(chapterId)) {
+    throw new Error('Chapitre non choisi pour ce ticket.')
+  }
+  const progress = state.progress[chapterId]?.questions ?? {}
+  const candidates = chapterQuestionBank(chapterId).filter((question) => {
+    const entry = progress[question.id]
+    return entry?.state === 'review' || entry?.state === 'ignored'
+  })
+  const inProgress = candidates.filter((question) => progress[question.id]?.state === 'review')
+  const ignored = candidates.filter((question) => progress[question.id]?.state === 'ignored')
+  return [...shuffleQuestions(inProgress), ...shuffleQuestions(ignored)].slice(0, 5)
 }

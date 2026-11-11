@@ -1432,6 +1432,7 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     misses: number | null
     ignored: number | null
     state: 'pending' | 'review' | 'mastered' | 'ignored' | null
+    options: Question['options'] | null
   }>).map((row) => ({
     chapterId: row.chapter_id,
     questionId: row.question_id,
@@ -1446,5 +1447,34 @@ export async function getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     misses: row.misses ?? 0,
     ignored: row.ignored ?? 0,
     state: row.state ?? null,
+    options: row.options ?? {},
+  }))
+}
+
+/** Les questions à réviser d'un chapitre : les « en cours » d'abord, puis les ignorées. */
+export async function getAnkiReviewQuestions(chapterId: string): Promise<Question[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_next_review_questions', {
+    p_chapter_id: chapterId,
+  })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    id: string
+    subject_id: string
+    number: number
+    matiere: string
+    statement: string
+    options: Question['options']
+    correct_answers: string[]
+    explanation: string | null
+  }>).map((row) => ({
+    id: row.id,
+    subjectId: row.subject_id,
+    number: row.number,
+    matiere: row.matiere,
+    statement: row.statement,
+    options: row.options,
+    correctAnswers: row.correct_answers ?? [],
+    explanation: row.explanation ?? '',
   }))
 }

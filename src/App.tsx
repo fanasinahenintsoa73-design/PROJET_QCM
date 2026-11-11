@@ -97,6 +97,7 @@ function StudentRoutes() {
           </Route>
           <Route element={<RequireAnkiStudent />}>
             <Route path="/app/anki/choisir" element={<AnkiHomePage />} />
+            <Route path="/app/anki/:chapterId/reviser" element={<AnkiQuizPage mode="revision" />} />
             <Route path="/app/anki/:chapterId" element={<AnkiQuizPage />} />
           </Route>
         </Route>

@@ -503,6 +503,11 @@ export const api = {
     return Promise.resolve(demo.getAnkiQuestions(chapterId))
   },
 
+  async getAnkiReviewQuestions(chapterId: string): Promise<Question[]> {
+    if (isSupabaseConfigured) return remote.getAnkiReviewQuestions(chapterId)
+    return Promise.resolve(demo.getAnkiReviewQuestions(chapterId))
+  },
+
   async recordAnkiAnswer(input: {
     chapterId: string
     questionId: string
