@@ -114,7 +114,7 @@ export default function AnkiHomePage() {
             </h1>
             <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-mute">
               Choisis tes chapitres un par un, réponds aux questions, monte de niveau à chaque
-              bonne réponse et revois tes erreurs jusqu’à les maîtriser.
+              bonne réponse et révise tes questions réussies pour les garder.
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-[12px] text-mute">
