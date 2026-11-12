@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Archive,
@@ -26,6 +27,9 @@ import { cn, formatDateLong, formatDateTime } from '@/lib/utils'
 import type { TicketItem, TicketType } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
+
+// Largeur du menu d'actions d'un ticket (13rem).
+const MENU_WIDTH = 208
 
 type Tone = 'success' | 'info' | 'neutral' | 'error'
 type FilterKey = 'available' | 'inProgress' | 'finished' | 'suspended'
@@ -108,7 +112,12 @@ export default function AdminTicketsPage() {
   const [deleting, setDeleting] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [unarchiving, setUnarchiving] = useState(false)
-  const [menuCode, setMenuCode] = useState<string | null>(null)
+  // Menu des actions d'un ticket : rendu dans un portail, hors du tableau.
+  // Dans le tableau il était rogné (le conteneur du tableau défile
+  // horizontalement et coupe tout ce qui déborde verticalement).
+  const [menu, setMenu] = useState<{ code: string; anchor: HTMLButtonElement } | null>(null)
+  const [menuStyle, setMenuStyle] = useState<{ top: number; left: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const [detail, setDetail] = useState<TicketItem | null>(null)
   const [deleteTargets, setDeleteTargets] = useState<TicketItem[]>([])
 
@@ -123,9 +132,9 @@ export default function AdminTicketsPage() {
 
   const seriesCount = tickets.filter((item) => item.type === 'series' && !item.archivedAt).length
   const ankiCount = tickets.filter((item) => item.type === 'anki' && !item.archivedAt).length
-  const archivedCount = tickets.filter(
-    (item) => item.type === activeType && item.archivedAt !== null,
-  ).length
+  // Les archives sont comptées sur tous les types : un ticket archivé ne doit
+  // pas devenir introuvable quand le docteur change d'onglet.
+  const archivedCount = tickets.filter((item) => item.archivedAt !== null).length
 
   const activeTypeTickets = useMemo(
     () => tickets.filter((item) => item.type === activeType),
@@ -143,14 +152,19 @@ export default function AdminTicketsPage() {
   }, [activeTypeTickets])
 
   const visibleTickets = useMemo(() => {
-    const base = activeTypeTickets.filter((item) =>
-      archivedView ? item.archivedAt !== null : item.archivedAt === null,
-    )
+    // Vue Archives : tous les tickets archivés, tous types confondus (le
+    // compteur du bouton est global). Sinon : les tickets actifs du type
+    // affiché.
+    const base = archivedView
+      ? tickets.filter((item) => item.archivedAt !== null)
+      : activeTypeTickets.filter((item) => item.archivedAt === null)
     const filtered = activeFilter ? base.filter((item) => matchesTicketFilter(item, activeFilter)) : base
     return normalizedSearch
       ? filtered.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
       : filtered
-  }, [activeTypeTickets, activeFilter, archivedView, normalizedSearch])
+  }, [tickets, activeTypeTickets, activeFilter, archivedView, normalizedSearch])
+
+  const menuItem = menu ? tickets.find((item) => item.code === menu.code) ?? null : null
 
   const selectedTickets = useMemo(
     () => tickets.filter((item) => selected.has(item.code)),
@@ -167,6 +181,49 @@ export default function AdminTicketsPage() {
   useEffect(() => {
     if (activeFilter) setSearch('')
   }, [activeFilter])
+
+  // Position du menu d'actions : il reste collé à son bouton, quel que soit
+  // le défilement de la page ou du tableau.
+  useLayoutEffect(() => {
+    if (!menu) {
+      setMenuStyle(null)
+      return
+    }
+    const place = () => {
+      if (!menu.anchor.isConnected) {
+        setMenu(null)
+        return
+      }
+      const anchor = menu.anchor.getBoundingClientRect()
+      const panel = menuRef.current
+      const height = panel?.offsetHeight ?? 190
+      const width = panel?.offsetWidth ?? MENU_WIDTH
+      const flip =
+        window.innerHeight - anchor.bottom < height + 16 && anchor.top > height + 16
+      const top = flip ? anchor.top - height - 6 : anchor.bottom + 6
+      const left = Math.min(
+        Math.max(8, anchor.right - width),
+        Math.max(8, window.innerWidth - width - 8),
+      )
+      setMenuStyle({ top, left })
+    }
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [menu])
+
+  useEffect(() => {
+    if (!menu) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [menu])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -435,7 +492,7 @@ export default function AdminTicketsPage() {
             className="inline-flex items-center gap-1.5 pb-3 text-[12px] font-medium text-mute transition hover:text-accent"
           >
             <Archive size={14} />
-            {archivedView ? 'Tickets actifs' : `Archivés (${archivedCount})`}
+            {archivedView ? 'Tickets actifs' : `Archives (${archivedCount})`}
           </button>
         </div>
 
@@ -474,8 +531,8 @@ export default function AdminTicketsPage() {
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
             <Archive size={15} className="text-mute" />
             <p className="text-[12px] text-mute">
-              Les tickets archivés sont masqués des listes actives. Leur accès étudiant est fermé,
-              mais leurs données sont conservées.
+              Les tickets archivés sont masqués des listes actives, tous types confondus. Leur accès
+              étudiant est fermé, mais leurs données sont conservées.
             </p>
             <Button
               variant="ghost"
@@ -680,6 +737,11 @@ export default function AdminTicketsPage() {
                           >
                             <Copy size={13} />
                           </button>
+                          {archivedView ? (
+                            <span className="rounded-full bg-cloud px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                              {item.type === 'anki' ? 'Anki' : 'Séries'}
+                            </span>
+                          ) : null}
                         </span>
                       </td>
                       <td className="py-3 pr-4">
@@ -726,94 +788,24 @@ export default function AdminTicketsPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setMenuCode(menuCode === item.code ? null : item.code)}
+                            onClick={(event) => {
+                              const anchor = event.currentTarget
+                              if (menu?.code === item.code) {
+                                setMenu(null)
+                                return
+                              }
+                              const rect = anchor.getBoundingClientRect()
+                              setMenuStyle({
+                                top: rect.bottom + 6,
+                                left: Math.max(8, rect.right - MENU_WIDTH),
+                              })
+                              setMenu({ code: item.code, anchor })
+                            }}
                             aria-label={`Actions pour ${item.code}`}
-                            aria-expanded={menuCode === item.code}
+                            aria-expanded={menu?.code === item.code}
                           >
                             <MoreHorizontal size={16} />
                           </Button>
-                          {menuCode === item.code ? (
-                            <>
-                              <button
-                                type="button"
-                                tabIndex={-1}
-                                aria-hidden="true"
-                                className="fixed inset-0 z-10 cursor-default"
-                                onClick={() => setMenuCode(null)}
-                              />
-                              <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-lg">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMenuCode(null)
-                                    setDetail(item)
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
-                                >
-                                  <Eye size={14} /> Vérifier l’état
-                                </button>
-                                {!item.archivedAt ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setMenuCode(null)
-                                      void handleStatus(
-                                        item,
-                                        item.status === 'suspended' ? 'active' : 'suspended',
-                                      )
-                                    }}
-                                    disabled={busyCode === item.code}
-                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
-                                  >
-                                    {item.status === 'suspended' ? (
-                                      <>
-                                        <Play size={14} /> Réactiver
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Ban size={14} /> Suspendre
-                                      </>
-                                    )}
-                                  </button>
-                                ) : null}
-                                {item.archivedAt ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setMenuCode(null)
-                                      void handleUnarchive([item.code])
-                                    }}
-                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
-                                  >
-                                    <ArchiveRestore size={14} /> Désarchiver
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setMenuCode(null)
-                                      void handleArchive([item.code])
-                                    }}
-                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
-                                  >
-                                    <Archive size={14} /> Archiver
-                                  </button>
-                                )}
-                                {isNeverUsed(item) ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setMenuCode(null)
-                                      requestDelete([item.code])
-                                    }}
-                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-sale transition hover:bg-danger-soft"
-                                  >
-                                    <Trash2 size={14} /> Supprimer
-                                  </button>
-                                ) : null}
-                              </div>
-                            </>
-                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -973,6 +965,96 @@ export default function AdminTicketsPage() {
           </div>
         </div>
       ) : null}
+
+      {menu && menuItem && menuStyle
+        ? createPortal(
+            <>
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-hidden="true"
+                className="fixed inset-0 z-10 cursor-default"
+                onClick={() => setMenu(null)}
+              />
+              <div
+                ref={menuRef}
+                style={{ top: menuStyle.top, left: menuStyle.left, width: MENU_WIDTH }}
+                className="fixed z-20 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-lg"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenu(null)
+                    setDetail(menuItem)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
+                >
+                  <Eye size={14} /> Vérifier l’état
+                </button>
+                {!menuItem.archivedAt ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenu(null)
+                      void handleStatus(
+                        menuItem,
+                        menuItem.status === 'suspended' ? 'active' : 'suspended',
+                      )
+                    }}
+                    disabled={busyCode === menuItem.code}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
+                  >
+                    {menuItem.status === 'suspended' ? (
+                      <>
+                        <Play size={14} /> Réactiver
+                      </>
+                    ) : (
+                      <>
+                        <Ban size={14} /> Suspendre
+                      </>
+                    )}
+                  </button>
+                ) : null}
+                {menuItem.archivedAt ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenu(null)
+                      void handleUnarchive([menuItem.code])
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
+                  >
+                    <ArchiveRestore size={14} /> Désarchiver
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenu(null)
+                      void handleArchive([menuItem.code])
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
+                  >
+                    <Archive size={14} /> Archiver
+                  </button>
+                )}
+                {isNeverUsed(menuItem) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenu(null)
+                      requestDelete([menuItem.code])
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-sale transition hover:bg-danger-soft"
+                  >
+                    <Trash2 size={14} /> Supprimer
+                  </button>
+                ) : null}
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
