@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { api } from '@/lib/api'
 import { answerLetters, cn } from '@/lib/utils'
 import type { AnkiLevelAnswer, Question } from '@/types'
@@ -49,12 +49,27 @@ export function LevelRunner({
   const question = questions[index]
   const answeredCount = Object.keys(answers).length
   const allAnswered = questions.length > 0 && answeredCount === questions.length
+  const isLast = index === questions.length - 1
+  const currentAnswered = Boolean(question && answers[question.id]?.length)
 
+  // Comme dans les séries de 30 questions : le clic sélectionne la réponse et
+  // l'on reste sur la question. On passe à la suite avec « Question suivante »
+  // et on peut revenir en arrière pour modifier une réponse.
   const choose = (letter: string) => {
     if (!question) return
     setAnswers((current) => ({ ...current, [question.id]: [letter] }))
-    if (index < questions.length - 1) setIndex(index + 1)
   }
+
+  const goNext = () => {
+    if (saving) return
+    if (isLast) {
+      void submit()
+      return
+    }
+    setIndex((value) => value + 1)
+  }
+
+  const canGoNext = isLast ? allAnswered : currentAnswered
 
   const submit = async () => {
     if (!allAnswered || saving) return
@@ -156,13 +171,15 @@ export function LevelRunner({
             {question.statement}
           </p>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-2" role="group" aria-label="Réponses possibles">
             {letters.map((letter) => {
               const selected = answers[question.id]?.includes(letter)
               return (
                 <button
                   key={letter}
                   type="button"
+                  role="checkbox"
+                  aria-checked={selected}
                   onClick={() => choose(letter)}
                   className={cn(
                     'flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left text-[13px] leading-relaxed transition',
@@ -180,23 +197,50 @@ export function LevelRunner({
                     {letter}
                   </span>
                   <span className="min-w-0 flex-1">{question.options[letter]}</span>
+                  <span
+                    className={cn(
+                      'mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full border transition',
+                      selected ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+                    )}
+                    aria-hidden
+                  >
+                    {selected ? <Check size={11} strokeWidth={3} /> : null}
+                  </span>
                 </button>
               )
             })}
           </div>
 
+          <div className="mt-6 flex items-center justify-between gap-3 border-t border-line pt-4">
+            {index > 0 ? (
+              <button
+                type="button"
+                onClick={() => setIndex((value) => Math.max(0, value - 1))}
+                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-mute transition hover:text-ink"
+              >
+                <ArrowLeft size={14} /> Précédente
+              </button>
+            ) : (
+              <span />
+            )}
+            <span className="text-[11px] text-mute">
+              {answeredCount} / {questions.length} répondues
+            </span>
+          </div>
+
           <button
             type="button"
-            onClick={() => void submit()}
-            disabled={!allAnswered || saving}
+            onClick={() => void goNext()}
+            disabled={!canGoNext || saving}
             className={cn(
-              'mt-5 w-full rounded-xl px-5 py-3.5 text-[13px] font-semibold transition',
-              allAnswered && !saving
+              'mt-3 w-full rounded-xl px-5 py-3.5 text-[13px] font-semibold transition',
+              canGoNext && !saving
                 ? 'bg-accent text-white hover:bg-accent-deep'
                 : 'cursor-not-allowed bg-cloud text-mute',
             )}
           >
-            {saving ? 'Envoi…' : 'Soumettre le niveau'}
+            {isLast ? (saving ? 'Envoi…' : 'Soumettre le niveau') : 'Question suivante'}
+            {!isLast ? <ArrowRight size={15} className="ml-2 inline-block align-[-2px]" /> : null}
           </button>
 
           <p className="mt-3 text-[11px] leading-relaxed text-mute">
