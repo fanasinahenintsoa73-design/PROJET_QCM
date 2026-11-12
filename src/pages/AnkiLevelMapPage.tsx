@@ -34,9 +34,6 @@ export default function AnkiLevelMapPage() {
     void load()
   }, [load])
 
-  const passed = levels.filter((level) => level.status === 'passed').length
-  const stars = levels.reduce((total, level) => total + level.bestStars, 0)
-
   return (
     <div className="bg-canvas">
       <div className="mx-auto max-w-3xl px-5 py-8 sm:px-8 lg:py-12">
@@ -47,16 +44,13 @@ export default function AnkiLevelMapPage() {
           <ArrowLeft size={14} /> Mon jeu
         </Link>
 
-        <div className="mt-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-            {theme?.title ?? 'MEDGAME'}
-          </p>
-          <h1 className="mt-1 font-display text-[24px] tracking-[-0.02em] text-ink">
+        <div className="mt-5 flex items-start justify-between gap-4">
+          <h1 className="font-display text-[24px] tracking-[-0.02em] text-ink">
             {chapterTitle(chapterId)}
           </h1>
-          <p className="mt-2 text-[12px] text-mute">
-            {passed} / {levels.length} niveaux réussis · {stars} étoile{stars > 1 ? 's' : ''}
-          </p>
+          <span className="shrink-0 rounded-full bg-accent-soft px-3 py-1 text-[11px] font-semibold text-accent">
+            {theme?.title.split('—')[0].trim() ?? 'UE'}
+          </span>
         </div>
 
         {error && (
@@ -75,15 +69,17 @@ export default function AnkiLevelMapPage() {
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-line bg-surface p-5 sm:p-7">
-            <LevelGrid
-              levels={levels}
-              onSelect={(level) => {
-                navigate(`/app/medgame/${chapterId}/niveau/${level}`)
-              }}
-            />
+            <div className="rounded-xl bg-canvas p-3 sm:p-4">
+              <LevelGrid
+                levels={levels}
+                onSelect={(level) => {
+                  navigate(`/app/medgame/${chapterId}/niveau/${level}`)
+                }}
+              />
+            </div>
             <p className="mt-5 text-[12px] leading-relaxed text-mute">
-              Un niveau réussi se rejoue quand tu veux : c’est ta révision. Clique sur un niveau
-              ouvert pour le jouer.
+              5 bonnes réponses ouvrent le cadre suivant. Un cadre réussi se rejoue quand tu
+              veux : c’est ta révision.
             </p>
           </div>
         )}

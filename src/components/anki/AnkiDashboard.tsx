@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { chapterTitle, findThemeForChapter } from '@/lib/themes'
 import { buttonClasses } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
-import { LevelGrid } from '@/components/anki/LevelGrid'
+import { LevelGrid, Stars } from '@/components/anki/LevelGrid'
 import type { AnkiChapterState, AnkiLevel } from '@/types'
 
 function formatDay(value: string | null | undefined): string {
@@ -28,40 +28,36 @@ function ChapterCard({
 }) {
   const theme = findThemeForChapter(chapter.chapterId)
   const passed = levels.filter((level) => level.status === 'passed').length
-  const stars = levels.reduce((total, level) => total + level.bestStars, 0)
-  const maxStars = levels.length * 5
+  const totalLevels = levels.length || chapter.totalLevels
 
   return (
     <article className="rounded-2xl border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-            {theme?.title ?? 'UE'}
-          </p>
-          <h3 className="mt-1 truncate font-display text-[18px] tracking-[-0.02em] text-ink">
-            {chapterTitle(chapter.chapterId)}
-          </h3>
-        </div>
-        <span className="rounded-full bg-cloud px-2.5 py-1 text-[11px] font-semibold text-mute">
-          {passed} / {levels.length || chapter.totalLevels} niveaux
-        </span>
-      </div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+        {theme?.title ?? 'UE'}
+      </p>
+      <h3 className="mt-1 truncate font-display text-[18px] tracking-[-0.02em] text-ink">
+        <Link to={`/app/medgame/${chapter.chapterId}`} className="hover:underline">
+          {chapterTitle(chapter.chapterId)}
+        </Link>
+      </h3>
+      <p className="mt-1 text-[12px] text-mute">
+        {totalLevels} niveaux · {chapter.totalQuestions} questions
+      </p>
 
       <div className="mt-4 rounded-xl border border-line bg-canvas p-3">
         <LevelGrid levels={levels} variant="mini" onSelect={onOpenLevel} />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+        <Stars count={Math.min(passed, 5)} />
         <span className="text-[12px] font-medium text-mute">
-          {stars} / {maxStars} étoiles
+          {passed} / {totalLevels} niveaux réussis
         </span>
-        <Link
-          to={`/app/medgame/${chapter.chapterId}`}
-          className="text-[12px] font-semibold text-accent hover:underline"
-        >
-          Carte des niveaux
-        </Link>
       </div>
+
+      <p className="mt-3 text-[12px] leading-relaxed text-mute">
+        Clique le cadre pour le jouer. Vert = réussi, cadenas = verrouillé.
+      </p>
     </article>
   )
 }

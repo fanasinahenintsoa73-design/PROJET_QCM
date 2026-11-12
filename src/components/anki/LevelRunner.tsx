@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 import { answerLetters, cn } from '@/lib/utils'
-import { chapterTitle, findThemeForChapter } from '@/lib/themes'
 import type { AnkiLevelAnswer, Question } from '@/types'
 
 /**
@@ -21,7 +20,6 @@ export function LevelRunner({
   onExit: () => void
 }) {
   const navigate = useNavigate()
-  const theme = findThemeForChapter(chapterId)
   const [questions, setQuestions] = useState<Question[]>([])
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
@@ -79,7 +77,10 @@ export function LevelRunner({
   }
 
   const leave = () => {
-    if (answeredCount > 0 && !window.confirm('Tu quittes le niveau ? Tes réponses ne seront pas enregistrées.')) {
+    if (
+      answeredCount > 0 &&
+      !window.confirm('Tu quittes le niveau ? Tes réponses ne seront pas enregistrées.')
+    ) {
       return
     }
     onExit()
@@ -114,50 +115,13 @@ export function LevelRunner({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={leave}
-          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-mute hover:text-accent"
-        >
-          <ArrowLeft size={14} /> Carte des niveaux
-        </button>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[11px] font-semibold text-accent">
-          Niveau {level}
-        </span>
-      </div>
-
-      <div className="mt-5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-          {theme?.title ?? 'MEDGAME'}
-        </p>
-        <h1 className="mt-1 font-display text-[24px] tracking-[-0.02em] text-ink">
-          {chapterTitle(chapterId)}
-        </h1>
-        <div className="mt-3 flex items-center gap-3">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cloud">
-            <div
-              className="h-full rounded-full bg-accent transition-all"
-              style={{ width: `${((index + 1) / questions.length) * 100}%` }}
-            />
-          </div>
-          <span className="shrink-0 text-[11px] text-mute">
-            Question {index + 1} sur {questions.length}
-          </span>
-        </div>
-        <div className="mt-2 flex gap-1.5">
-          {questions.map((item, position) => (
-            <span
-              key={item.id}
-              className={cn(
-                'h-1.5 flex-1 rounded-full transition',
-                answers[item.id] ? 'bg-accent' : 'bg-cloud',
-                position === index && !answers[item.id] && 'bg-accent/40',
-              )}
-            />
-          ))}
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={leave}
+        className="inline-flex items-center gap-1.5 text-[12px] font-medium text-mute hover:text-accent"
+      >
+        <ArrowLeft size={14} /> Carte des niveaux
+      </button>
 
       {error && (
         <div className="mt-4 rounded-xl border border-sale/25 bg-sale/5 px-4 py-3 text-[13px] text-sale">
@@ -165,56 +129,81 @@ export function LevelRunner({
         </div>
       )}
 
-      <article className="mt-5 rounded-2xl border border-line bg-surface p-5 sm:p-7">
-        <p className="text-[15px] leading-relaxed text-ink sm:text-[16px]">{question.statement}</p>
+      <article className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface">
+        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-7">
+          <h1 className="font-display text-[22px] tracking-[-0.02em] text-ink">
+            Niveau {level}
+          </h1>
+          <span className="rounded-full bg-accent-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent">
+            Question {index + 1} / {questions.length}
+          </span>
+        </header>
 
-        <div className="mt-5 space-y-2.5">
-          {letters.map((letter) => {
-            const selected = answers[question.id]?.includes(letter)
-            return (
-              <button
-                key={letter}
-                type="button"
-                onClick={() => choose(letter)}
+        <div className="px-5 py-5 sm:px-7 sm:py-6">
+          <div className="flex gap-1.5">
+            {questions.map((item) => (
+              <span
+                key={item.id}
                 className={cn(
-                  'flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left text-[13px] leading-relaxed transition',
-                  'border-line bg-canvas text-ink hover:border-accent/60',
-                  selected && 'border-accent bg-accent-soft',
+                  'h-1.5 flex-1 rounded-full transition',
+                  answers[item.id] ? 'bg-accent' : 'bg-cloud',
                 )}
-              >
-                <span
+              />
+            ))}
+          </div>
+
+          <p className="mt-5 text-[15px] font-semibold leading-snug text-ink sm:text-[16px]">
+            {question.statement}
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {letters.map((letter) => {
+              const selected = answers[question.id]?.includes(letter)
+              return (
+                <button
+                  key={letter}
+                  type="button"
+                  onClick={() => choose(letter)}
                   className={cn(
-                    'grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold',
-                    selected ? 'border-accent bg-accent text-white' : 'border-line bg-surface text-mute',
+                    'flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left text-[13px] leading-relaxed transition',
+                    selected
+                      ? 'border-accent bg-accent-soft text-ink'
+                      : 'border-line bg-surface text-ink hover:border-accent/50',
                   )}
                 >
-                  {selected ? <Check size={13} /> : letter}
-                </span>
-                <span>{question.options[letter]}</span>
-              </button>
-            )
-          })}
+                  <span
+                    className={cn(
+                      'w-4 shrink-0 pt-px text-[12px] font-semibold',
+                      selected ? 'text-accent' : 'text-mute',
+                    )}
+                  >
+                    {letter}
+                  </span>
+                  <span className="min-w-0 flex-1">{question.options[letter]}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={!allAnswered || saving}
+            className={cn(
+              'mt-5 w-full rounded-xl px-5 py-3.5 text-[13px] font-semibold transition',
+              allAnswered && !saving
+                ? 'bg-accent text-white hover:bg-accent-deep'
+                : 'cursor-not-allowed bg-cloud text-mute',
+            )}
+          >
+            {saving ? 'Envoi…' : 'Soumettre le niveau'}
+          </button>
+
+          <p className="mt-3 text-[11px] leading-relaxed text-mute">
+            Les 5 questions d'abord, sans correction. Tu soumets, le bilan arrive.
+          </p>
         </div>
       </article>
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[12px] text-mute">
-          {answeredCount} / {questions.length} questions répondues
-        </p>
-        <button
-          type="button"
-          onClick={() => void submit()}
-          disabled={!allAnswered || saving}
-          className={cn(
-            'rounded-xl px-5 py-3 text-[13px] font-semibold transition',
-            allAnswered && !saving
-              ? 'bg-accent text-white hover:bg-accent-deep'
-              : 'cursor-not-allowed bg-cloud text-mute',
-          )}
-        >
-          {saving ? 'Envoi…' : 'Soumettre le niveau'}
-        </button>
-      </div>
     </div>
   )
 }
