@@ -124,7 +124,7 @@ export function LevelGrid({
                     : ' ouvert, à jouer'
               }`}
               className={cn(
-                'relative isolate aspect-[3/4] w-full overflow-hidden rounded-[7px] border-2 bg-[#0c1210] text-left transition duration-200',
+                'relative isolate aspect-[4/3] w-full overflow-hidden rounded-[7px] border-2 bg-[#0c1210] text-left transition duration-200',
                 passed && 'border-white/80',
                 unlocked &&
                   'border-accent shadow-[0_0_0_3px_rgba(11,107,79,.26),0_6px_18px_rgba(0,0,0,.32)] hover:border-accent-deep',
