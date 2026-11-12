@@ -184,6 +184,44 @@ export interface AnkiChapterState {
   answeredQuestions: number
   newQuestions: number
   reviewQuestions: number
+  /** Nombre de niveaux du chapitre (5 questions par niveau). */
+  totalLevels: number
+  /** Nombre de niveaux réussis (5 bonnes réponses sur 5). */
+  levelsPassed: number
+  /** Total des étoiles obtenues sur le chapitre. */
+  stars: number
+}
+
+/** Un niveau de chapitre : 5 questions tirées au hasard dans le chapitre. */
+export interface AnkiLevel {
+  level: number
+  totalLevels: number
+  /** 'passed' = réussi (5/5), 'unlocked' = jouable, 'locked' = encore fermé. */
+  status: 'passed' | 'unlocked' | 'locked'
+  /** Meilleure tentative du niveau (0 à 5 étoiles). */
+  bestStars: number
+  attempts: number
+  passedAt: string | null
+}
+
+/** La réponse donnée à une question d'un niveau. */
+export interface AnkiLevelAnswer {
+  questionId: string
+  given: string[]
+}
+
+/** Bilan d'une tentative de niveau. */
+export interface AnkiLevelResult {
+  level: number
+  /** Nombre de bonnes réponses (1 étoile par bonne réponse). */
+  stars: number
+  correct: number
+  total: number
+  /** Vrai si les 5 questions sont justes : le niveau suivant se débloque. */
+  passed: boolean
+  nextUnlocked: boolean
+  bestStars: number
+  totalLevels: number
 }
 
 /** Statut d'une réponse envoyée au moteur Anki. */

@@ -3,6 +3,9 @@ import type {
   AnkiAnswerStatus,
   AnkiChapterState,
   AnkiHistoryEntry,
+  AnkiLevel,
+  AnkiLevelAnswer,
+  AnkiLevelResult,
   AnkiReviewCard,
   GeneratedTicket,
   Question,
@@ -532,5 +535,29 @@ export const api = {
   async getAnkiReviewCards(): Promise<AnkiReviewCard[]> {
     if (isSupabaseConfigured) return remote.getAnkiReviewCards()
     return Promise.resolve(demo.getAnkiReviewCards())
+  },
+
+  /* ---------------------- MEDGAME : les niveaux ---------------------- */
+
+  /** La trajectoire des niveaux d'un chapitre. */
+  async getAnkiLevels(chapterId: string): Promise<AnkiLevel[]> {
+    if (isSupabaseConfigured) return remote.getAnkiLevels(chapterId)
+    return Promise.resolve(demo.getAnkiLevels(chapterId))
+  },
+
+  /** Les 5 questions tirées au hasard pour un niveau. */
+  async getAnkiLevelQuestions(chapterId: string, level: number): Promise<Question[]> {
+    if (isSupabaseConfigured) return remote.getAnkiLevelQuestions(chapterId, level)
+    return Promise.resolve(demo.getAnkiLevelQuestions(chapterId, level))
+  },
+
+  /** Enregistre une tentative de niveau et renvoie son bilan. */
+  async recordAnkiLevel(input: {
+    chapterId: string
+    level: number
+    answers: AnkiLevelAnswer[]
+  }): Promise<AnkiLevelResult> {
+    if (isSupabaseConfigured) return remote.recordAnkiLevel(input)
+    return Promise.resolve(demo.recordAnkiLevel(input))
   },
 }

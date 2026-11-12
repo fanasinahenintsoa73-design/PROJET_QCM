@@ -4,6 +4,9 @@ import type {
   AnkiAnswerStatus,
   AnkiChapterState,
   AnkiHistoryEntry,
+  AnkiLevel,
+  AnkiLevelAnswer,
+  AnkiLevelResult,
   AnkiReviewCard,
   Attempt,
   Database,
@@ -1298,6 +1301,9 @@ export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
     answered_questions: number
     new_questions: number
     review_questions: number
+    total_levels: number
+    levels_passed: number
+    stars: number
   }>).map((row) => ({
     chapterId: row.chapter_id,
     level: row.level,
@@ -1307,6 +1313,9 @@ export async function getAnkiChapters(): Promise<AnkiChapterState[]> {
     answeredQuestions: row.answered_questions,
     newQuestions: row.new_questions ?? 0,
     reviewQuestions: row.review_questions ?? 0,
+    totalLevels: row.total_levels ?? 0,
+    levelsPassed: row.levels_passed ?? 0,
+    stars: row.stars ?? 0,
   }))
 }
 
@@ -1472,4 +1481,90 @@ export async function getAnkiReviewQuestions(chapterId: string): Promise<Questio
     correctAnswers: row.correct_answers ?? [],
     explanation: row.explanation ?? '',
   }))
+}
+
+/* ------------------------------------------------------------------ */
+/* MEDGAME : les niveaux                                                */
+/* ------------------------------------------------------------------ */
+
+/** La trajectoire des niveaux d'un chapitre (réussis / ouverts / fermés). */
+export async function getAnkiLevels(chapterId: string): Promise<AnkiLevel[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_levels', {
+    p_chapter_id: chapterId,
+  })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    level: number
+    total_levels: number
+    status: AnkiLevel['status']
+    best_stars: number
+    attempts: number
+    passed_at: string | null
+  }>).map((row) => ({
+    level: row.level,
+    totalLevels: row.total_levels,
+    status: row.status,
+    bestStars: row.best_stars ?? 0,
+    attempts: row.attempts ?? 0,
+    passedAt: row.passed_at,
+  }))
+}
+
+/** Les 5 questions tirées au hasard pour un niveau. */
+export async function getAnkiLevelQuestions(chapterId: string, level: number): Promise<Question[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_level_questions', {
+    p_chapter_id: chapterId,
+    p_level: level,
+  })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as Array<{
+    id: string
+    subject_id: string
+    number: number
+    matiere: string
+    statement: string
+    options: Question['options']
+    correct_answers: string[]
+    explanation: string | null
+  }>).map((row) => ({
+    id: row.id,
+    subjectId: row.subject_id,
+    number: row.number,
+    matiere: row.matiere,
+    statement: row.statement,
+    options: row.options,
+    correctAnswers: row.correct_answers ?? [],
+    explanation: row.explanation ?? '',
+  }))
+}
+
+/** Enregistre une tentative de niveau et renvoie son bilan. */
+export async function recordAnkiLevel(input: {
+  chapterId: string
+  level: number
+  answers: AnkiLevelAnswer[]
+}): Promise<AnkiLevelResult> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('anki_record_level', {
+    p_chapter_id: input.chapterId,
+    p_level: input.level,
+    p_answers: input.answers.map((answer) => ({
+      question_id: answer.questionId,
+      given: answer.given,
+    })),
+  })
+  if (error) throw asFrenchError(error)
+  const row = (data ?? {}) as Partial<AnkiLevelResult>
+  return {
+    level: row.level ?? input.level,
+    stars: row.stars ?? 0,
+    correct: row.correct ?? 0,
+    total: row.total ?? input.answers.length,
+    passed: row.passed ?? false,
+    nextUnlocked: row.nextUnlocked ?? false,
+    bestStars: row.bestStars ?? 0,
+    totalLevels: row.totalLevels ?? 0,
+  }
 }

@@ -4,6 +4,9 @@ import type {
   AnkiAnswerStatus,
   AnkiChapterState,
   AnkiHistoryEntry,
+  AnkiLevel,
+  AnkiLevelAnswer,
+  AnkiLevelResult,
   AnkiReviewCard,
   Attempt,
   Database,
@@ -1725,7 +1728,8 @@ export function myTicketInfo(): TicketInfo | null {
 /* Mode Anki (mode démonstration, stockage local)                      */
 /* ------------------------------------------------------------------ */
 
-const ANKI_KEY = 'medqcm.anki.v2'
+const ANKI_KEY = 'medqcm.anki.v3'
+const ANKI_LEGACY_KEY = 'medqcm.anki.v2'
 
 interface DemoAnkiQuestionProgress {
   state: 'pending' | 'review'
@@ -1742,17 +1746,26 @@ interface DemoAnkiChapterProgress {
   questions: Record<string, DemoAnkiQuestionProgress>
 }
 
+/** Progression d'un niveau du jeu MEDGAME. */
+interface DemoAnkiLevelProgress {
+  bestStars: number
+  attempts: number
+  passedAt: string | null
+}
+
 interface DemoAnkiTicketState {
   chapters: string[]
   progress: Record<string, DemoAnkiChapterProgress>
   history: AnkiHistoryEntry[]
+  /** chapterId → numéro de niveau → progression */
+  levels: Record<string, Record<string, DemoAnkiLevelProgress>>
 }
 
 type DemoAnkiStore = Record<string, DemoAnkiTicketState>
 
 function loadAnkiStore(): DemoAnkiStore {
   try {
-    const raw = localStorage.getItem(ANKI_KEY)
+    const raw = localStorage.getItem(ANKI_KEY) ?? localStorage.getItem(ANKI_LEGACY_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return {}
@@ -1766,6 +1779,8 @@ function loadAnkiStore(): DemoAnkiStore {
           else if (legacy.state === 'review' || legacy.state === 'ignored') legacy.state = 'pending'
         }
       }
+      // Les niveaux du jeu MEDGAME démarrent à zéro : tout le monde repart au niveau 1.
+      if (!state.levels) state.levels = {}
     }
     return store
   } catch {
@@ -1801,7 +1816,7 @@ function requireAnkiTicket(): DemoTicket {
 
 function ankiStateFor(code: string): DemoAnkiTicketState {
   const state = loadAnkiStore()[code]
-  return state ?? { chapters: [], progress: {}, history: [] }
+  return state ?? { chapters: [], progress: {}, history: [], levels: {} }
 }
 
 function normalizedStatement(statement: string): string {
@@ -1850,6 +1865,10 @@ export function getAnkiChapters(): AnkiChapterState[] {
     const states = Object.values(progress.questions)
     const reviewQuestions = states.filter((entry) => entry.state === 'review').length
     const answeredQuestions = states.length
+    const levelEntries = Object.values(state.levels?.[chapterId] ?? {})
+    const totalLevels = Math.max(1, Math.ceil(totalQuestions / 5))
+    const levelsPassed = levelEntries.filter((entry) => entry.passedAt).length
+    const stars = levelEntries.reduce((sum, entry) => sum + entry.bestStars, 0)
     return {
       chapterId,
       level: 1 + correctAnswers,
@@ -1859,6 +1878,9 @@ export function getAnkiChapters(): AnkiChapterState[] {
       answeredQuestions,
       newQuestions: Math.max(0, totalQuestions - reviewQuestions),
       reviewQuestions,
+      totalLevels,
+      levelsPassed,
+      stars,
     }
   })
 }
@@ -1885,6 +1907,7 @@ export function selectAnkiChapters(chapterIds: string[]): void {
       ]),
     ),
     history: [],
+    levels: {},
   }
   saveAnkiStore(store)
 }
@@ -1893,7 +1916,7 @@ export function selectAnkiChapters(chapterIds: string[]): void {
 export function addAnkiChapter(chapterId: string): void {
   const ticket = requireAnkiTicket()
   const store = loadAnkiStore()
-  const state = store[ticket.code] ?? { chapters: [], progress: {}, history: [] }
+  const state = store[ticket.code] ?? { chapters: [], progress: {}, history: [], levels: {} }
   if (state.chapters.includes(chapterId)) return
   if (state.chapters.length >= 5) throw new Error('5 chapitres maximum.')
   if (!findThemeForChapter(chapterId)) throw new Error('Chapitre inconnu.')
@@ -2060,4 +2083,132 @@ export function getAnkiReviewQuestions(chapterId: string): Question[] {
     return entry?.state === 'review'
   })
   return shuffleQuestions(candidates).slice(0, 5)
+}
+
+/* ------------------------------------------------------------------ */
+/* Jeu MEDGAME : les niveaux d'un chapitre                             */
+/* ------------------------------------------------------------------ */
+
+/** Les niveaux d'un chapitre : état, étoiles, tentatives. */
+export function getAnkiLevels(chapterId: string): AnkiLevel[] {
+  const ticket = requireAnkiTicket()
+  const state = ankiStateFor(ticket.code)
+  if (!state.chapters.includes(chapterId)) {
+    throw new Error('Chapitre non choisi pour ce ticket.')
+  }
+  const totalQuestions = chapterQuestionBank(chapterId).length
+  const totalLevels = Math.max(1, Math.ceil(totalQuestions / 5))
+  const levels = state.levels?.[chapterId] ?? {}
+  return Array.from({ length: totalLevels }, (_, index) => {
+    const level = index + 1
+    const entry = levels[String(level)]
+    const passed = Boolean(entry?.passedAt)
+    const previousPassed = level === 1 || Boolean(levels[String(level - 1)]?.passedAt)
+    const status: AnkiLevel['status'] = passed ? 'passed' : previousPassed ? 'unlocked' : 'locked'
+    return {
+      level,
+      totalLevels,
+      status,
+      bestStars: entry?.bestStars ?? 0,
+      attempts: entry?.attempts ?? 0,
+      passedAt: entry?.passedAt ?? null,
+    }
+  })
+}
+
+/** Les 5 questions d'une tentative : tirage aléatoire dans tout le chapitre. */
+export function getAnkiLevelQuestions(chapterId: string, level: number): Question[] {
+  const ticket = requireAnkiTicket()
+  const state = ankiStateFor(ticket.code)
+  if (!state.chapters.includes(chapterId)) {
+    throw new Error('Chapitre non choisi pour ce ticket.')
+  }
+  return shuffleQuestions(chapterQuestionBank(chapterId)).slice(0, 5)
+}
+
+/** Enregistre une tentative de niveau : étoiles, déblocage, historique. */
+export function recordAnkiLevel(input: {
+  chapterId: string
+  level: number
+  answers: AnkiLevelAnswer[]
+}): AnkiLevelResult {
+  const ticket = requireAnkiTicket()
+  const store = loadAnkiStore()
+  const state: DemoAnkiTicketState = store[ticket.code] ?? {
+    chapters: [],
+    progress: {},
+    history: [],
+    levels: {},
+  }
+  if (!state.chapters.includes(input.chapterId)) {
+    throw new Error('Chapitre non choisi pour ce ticket.')
+  }
+  const bank = chapterQuestionBank(input.chapterId)
+  const totalLevels = Math.max(1, Math.ceil(bank.length / 5))
+  if (input.level < 1 || input.level > totalLevels) {
+    throw new Error('Niveau hors limites.')
+  }
+  const levels = { ...(state.levels ?? {}) }
+  const chapterLevels = { ...(levels[input.chapterId] ?? {}) }
+  if (input.level > 1 && !chapterLevels[String(input.level - 1)]?.passedAt) {
+    throw new Error('Ce niveau est verrouillé.')
+  }
+  const now = new Date().toISOString()
+  const history: AnkiHistoryEntry[] = []
+  let stars = 0
+  for (const answer of input.answers) {
+    const question = bank.find((candidate) => candidate.id === answer.questionId)
+    if (!question) continue
+    const given = answer.given ?? []
+    const correct = question.correctAnswers.every((value) => given.includes(value))
+    if (correct) stars += 1
+    history.push({
+      id: uid('anki'),
+      chapterId: input.chapterId,
+      questionId: question.id,
+      statement: question.statement,
+      givenAnswers: given,
+      correctAnswers: question.correctAnswers,
+      explanation: question.explanation,
+      status: correct ? 'correct' : 'wrong',
+      createdAt: now,
+    })
+  }
+  const total = history.length
+  const passed = stars === 5
+  const existing = chapterLevels[String(input.level)]
+  const bestStars = Math.max(existing?.bestStars ?? 0, stars)
+  const passedAt = passed ? existing?.passedAt ?? now : existing?.passedAt ?? null
+  chapterLevels[String(input.level)] = {
+    bestStars,
+    attempts: (existing?.attempts ?? 0) + 1,
+    passedAt,
+  }
+  levels[input.chapterId] = chapterLevels
+  state.levels = levels
+  state.history = [...state.history, ...history]
+  const chapterProgress = state.progress[input.chapterId] ?? { completedAt: null, questions: {} }
+  for (const entry of history) {
+    const previousQuestion = chapterProgress.questions[entry.questionId]
+    chapterProgress.questions[entry.questionId] = {
+      state: entry.status === 'correct' ? 'review' : 'pending',
+      attempts: (previousQuestion?.attempts ?? 0) + 1,
+      correctAnswers:
+        (previousQuestion?.correctAnswers ?? 0) + (entry.status === 'correct' ? 1 : 0),
+      lastSeenAt: now,
+    }
+  }
+  state.progress[input.chapterId] = chapterProgress
+  store[ticket.code] = state
+  saveAnkiStore(store)
+  return {
+    level: input.level,
+    stars,
+    correct: stars,
+    total,
+    passed,
+    nextUnlocked: passed && input.level < totalLevels,
+    bestStars,
+    totalLevels,
+  }
 }
