@@ -63,8 +63,9 @@ function attemptThemeId(attempt: Attempt, subjectTitleById: Map<string, string>)
 }
 
 export default function DashboardPage() {
-  usePageTitle('Mon cycle — MEDQCM mada')
   const { user, db, ticketType } = useAuth()
+  // Le titre du navigateur : MEDGAME pour les tickets Anki, sinon le cycle 30 séries.
+  usePageTitle(ticketType === 'anki' ? 'Mon jeu — MEDGAME — MEDQCM mada' : 'Mon cycle — MEDQCM mada')
   const [filter, setFilter] = useState('all')
 
   const usage = user ? getSeriesUsage(user.id, db) : undefined
