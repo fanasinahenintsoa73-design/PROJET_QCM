@@ -110,7 +110,11 @@ export function LevelBilan({
                     )}
                     <span>
                       Ta réponse : {givenText}
-                      {!isCorrect && given.length < letters.length ? ' (partielle)' : ''}
+                      {!isCorrect &&
+                      given.length > 0 &&
+                      given.length < question.correctAnswers.length
+                        ? ' (partielle)'
+                        : ''}
                     </span>
                   </p>
                   <p className="mt-1 flex items-start gap-1.5 text-[12px] leading-relaxed text-success">
