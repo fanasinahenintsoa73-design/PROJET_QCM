@@ -42,7 +42,7 @@ function shadeFor(status: AnkiLevel['status']): string {
  */
 export function Stars({ count, tone = 'gold' }: { count: number; tone?: 'gold' | 'open' }) {
   return (
-    <span className="text-[9px] leading-none tracking-[0.12em]">
+    <span className="text-[6px] leading-none tracking-[0.06em] sm:text-[9px] sm:tracking-[0.12em]">
       {Array.from({ length: 5 }, (_, index) => {
         const earned = index < count
         return (
@@ -94,7 +94,7 @@ export function LevelGrid({
         <span className="shrink-0">{levels.length} cadres</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-[7px] sm:grid-cols-4">
+      <div className="grid grid-cols-4 gap-[5px] sm:gap-[7px]">
         {levels.map((level) => {
           const locked = level.status === 'locked'
           const passed = level.status === 'passed'
@@ -164,23 +164,23 @@ export function LevelGrid({
                 />
               ) : null}
 
-              <span className="relative z-10 flex h-full flex-col justify-between p-[7px] pb-[6px]">
+              <span className="relative z-10 flex h-full flex-col justify-between p-[5px] pb-[4px] sm:p-[7px] sm:pb-[6px]">
                 <span className="flex items-start justify-between gap-1">
                   <span className="flex min-w-0 flex-col gap-px leading-none">
-                    <span className="text-[6px] font-bold uppercase tracking-[0.2em] text-white/70">
+                    <span className="text-[5px] font-bold uppercase tracking-[0.16em] text-white/70 sm:text-[6px] sm:tracking-[0.2em]">
                       Niveau
                     </span>
-                    <span className="font-display text-[28px] leading-[0.82] tracking-[-0.03em] text-white [text-shadow:0_1px_10px_rgba(0,0,0,.55)]">
+                    <span className="font-display text-[18px] leading-[0.82] tracking-[-0.03em] text-white [text-shadow:0_1px_10px_rgba(0,0,0,.55)] sm:text-[28px]">
                       {number}
                     </span>
                   </span>
 
                   {passed ? (
-                    <span className="flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-full border border-white/60 bg-accent text-white shadow-[0_2px_6px_rgba(0,0,0,.35)]">
+                    <span className="flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full border border-white/60 bg-accent text-white shadow-[0_2px_6px_rgba(0,0,0,.35)] sm:h-[19px] sm:w-[19px]">
                       <Check size={10} strokeWidth={3} />
                     </span>
                   ) : unlocked ? (
-                    <span className="inline-flex h-4 shrink-0 items-center rounded-full border border-white/40 bg-accent px-1.5 text-[5.5px] font-extrabold tracking-[0.1em] text-white shadow-[0_2px_6px_rgba(0,0,0,.35)]">
+                    <span className="inline-flex h-3 shrink-0 items-center rounded-full border border-white/40 bg-accent px-1 text-[4.5px] font-extrabold tracking-[0.08em] text-white shadow-[0_2px_6px_rgba(0,0,0,.35)] sm:h-4 sm:px-1.5 sm:text-[5.5px] sm:tracking-[0.1em]">
                       À TOI
                     </span>
                   ) : (
@@ -193,12 +193,12 @@ export function LevelGrid({
                 {locked ? (
                   <span />
                 ) : (
-                  <span className="flex min-w-0 flex-col gap-[3px]">
-                    <span className="flex items-center gap-[5px] leading-none">
+                  <span className="flex min-w-0 flex-col gap-[2px] sm:gap-[3px]">
+                    <span className="flex items-center gap-[3px] leading-none sm:gap-[5px]">
                       <Stars count={level.bestStars} tone={unlocked ? 'open' : 'gold'} />
                       <span
                         className={cn(
-                          'text-[6.5px] tracking-[0.02em]',
+                          'text-[5.5px] tracking-[0.02em] sm:text-[6.5px]',
                           passed ? 'text-[#F0CE8C]' : 'text-white/60',
                         )}
                       >
