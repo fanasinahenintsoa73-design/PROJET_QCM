@@ -86,7 +86,6 @@ export function TicketAccessPage() {
               id="ticket-access-code"
               type="text"
               autoComplete="username"
-              placeholder="PACES0001"
               value={code}
               onChange={(event) => setCode(event.target.value.toUpperCase())}
               required
