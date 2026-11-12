@@ -66,7 +66,7 @@ Tableau de bord (/app)
 ### 3.1 Tableau de bord — la carte du chapitre
 
 - UE en petites capitales au-dessus du nom du chapitre (comme aujourd'hui).
-- **Grille de cadres** (version miniature) : un cadre par niveau (8 pour 40 questions), regroupés dans **un seul panneau**. Chaque cadre porte son **numéro**, une **icône d'état** (cadenas s'il est verrouillé, coche s'il est réussi) et ses **étoiles** (points dorés).
+- **Grille de cadres** (version miniature) : un cadre par niveau (8 pour 40 questions), regroupés dans **un seul panneau**. Chaque cadre porte le mot **« Niveau »** en petites capitales au-dessus de son **numéro**, une **icône d'état** (cadenas s'il est verrouillé, coche s'il est réussi) et ses **étoiles**.
 - **Les cadres sont cliquables** : un clic ouvre le QCM de ce niveau. Un cadre verrouillé renvoie le message « Termine le niveau N-1 pour ouvrir celui-ci. »
 - **Étoiles totales** du chapitre (somme des meilleures étoiles) et mention « X / Y niveaux réussis ».
 - **Aucun bouton « Jouer le niveau »** : le cadre est le bouton.
@@ -77,9 +77,10 @@ Tableau de bord (/app)
 Grille de **cadres** (4 colonnes sur desktop, 3 sur mobile) regroupés dans **un seul panneau** — un « plateau » de jeu, pas des cartes détachées.
 
 **Anatomie d'un cadre** :
-- son **numéro** de niveau ;
+- le mot **« Niveau »** en petites capitales (au-dessus du numéro) ;
+- son **numéro** (grand, en serif) ;
 - une **icône** en haut à droite : **cadenas** (verrouillé) ou **coche** (réussi) ;
-- les **étoiles** (points dorés) si le niveau a été tenté.
+- ses **étoiles** : 5 caractères `★`, les étoiles obtenues en **or**, les autres en gris clair.
 
 **États** :
 - réussi : fond vert accent, numéro blanc, coche blanche ;
@@ -103,9 +104,13 @@ Fonctionne comme les séries de 30 questions : on répond aux 5 d'affilée, **sa
 
 Verdict en haut, corrections en dessous.
 
-- **5/5** : « Félicitations ! » + 5 étoiles + « Niveau 4 débloqué » (ou « Chapitre terminé ! » pour le dernier niveau).
+- **5/5** : « Félicitations ! » + 5 étoiles (or) + « Niveau 4 débloqué » (ou « Chapitre terminé ! » pour le dernier niveau).
 - **Moins de 5/5** : « 3 étoiles · À refaire » + « Il te faut 5 bonnes réponses pour débloquer le niveau 4. »
-- Puis, pour les 5 questions, un bloc par question : **question / ta réponse / réponse correcte / explication** (format déjà utilisé par l'historique et par le bilan des séries).
+- Puis, pour les 5 questions, un bloc par question : **question / ta réponse / réponse correcte / explication** (format déjà utilisé par l'historique et par le bilan des séries), avec **code couleur** :
+  - **réponse juste** → ta réponse en **vert** (`success`), liseré gauche vert ;
+  - **réponse fausse** → ta réponse en **rouge** (`sale`), liseré gauche rouge ;
+  - dans les deux cas, **la bonne réponse est affichée en vert** (accent) ;
+  - l'explication reste en gris.
 - Actions : « Rejouer le niveau » (principal) et « Carte des niveaux » (secondaire, en texte).
 
 ---
@@ -118,7 +123,8 @@ Le mode Anki devient un **jeu**, mais dans le monde visuel du projet (contrainte
 
 **Ajouter** :
 - une couleur réservée aux étoiles (or `#B98A2E`) — le seul or de l'interface ;
-- les **cadres de niveau** : numéro + icône (cadenas / coche) + points d'étoiles ;
+- les **cadres de niveau** : mot « Niveau » + numéro + icône (cadenas / coche) ;
+- les **étoiles** en caractères `★` (or `#B98A2E` pour celles obtenues, gris clair `#DCE2DD` pour les autres) — **jamais** des points ;
 - un halo discret sur le cadre ouvert.
 
 **Règle d'interaction** : dans le mode Anki, **le cadre de niveau est le bouton**. Aucun bouton « Jouer le niveau », aucun bouton « Réviser » à côté : on entre dans le niveau en **cliquant son cadre**. Les cadres sont regroupés dans un panneau unique (un plateau), pas des îlots séparés.
