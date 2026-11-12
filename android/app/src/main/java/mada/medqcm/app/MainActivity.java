@@ -182,7 +182,7 @@ public class MainActivity extends Activity {
     }
 
     private boolean isQuizUrl(String url) {
-        return url != null && (url.contains("/app/entrainement") || url.contains("/app/anki/") || url.contains("quiz"));
+        return url != null && (url.contains("/app/entrainement") || url.contains("/app/medgame/") || url.contains("quiz"));
     }
 
     @Override

@@ -1,23 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  Clock3,
-  History,
-  Plus,
-  Search,
-  Trophy,
-  X,
-} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Clock3, Plus, Trophy } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import { chapterTitle, findThemeForChapter } from '@/lib/themes'
 import { buttonClasses } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
-import { cn } from '@/lib/utils'
-import type { AnkiChapterState, AnkiReviewCard } from '@/types'
+import { LevelGrid } from '@/components/anki/LevelGrid'
+import type { AnkiChapterState, AnkiLevel } from '@/types'
 
 function formatDay(value: string | null | undefined): string {
   if (!value) return '—'
@@ -26,571 +16,186 @@ function formatDay(value: string | null | undefined): string {
   return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-type CardBucket = 'all' | 'review'
+/** Une carte de chapitre : ses niveaux, ses étoiles, le chemin vers la carte des niveaux. */
+function ChapterCard({
+  chapter,
+  levels,
+  onOpenLevel,
+}: {
+  chapter: AnkiChapterState
+  levels: AnkiLevel[]
+  onOpenLevel: (level: number) => void
+}) {
+  const theme = findThemeForChapter(chapter.chapterId)
+  const passed = levels.filter((level) => level.status === 'passed').length
+  const stars = levels.reduce((total, level) => total + level.bestStars, 0)
+  const maxStars = levels.length * 5
 
-/**
- * « À réviser » = une question déjà réussie : le bloc Réviser te la repose en QCM.
- * Les autres restent dans le bloc de 5 du chapitre.
- */
-function isReviewCard(card: AnkiReviewCard): boolean {
-  return card.state === 'review'
-}
-
-const HISTORY_FILTERS: { value: CardBucket; label: string }[] = [
-  { value: 'all', label: 'Toutes' },
-  { value: 'review', label: 'À réviser' },
-]
-
-/** Le texte de la bonne réponse, à partir des propositions de la question. */
-function cardAnswer(card: AnkiReviewCard): string {
-  const options = card.options as Record<string, string | undefined>
-  const texts = card.correctAnswers
-    .map((letter) => options[letter])
-    .filter((text): text is string => Boolean(text))
-  return texts.length > 0 ? texts.join(' · ') : card.correctAnswers.join(', ')
-}
-
-/** Un bloc par question : question, réponse et explication. */
-function ReviewCardRow({ card }: { card: AnkiReviewCard }) {
   return (
-    <article className="rounded-xl border border-line bg-surface p-4">
-      <div className="space-y-2.5">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Question</p>
-          <p className="mt-1 text-[14px] font-medium leading-snug text-ink">{card.statement}</p>
+    <article className="rounded-2xl border border-line bg-surface p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+            {theme?.title ?? 'UE'}
+          </p>
+          <h3 className="mt-1 truncate font-display text-[18px] tracking-[-0.02em] text-ink">
+            {chapterTitle(chapter.chapterId)}
+          </h3>
         </div>
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">Réponse</p>
-          <p className="mt-1 text-[13px] font-medium leading-relaxed text-success">{cardAnswer(card)}</p>
-        </div>
-        {card.explanation ? (
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
-              Explication
-            </p>
-            <p className="mt-1 text-[12px] leading-relaxed text-mute">{card.explanation}</p>
-          </div>
-        ) : null}
+        <span className="rounded-full bg-cloud px-2.5 py-1 text-[11px] font-semibold text-mute">
+          {passed} / {levels.length || chapter.totalLevels} niveaux
+        </span>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-line bg-canvas p-3">
+        <LevelGrid levels={levels} variant="mini" onSelect={onOpenLevel} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+        <span className="text-[12px] font-medium text-mute">
+          {stars} / {maxStars} étoiles
+        </span>
+        <Link
+          to={`/app/medgame/${chapter.chapterId}`}
+          className="text-[12px] font-semibold text-accent hover:underline"
+        >
+          Carte des niveaux
+        </Link>
       </div>
     </article>
   )
 }
 
 export default function AnkiDashboard() {
-  usePageTitle('Tableau Anki — MEDQCM mada')
+  usePageTitle('Mon jeu — MEDGAME — MEDQCM mada')
   const { ticketExpiresAt } = useAuth()
   const navigate = useNavigate()
   const [chapters, setChapters] = useState<AnkiChapterState[]>([])
-  const [reviewCards, setReviewCards] = useState<AnkiReviewCard[]>([])
-  const [searchParams] = useSearchParams()
-  const [tab, setTab] = useState<'chapters' | 'history'>(
-    searchParams.get('tab') === 'history' ? 'history' : 'chapters',
-  )
-  const [filter, setFilter] = useState<CardBucket>('all')
-  const [openChapters, setOpenChapters] = useState<string[]>([])
-  const [search, setSearch] = useState('')
+  const [levels, setLevels] = useState<Record<string, AnkiLevel[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      const [nextChapters, nextCards] = await Promise.all([
-        api.getAnkiChapters(),
-        api.getAnkiReviewCards().catch(() => [] as AnkiReviewCard[]),
-      ])
-      setChapters(nextChapters)
-      setReviewCards(nextCards)
-      setError('')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de charger le mode Anki.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        const next = await api.getAnkiChapters()
+        if (!active) return
+        setChapters(next)
+        const entries = await Promise.all(
+          next.map(async (chapter) => {
+            const items = await api.getAnkiLevels(chapter.chapterId).catch(() => [])
+            return [chapter.chapterId, items] as const
+          }),
+        )
+        if (!active) return
+        setLevels(Object.fromEntries(entries))
+      } catch {
+        if (active) setError('Impossible de charger ton jeu.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
     void load()
+    return () => {
+      active = false
+    }
   }, [])
 
-  useEffect(() => {
-    if (!loading && chapters.length === 0) {
-      navigate('/app/anki/choisir', { replace: true })
-    }
-  }, [loading, chapters.length, navigate])
-
-  const totalQuestions = chapters.reduce((total, chapter) => total + chapter.totalQuestions, 0)
-  const answeredQuestions = chapters.reduce(
-    (total, chapter) => total + chapter.answeredQuestions,
-    0,
-  )
-  const completedChapters = chapters.filter((chapter) => chapter.completedAt).length
-  const maxLevel = chapters.reduce((level, chapter) => Math.max(level, chapter.level), 1)
-
-  const filteredCards = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    return reviewCards.filter((card) => {
-      if (filter === 'review' && !isReviewCard(card)) return false
-      if (!term) return true
-      return (
-        card.statement.toLowerCase().includes(term) ||
-        chapterTitle(card.chapterId).toLowerCase().includes(term)
-      )
-    })
-  }, [reviewCards, search, filter])
-
-  const historyCounts = useMemo(
-    () => ({
-      all: reviewCards.length,
-      review: reviewCards.filter((card) => isReviewCard(card)).length,
-    }),
-    [reviewCards],
-  )
-
-  /**
-   * L'historique, regroupé par chapitre : un bloc par chapitre qui a des
-   * questions vues. Le filtre et la recherche ne s'appliquent qu'à
-   * l'intérieur du bloc : l'en-tête (nombre de questions, nombre de fois
-   * ratées) reste stable.
-   */
-  const historyGroups = useMemo(() => {
-    const byChapter = new Map<string, AnkiReviewCard[]>()
-    for (const card of reviewCards) {
-      const list = byChapter.get(card.chapterId) ?? []
-      list.push(card)
-      byChapter.set(card.chapterId, list)
-    }
-    const filteredByChapter = new Map<string, AnkiReviewCard[]>()
-    for (const card of filteredCards) {
-      const list = filteredByChapter.get(card.chapterId) ?? []
-      list.push(card)
-      filteredByChapter.set(card.chapterId, list)
-    }
-    return chapters
-      .map((chapter) => {
-        const all = byChapter.get(chapter.chapterId) ?? []
-        return {
-          chapterId: chapter.chapterId,
-          title: chapterTitle(chapter.chapterId),
-          totalCards: all.length,
-          totalMisses: all.reduce((total, card) => total + card.misses, 0),
-          cards: [...(filteredByChapter.get(chapter.chapterId) ?? [])].sort((a, b) =>
-            b.lastSeenAt.localeCompare(a.lastSeenAt),
-          ),
-        }
-      })
-      .filter((group) => group.totalCards > 0)
-  }, [filteredCards, reviewCards, chapters])
-
-  // Ouvre automatiquement le premier bloc une seule fois : ensuite, c'est
-  // l'élève qui décide quels chapitres restent ouverts ou repliés.
-  const autoOpened = useRef(false)
-  useEffect(() => {
-    if (tab !== 'history' || autoOpened.current) return
-    const first = historyGroups.find((group) => group.totalCards > 0)
-    if (!first) return
-    autoOpened.current = true
-    setOpenChapters([first.chapterId])
-  }, [tab, historyGroups])
+  const stats = useMemo(() => {
+    const totalLevels = chapters.reduce((total, chapter) => total + chapter.totalLevels, 0)
+    const passedLevels = chapters.reduce((total, chapter) => total + chapter.levelsPassed, 0)
+    const stars = chapters.reduce((total, chapter) => total + chapter.stars, 0)
+    return { totalLevels, passedLevels, stars }
+  }, [chapters])
 
   if (loading) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-content items-center justify-center px-5">
-        <div className="text-center">
-          <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          <p className="mt-4 text-sm text-mute">Chargement du mode Anki…</p>
+      <div className="bg-canvas">
+        <div className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
+          <p className="text-[13px] text-mute">Chargement de ton jeu…</p>
         </div>
       </div>
     )
   }
 
-  if (chapters.length === 0) {
-    return null
-  }
-
   return (
     <div className="bg-canvas">
-      <div className="mx-auto max-w-content px-5 py-10 sm:px-8 lg:px-10 lg:py-14">
-        <div className="flex flex-wrap items-start justify-between gap-5">
+      <div className="mx-auto max-w-3xl px-5 py-8 sm:px-8 lg:py-12">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.035em] text-ink">
-              BONJOUR PACES ; prêt à réviser avec Anki ?
-            </h1>
-            <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
-              Tes chapitres, ton historique et ta progression, au même endroit.
-            </p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">MEDGAME</p>
+            <h1 className="mt-1 font-display text-[24px] tracking-[-0.02em] text-ink">Mon jeu</h1>
           </div>
-          <div className="rounded-xl border border-line bg-surface px-4 py-3 text-[12px] text-mute">
-            <span className="flex items-center gap-2">
-              <Clock3 size={14} className="text-accent" />
-              Ticket valable jusqu’au
-            </span>
-            <span className="mt-1 block font-medium text-ink">{formatDay(ticketExpiresAt)}</span>
-          </div>
+          <Link to="/app/medgame/choisir" className={buttonClasses('secondary', 'sm')}>
+            <Plus size={14} /> Ajouter un chapitre
+          </Link>
         </div>
 
-        {error && (
-          <div className="mt-6 rounded-xl border border-sale/25 bg-sale/5 px-4 py-3 text-[13px] text-sale">
+        {ticketExpiresAt ? (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-mute">
+            <Clock3 size={13} /> Ticket valable jusqu’au {formatDay(ticketExpiresAt)}
+          </p>
+        ) : null}
+
+        {error ? (
+          <div className="mt-4 rounded-xl border border-sale/25 bg-sale/5 px-4 py-3 text-[13px] text-sale">
             {error}
           </div>
-        )}
+        ) : null}
 
-        <section className="mt-8 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-line bg-surface px-4 py-3.5">
-            <p className="text-[11px] uppercase tracking-[0.1em] text-mute">Niveau max</p>
-            <p className="mt-1 flex items-center gap-2 font-display text-[26px] leading-none text-ink">
-              <Trophy size={18} className="text-accent" /> {maxLevel}
-            </p>
+        {chapters.length > 0 ? (
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-line bg-surface px-3 py-3 text-center">
+              <p className="font-display text-[22px] leading-none text-ink">
+                {stats.passedLevels}/{stats.totalLevels}
+              </p>
+              <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                Niveaux
+              </p>
+            </div>
+            <div className="rounded-xl border border-line bg-surface px-3 py-3 text-center">
+              <p className="font-display text-[22px] leading-none text-ink">{stats.stars}</p>
+              <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                Étoiles
+              </p>
+            </div>
+            <div className="rounded-xl border border-line bg-surface px-3 py-3 text-center">
+              <p className="font-display text-[22px] leading-none text-ink">{chapters.length}</p>
+              <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
+                Chapitres
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl border border-line bg-surface px-4 py-3.5">
-            <p className="text-[11px] uppercase tracking-[0.1em] text-mute">Chapitres terminés</p>
-            <p className="mt-1 font-display text-[26px] leading-none text-ink">
-              {completedChapters} / {chapters.length}
-            </p>
-          </div>
-          <div className="rounded-xl border border-line bg-surface px-4 py-3.5">
-            <p className="text-[11px] uppercase tracking-[0.1em] text-mute">Questions vues</p>
-            <p className="mt-1 font-display text-[26px] leading-none text-ink">
-              {answeredQuestions} / {totalQuestions}
-            </p>
-          </div>
-        </section>
+        ) : null}
 
-        <div className="mt-8 flex flex-wrap items-end justify-between gap-4 border-b border-line">
-          <div className="flex gap-1" role="tablist" aria-label="Vues du tableau Anki">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'chapters'}
-              onClick={() => setTab('chapters')}
-              className={cn(
-                'inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-[13px] font-medium transition',
-                tab === 'chapters'
-                  ? 'border-accent text-ink'
-                  : 'border-transparent text-mute hover:text-ink',
-              )}
-            >
-              Mes chapitres
-              <span className="rounded-full bg-cloud px-1.5 py-0.5 text-[10px] text-mute">
-                {chapters.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'history'}
-              onClick={() => setTab('history')}
-              className={cn(
-                'inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-[13px] font-medium transition',
-                tab === 'history'
-                  ? 'border-accent text-ink'
-                  : 'border-transparent text-mute hover:text-ink',
-              )}
-            >
-              <History size={14} />
-              Historique
-              <span className="rounded-full bg-cloud px-1.5 py-0.5 text-[10px] text-mute">
-                {reviewCards.length}
-              </span>
-            </button>
-          </div>
-          <div className="flex items-center gap-3 pb-2">
-            <span className="text-[11px] text-mute">{chapters.length} / 5 chapitres</span>
-            {chapters.length < 5 && (
-              <Link to="/app/anki/choisir" className={buttonClasses('secondary', 'sm')}>
-                <Plus size={14} /> Ajouter un chapitre
+        {chapters.length === 0 ? (
+          <div className="mt-8 rounded-2xl border border-line bg-surface p-6 text-center">
+            <Trophy size={20} className="mx-auto text-mute" />
+            <p className="mt-3 text-[14px] font-medium text-ink">Aucun chapitre pour l’instant.</p>
+            <p className="mx-auto mt-1.5 max-w-sm text-[12px] leading-relaxed text-mute">
+              Choisis un chapitre pour commencer : chaque chapitre se découpe en niveaux de 5
+              questions.
+            </p>
+            <div className="mt-4 flex justify-center">
+              <Link to="/app/medgame/choisir" className={buttonClasses('primary', 'sm')}>
+                Choisir un chapitre
               </Link>
-            )}
+            </div>
           </div>
-        </div>
-
-        {tab === 'chapters' ? (
-          <section className="mt-5">
-            <div className="grid gap-3 lg:grid-cols-2">
-              {chapters.map((chapter) => {
-                const theme = findThemeForChapter(chapter.chapterId)
-                const percent =
-                  chapter.totalQuestions > 0
-                    ? Math.round((chapter.answeredQuestions / chapter.totalQuestions) * 100)
-                    : 0
-                const done = Boolean(chapter.completedAt)
-                const available = chapter.totalQuestions > 0
-                const cardClass = cn(
-                  'group rounded-2xl border bg-surface p-5 transition',
-                  available
-                    ? 'border-line hover:border-accent/60 hover:shadow-sm'
-                    : 'border-line/70 bg-cloud/30',
-                  done && available && 'border-success/30',
-                )
-                const href = done
-                  ? `/app/anki/${chapter.chapterId}?replay=1`
-                  : `/app/anki/${chapter.chapterId}`
-                const chapterLabel = `${done ? 'Refaire le chapitre' : 'Continuer le chapitre'} ${chapterTitle(chapter.chapterId)}`
-                const header = (
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-                        {theme?.title ?? 'UE'}
-                      </p>
-                      <h3 className="mt-1 truncate font-display text-[18px] tracking-[-0.01em] text-ink">
-                        {chapterTitle(chapter.chapterId)}
-                      </h3>
-                    </div>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
-                        !available
-                          ? 'bg-cloud text-mute'
-                          : done
-                            ? 'bg-success/10 text-success'
-                            : 'bg-accent-soft text-accent',
-                      )}
-                    >
-                      {!available
-                        ? 'Indisponible'
-                        : done
-                          ? 'Terminé · Niveau conservé'
-                          : `Niveau ${chapter.level}`}
-                    </span>
-                  </div>
-                )
-
-                const counters = (
-                  <div className="mt-4 border-t border-line pt-4">
-                    <div className="grid grid-cols-2 gap-2">
-                      <Link
-                        to={`/app/anki/${chapter.chapterId}`}
-                        aria-label={`Commencer le chapitre : ${chapter.newQuestions} nouvelles questions`}
-                        className="rounded-xl border border-line bg-surface px-2 py-3 text-center transition hover:border-accent/60 hover:shadow-sm"
-                      >
-                        <p className="font-display text-[22px] leading-none text-ink">
-                          {chapter.newQuestions}
-                        </p>
-                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
-                          Nouvelles
-                        </p>
-                      </Link>
-                      <Link
-                        to={`/app/anki/${chapter.chapterId}/reviser`}
-                        aria-label={`Réviser les ${chapter.reviewQuestions} questions réussies en QCM`}
-                        className="rounded-xl border border-line bg-surface px-2 py-3 text-center transition hover:border-accent/60 hover:shadow-sm"
-                      >
-                        <p className="font-display text-[22px] leading-none text-success">
-                          {chapter.reviewQuestions}
-                        </p>
-                        <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
-                          À réviser
-                        </p>
-                      </Link>
-                    </div>
-                  </div>
-                )
-
-                const footer = (
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between text-[11px] text-mute">
-                      <span>
-                        {chapter.answeredQuestions} / {chapter.totalQuestions} questions vues
-                      </span>
-                      <span>{percent}%</span>
-                    </div>
-                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-cloud">
-                      <div
-                        className={cn('h-full rounded-full', done ? 'bg-success' : 'bg-accent')}
-                        style={{ width: `${Math.min(100, percent)}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-
-                const actions = (
-                  <div className="mt-4 flex flex-col gap-2">
-                    <Link
-                      to={href}
-                      className={cn(
-                        'flex h-12 w-full items-center gap-2 rounded-xl border bg-surface px-4 text-[14px] font-medium transition',
-                        available
-                          ? 'border-line text-ink hover:border-accent/60'
-                          : 'pointer-events-none border-line/70 text-mute opacity-70',
-                      )}
-                    >
-                      {!available
-                        ? 'Contenu indisponible'
-                        : done
-                          ? 'Refaire le chapitre'
-                          : 'Continuer le chapitre'}
-                      {available ? <ArrowRight size={16} className="text-accent" /> : null}
-                    </Link>
-                    {available && chapter.reviewQuestions > 0 ? (
-                      <Link
-                        to={`/app/anki/${chapter.chapterId}/reviser`}
-                        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent-soft px-4 text-[13px] font-medium text-accent transition hover:border-accent/60"
-                      >
-                        Réviser ({chapter.reviewQuestions})
-                      </Link>
-                    ) : null}
-                  </div>
-                )
-
-                if (!available) {
-                  return (
-                    <div key={chapter.chapterId} className={cardClass}>
-                      {header}
-                      {counters}
-                      {footer}
-                      <p className="mt-4 text-[11px] text-mute">Sujet ou correction retiré.</p>
-                    </div>
-                  )
-                }
-
-                return (
-                  <div key={chapter.chapterId} className={cardClass}>
-                    <Link
-                      to={href}
-                      aria-label={chapterLabel}
-                      className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
-                    >
-                      {header}
-                    </Link>
-                    {counters}
-                    {footer}
-                    {actions}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
         ) : (
-          <section className="mt-5">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative max-w-md flex-1">
-                <Search
-                  size={15}
-                  aria-hidden
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute"
-                />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Rechercher dans l’historique"
-                  aria-label="Rechercher dans l’historique"
-                  className="h-11 w-full rounded-[10px] border border-line bg-surface pl-9 pr-9 text-[13px] text-ink outline-none transition placeholder:text-mute focus:border-accent"
-                />
-                {search ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    aria-label="Effacer la recherche"
-                    className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
-                  >
-                    <X size={14} />
-                  </button>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {HISTORY_FILTERS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={filter === option.value}
-                    onClick={() => setFilter(option.value)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-[12px] font-medium transition',
-                      filter === option.value
-                        ? 'border-accent bg-accent-soft text-accent'
-                        : 'border-line text-mute hover:border-accent/60 hover:text-ink',
-                    )}
-                  >
-                    {option.label}
-                    <span className="ml-1.5 text-[10px] opacity-70">
-                      {historyCounts[option.value]}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {reviewCards.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center">
-                <p className="text-[14px] font-medium text-ink">
-                  Aucune question passée pour le moment.
-                </p>
-                <p className="mt-1 text-[12px] text-mute">
-                  Réponds à une question dans un chapitre : elle apparaîtra ici avec sa réponse et
-                  son explication.
-                </p>
-              </div>
-            ) : (
-              <div className="mt-6 space-y-3">
-                <p className="text-[12px] leading-relaxed text-mute">
-                  Un bloc par chapitre. Clique sur le chevron pour ouvrir ou replier : une question
-                  = un bloc (question, réponse, explication). « À réviser » = les questions déjà
-                  réussies.
-                </p>
-                {historyGroups.map((group) => {
-                  const open = openChapters.includes(group.chapterId)
-                  const theme = findThemeForChapter(group.chapterId)
-                  return (
-                    <section
-                      key={group.chapterId}
-                      className="overflow-hidden rounded-xl border border-line bg-surface"
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setOpenChapters((current) =>
-                            current.includes(group.chapterId)
-                              ? current.filter((id) => id !== group.chapterId)
-                              : [...current, group.chapterId],
-                          )
-                        }
-                        aria-expanded={open}
-                        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-cloud/40"
-                      >
-                        <span className="min-w-0 flex-1">
-                          {theme ? (
-                            <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-                              {theme.title}
-                            </span>
-                          ) : null}
-                          <span className="mt-1 block truncate text-[14px] font-medium text-ink">
-                            {group.title}
-                          </span>
-                          <span className="mt-0.5 block text-[11px] text-mute">
-                            {group.totalCards} question{group.totalCards > 1 ? 's' : ''} ·{' '}
-                            {group.totalMisses} fois ratée{group.totalMisses > 1 ? 's' : ''}
-                          </span>
-                        </span>
-                        {open ? (
-                          <ChevronUp size={16} className="shrink-0 text-mute" />
-                        ) : (
-                          <ChevronDown size={16} className="shrink-0 text-mute" />
-                        )}
-                      </button>
-                      {open ? (
-                        <div className="border-t border-line p-3">
-                          {group.cards.length === 0 ? (
-                            <p className="px-1 py-2 text-[12px] text-mute">
-                              Aucune question dans ce filtre pour ce chapitre.
-                            </p>
-                          ) : (
-                            <div className="space-y-3">
-                              {group.cards.map((card) => (
-                                <ReviewCardRow
-                                  key={`${card.chapterId}:${card.questionId}`}
-                                  card={card}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-                    </section>
-                  )
-                })}
-              </div>
-            )}
-          </section>
+          <div className="mt-6 space-y-4">
+            {chapters.map((chapter) => (
+              <ChapterCard
+                key={chapter.chapterId}
+                chapter={chapter}
+                levels={levels[chapter.chapterId] ?? []}
+                onOpenLevel={(level) =>
+                  navigate(`/app/medgame/${chapter.chapterId}/niveau/${level}`)
+                }
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

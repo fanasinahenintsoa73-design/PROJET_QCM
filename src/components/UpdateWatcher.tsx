@@ -20,7 +20,7 @@ function currentBundle(): string | null {
 /** Un QCM est en cours : on ne recharge pas la page sous les doigts de l'étudiant. */
 function isQuizPath(pathname: string): boolean {
   if (pathname === '/app/entrainement') return true
-  return pathname.startsWith('/app/anki/') && pathname !== '/app/anki/choisir'
+  return pathname.startsWith('/app/medgame/') && pathname !== '/app/medgame/choisir'
 }
 
 function alreadyReloaded(version: string): boolean {

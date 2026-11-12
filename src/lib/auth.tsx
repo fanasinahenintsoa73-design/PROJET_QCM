@@ -48,7 +48,7 @@ interface AuthContextValue {
   ticketBlocked: boolean
   /** Type du ticket étudiant (30 séries ou Anki). */
   ticketType: TicketType | null
-  /** Date d'expiration du ticket Anki. */
+  /** Date d'expiration du ticket MEDGAME. */
   ticketExpiresAt: string | null
   homePath: string
 }
@@ -318,7 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const homePath = useMemo(() => {
     if (!user) return isDoctorPortal ? '/' : '/acces'
     if (user.role === 'professor') return '/admin'
-    if (ticketInfo?.type === 'anki') return '/app/anki/choisir'
+    if (ticketInfo?.type === 'anki') return '/app/medgame/choisir'
     return studentHomePath(user, db)
   }, [db, user, clock, ticketInfo])
 
@@ -413,7 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await logout()
         return {
           ok: false,
-          error: 'Ton ticket Anki a expiré. Contacte le docteur pour un nouveau ticket.',
+          error: 'Ton ticket MEDGAME a expiré. Contacte le docteur pour un nouveau ticket.',
         }
       }
       // L'historique côté admin : qui est entré, quand.
@@ -424,7 +424,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTicketInfo(freshInfo)
       return {
         ...result,
-        homePath: freshInfo?.type === 'anki' ? '/app/anki/choisir' : result.homePath,
+        homePath: freshInfo?.type === 'anki' ? '/app/medgame/choisir' : result.homePath,
       }
     },
     [login, logout],

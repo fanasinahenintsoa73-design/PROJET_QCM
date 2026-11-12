@@ -31,7 +31,7 @@ export function ExpirationPage() {
               {suspended
                 ? 'Votre accès est suspendu.'
                 : ankiExpired
-                  ? 'Votre ticket Anki a expiré.'
+                  ? 'Votre ticket MEDGAME a expiré.'
                   : 'Vos 30 séries sont terminées.'}
             </h1>
 
@@ -39,7 +39,7 @@ export function ExpirationPage() {
               {suspended
                 ? 'Contactez le docteur pour plus d’informations.'
                 : ankiExpired
-                  ? 'Ton ticket Anki d’un mois est terminé. Contacte le docteur pour un nouveau ticket et choisir 5 nouveaux chapitres.'
+                  ? 'Ton ticket MEDGAME d’un mois est terminé. Contacte le docteur pour un nouveau ticket et choisir 5 nouveaux chapitres.'
                   : 'Ton ticket est terminé. Contacte le docteur pour un nouveau ticket et continuer tes séries.'}
             </p>
 
@@ -60,7 +60,7 @@ export function ExpirationPage() {
                   {suspended
                     ? 'Le docteur peut réactiver ton accès'
                     : ankiExpired
-                      ? 'Un nouveau ticket rouvre 5 chapitres Anki'
+                      ? 'Un nouveau ticket rouvre 5 chapitres'
                       : 'Un nouveau ticket rouvre 30 séries'}
                 </p>
               </div>

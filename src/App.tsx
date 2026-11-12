@@ -26,7 +26,9 @@ import DashboardPage from '@/pages/DashboardPage'
 import ChapterSelectionPage from '@/pages/ChapterSelectionPage'
 import QuizPage from '@/pages/QuizPage'
 import AnkiHomePage from '@/pages/AnkiHomePage'
-import AnkiQuizPage from '@/pages/AnkiQuizPage'
+import AnkiLevelMapPage from '@/pages/AnkiLevelMapPage'
+import AnkiLevelPage from '@/pages/AnkiLevelPage'
+import AnkiLevelResultPage from '@/pages/AnkiLevelResultPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminTicketsPage from '@/pages/admin/AdminTicketsPage'
@@ -96,9 +98,13 @@ function StudentRoutes() {
             <Route path="/app/entrainement" element={<QuizPage />} />
           </Route>
           <Route element={<RequireAnkiStudent />}>
-            <Route path="/app/anki/choisir" element={<AnkiHomePage />} />
-            <Route path="/app/anki/:chapterId/reviser" element={<AnkiQuizPage mode="revision" />} />
-            <Route path="/app/anki/:chapterId" element={<AnkiQuizPage />} />
+            <Route path="/app/medgame/choisir" element={<AnkiHomePage />} />
+            <Route path="/app/medgame/:chapterId" element={<AnkiLevelMapPage />} />
+            <Route path="/app/medgame/:chapterId/niveau/:level" element={<AnkiLevelPage />} />
+            <Route
+              path="/app/medgame/:chapterId/niveau/:level/bilan"
+              element={<AnkiLevelResultPage />}
+            />
           </Route>
         </Route>
       </Route>

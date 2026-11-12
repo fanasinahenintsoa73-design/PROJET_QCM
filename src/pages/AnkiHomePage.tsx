@@ -28,7 +28,7 @@ function questionCount(chapterId: string, db: Database): number {
 }
 
 export default function AnkiHomePage() {
-  usePageTitle('Page d’accueil — Anki — MEDQCM mada')
+  usePageTitle('MEDGAME — MEDQCM mada')
   const { db, ticketExpiresAt } = useAuth()
   const [selectedChapters, setSelectedChapters] = useState<AnkiChapterState[]>([])
   const [activeUeId, setActiveUeId] = useState<string | null>(null)
@@ -47,7 +47,7 @@ export default function AnkiHomePage() {
       setSelectedChapters(await api.getAnkiChapters())
       setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de charger ta sélection Anki.')
+      setError(err instanceof Error ? err.message : 'Impossible de charger ta sélection.')
     } finally {
       setLoading(false)
     }
@@ -121,14 +121,14 @@ export default function AnkiHomePage() {
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
-              Page d’accueil Anki
+              MEDGAME
             </span>
             <h1 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.035em] text-ink">
-              Réussis PACES, un chapitre à la fois.
+              Réussis PACES, un niveau à la fois.
             </h1>
             <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-mute">
-              Choisis tes chapitres un par un, réponds aux questions, monte de niveau à chaque
-              bonne réponse et révise tes questions réussies pour les garder.
+              Choisis tes chapitres un par un, puis réussis les 5 questions de chaque niveau pour
+              ouvrir le suivant.
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-[12px] text-mute">
@@ -272,7 +272,7 @@ export default function AnkiHomePage() {
               {full ? ' · maximum atteint' : ''}
             </p>
             <Link to="/app" className={buttonClasses('primary', 'sm')}>
-              Voir mon tableau Anki <ArrowRight size={15} />
+              Voir mon jeu <ArrowRight size={15} />
             </Link>
           </div>
         )}
@@ -299,7 +299,7 @@ export default function AnkiHomePage() {
 
             {full && (
               <div className="border-b border-line bg-accent-soft/40 px-5 py-3 text-[12px] text-ink sm:px-6">
-                5 chapitres maximum atteints. Ouvre ton tableau Anki pour commencer.
+                5 chapitres maximum atteints. Ouvre ton jeu pour commencer.
               </div>
             )}
 
@@ -348,7 +348,7 @@ export default function AnkiHomePage() {
                       <span className="block text-[14px] font-medium text-ink">{chapter.title}</span>
                       <span className="mt-0.5 block text-[11px] text-mute">
                         {chapter.available
-                          ? `${chapter.count} question${chapter.count > 1 ? 's' : ''} Anki${
+                          ? `${chapter.count} question${chapter.count > 1 ? 's' : ''}${
                               chapter.count < 5 ? ' · moins de 5 questions' : ''
                             }`
                           : 'Sujet et correction en préparation'}
@@ -480,7 +480,7 @@ export default function AnkiHomePage() {
               <p className="text-[13px] leading-relaxed text-mute">
                 <span className="font-medium text-ink">{pendingChapter.title}</span>
                 {' · '}
-                {pendingChapter.count} question{pendingChapter.count > 1 ? 's' : ''} Anki
+                {pendingChapter.count} question{pendingChapter.count > 1 ? 's' : ''}
               </p>
               <div className="rounded-xl border border-sale/25 bg-sale/5 px-4 py-3 text-[12px] leading-relaxed text-sale">
                 <strong className="font-semibold">Ce choix est irréversible.</strong> Une fois

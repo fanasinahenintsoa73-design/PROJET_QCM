@@ -86,7 +86,7 @@ export function LandingPage() {
           </p>
 
           <p className="text-[16px] leading-[1.65] text-mute">
-            Des QCM à votre rythme : 30 séries de dix questions, ou le mode Anki, chapitre par
+            Des QCM à votre rythme : 30 séries de dix questions, ou le mode MEDGAME, chapitre par
             chapitre.
           </p>
 
