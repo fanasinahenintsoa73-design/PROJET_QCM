@@ -1,8 +1,22 @@
-# MEDQCM — Anki en jeu : les niveaux (spécification de conception)
+# MEDQCM — MEDGAME : les niveaux (spécification de conception)
 
 Date : 12 novembre 2026
-Statut : à valider par le docteur avant passage au plan d'implémentation
+Statut : conception validée par le docteur (maquette v4) — en cours d'implémentation
 Remplace la conception « 2 états / bloc de 5 roulant » (migration `20261111_anki_two_states.sql`)
+
+---
+
+## 0. Décisions finales (12 nov. 2026)
+
+1. **Le mode s'appelle MEDGAME**, plus « Anki », côté étudiant : badge, titres, libellés. Les routes passent de `/app/anki/…` à `/app/medgame/…`. **Le côté docteur n'est pas touché** : le type de ticket en base reste `anki`, le parcours « Anki » du portail reste tel quel, et aucune modification du portail docteur n'est prévue.
+2. **L'onglet Historique disparaît** du tableau de bord étudiant. La table `anki_history` reste alimentée (les questions vues et le nombre de fois raté restent exploitables côté base et pour le docteur), mais plus rien n'est affiché à l'étudiant.
+3. **La page d'accueil MEDGAME** (celle où l'on choisit les chapitres) garde le dialogue de confirmation **Confirmer / Annuler** et affiche un bouton **« Voir mon jeu »** → le tableau de bord du jeu.
+4. **Le tableau de bord du jeu** (`/app`) affiche **seulement les chapitres choisis** ; chaque chapitre montre sa rangée de **blocs de niveaux cliquables** (cliquer un bloc ouvre le niveau). Fin de l'onglet Historique, des compteurs « Nouvelles / À réviser » et du bouton « Réviser (N) ».
+5. **La page d'un chapitre** (`/app/medgame/:chapterId`) affiche la **carte des niveaux** (grands cadres) : cliquer un cadre ouvre le niveau.
+6. **Le niveau** = 5 questions d'affilée **sans correction**, puis « Soumettre le niveau », puis **le bilan** (verdict + corrections). Même logique que les séries de 30 questions.
+7. Chaque tentative = un **nouveau tirage aléatoire de 5 questions dans tout le chapitre** (jamais les 5 de la tentative précédente).
+8. **1 étoile par bonne réponse** ; seul le **5/5** débloque le niveau suivant. Un niveau raté se refait.
+9. Les étudiants en cours **repartent tous au niveau 1** (historique conservé).
 
 ---
 
