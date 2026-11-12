@@ -132,9 +132,16 @@ export default function AdminTicketsPage() {
 
   const seriesCount = tickets.filter((item) => item.type === 'series' && !item.archivedAt).length
   const ankiCount = tickets.filter((item) => item.type === 'anki' && !item.archivedAt).length
-  // Les archives sont comptées sur tous les types : un ticket archivé ne doit
-  // pas devenir introuvable quand le docteur change d'onglet.
-  const archivedCount = tickets.filter((item) => item.archivedAt !== null).length
+  // Les archives suivent le parcours affiché, comme les autres compteurs :
+  // le bloc « Anki » et le bloc « 30 séries » de l'accueil du docteur
+  // pointent chacun vers leurs propres tickets archivés.
+  const archivedCount = tickets.filter(
+    (item) => item.type === activeType && item.archivedAt !== null,
+  ).length
+  const archivedOtherType: TicketType = activeType === 'anki' ? 'series' : 'anki'
+  const archivedOtherCount = tickets.filter(
+    (item) => item.type === archivedOtherType && item.archivedAt !== null,
+  ).length
 
   const activeTypeTickets = useMemo(
     () => tickets.filter((item) => item.type === activeType),
@@ -152,12 +159,11 @@ export default function AdminTicketsPage() {
   }, [activeTypeTickets])
 
   const visibleTickets = useMemo(() => {
-    // Vue Archives : tous les tickets archivés, tous types confondus (le
-    // compteur du bouton est global). Sinon : les tickets actifs du type
-    // affiché.
-    const base = archivedView
-      ? tickets.filter((item) => item.archivedAt !== null)
-      : activeTypeTickets.filter((item) => item.archivedAt === null)
+    // Vue Archives : les tickets archivés du parcours affiché. Sinon : les
+    // tickets actifs du même parcours.
+    const base = activeTypeTickets.filter((item) =>
+      archivedView ? item.archivedAt !== null : item.archivedAt === null,
+    )
     const filtered = activeFilter ? base.filter((item) => matchesTicketFilter(item, activeFilter)) : base
     return normalizedSearch
       ? filtered.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
@@ -531,9 +537,22 @@ export default function AdminTicketsPage() {
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
             <Archive size={15} className="text-mute" />
             <p className="text-[12px] text-mute">
-              Les tickets archivés sont masqués des listes actives, tous types confondus. Leur accès
-              étudiant est fermé, mais leurs données sont conservées.
+              Les tickets archivés de ce parcours sont masqués des listes actives. Le compte continue
+              de fonctionner normalement : ses données sont conservées et tu peux le réactiver à tout
+              moment.
             </p>
+            {archivedOtherCount > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  updateParams({ type: archivedOtherType, vue: 'archives', statut: null })
+                }
+              >
+                {archivedOtherCount} archivé{archivedOtherCount > 1 ? 's' : ''} ·{' '}
+                {archivedOtherType === 'anki' ? 'Anki' : '30 séries'}
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="sm"

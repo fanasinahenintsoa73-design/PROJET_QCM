@@ -13,12 +13,25 @@ type TicketCounts = {
   inProgress: number
   finished: number
   suspended: number
+  archived: number
 }
 
 function countTickets(tickets: TicketItem[], type: TicketType): TicketCounts {
-  const counts: TicketCounts = { available: 0, inProgress: 0, finished: 0, suspended: 0 }
+  const counts: TicketCounts = {
+    available: 0,
+    inProgress: 0,
+    finished: 0,
+    suspended: 0,
+    archived: 0,
+  }
   for (const item of tickets) {
-    if (item.type !== type || item.archivedAt) continue
+    if (item.type !== type) continue
+    // Un ticket archivé est mis de côté : il ne fait plus partie des listes
+    // actives, mais son compte continue de fonctionner.
+    if (item.archivedAt) {
+      counts.archived += 1
+      continue
+    }
     if (item.status === 'suspended') {
       counts.suspended += 1
       continue
@@ -51,7 +64,13 @@ function TicketBlock({
   description: string
   counts: TicketCounts
   activeCount: number
-  links: readonly { key: keyof TicketCounts; label: string; note: string; dot: string }[]
+  links: readonly {
+    key: keyof TicketCounts
+    label: string
+    note: string
+    dot: string
+    href?: string
+  }[]
 }) {
   return (
     <section className="border-t border-hairline pt-7 first:border-t-0 first:pt-0">
@@ -67,7 +86,7 @@ function TicketBlock({
         {links.map((item) => (
           <Link
             key={item.key}
-            to={`/admin/tickets?type=${type}&statut=${item.key}`}
+            to={item.href ?? `/admin/tickets?type=${type}&statut=${item.key}`}
             className="group flex items-center gap-3 border-b border-hairline py-3.5 transition-colors hover:bg-cloud sm:px-2"
           >
             <span className={cn('size-1.5 shrink-0 rounded-full', item.dot)} />
@@ -121,6 +140,13 @@ export default function AdminDashboardPage() {
     { key: 'inProgress', label: 'En cours', note: 'Séries en cours', dot: 'bg-info' },
     { key: 'finished', label: 'Terminés', note: '30 séries terminées', dot: 'bg-stone' },
     { key: 'suspended', label: 'Suspendus', note: 'Accès fermé', dot: 'bg-sale' },
+    {
+      key: 'archived',
+      label: 'Archivés',
+      note: 'Mis de côté, le compte continue',
+      dot: 'bg-mute',
+      href: '/admin/tickets?type=series&vue=archives',
+    },
   ] as const
 
   const ankiLinks = [
@@ -128,6 +154,13 @@ export default function AdminDashboardPage() {
     { key: 'inProgress', label: 'En cours', note: 'Chapitres en cours', dot: 'bg-info' },
     { key: 'finished', label: 'Terminés', note: 'Tous les chapitres terminés', dot: 'bg-stone' },
     { key: 'suspended', label: 'Suspendus', note: 'Accès fermé', dot: 'bg-sale' },
+    {
+      key: 'archived',
+      label: 'Archivés',
+      note: 'Mis de côté, le compte continue',
+      dot: 'bg-mute',
+      href: '/admin/tickets?type=anki&vue=archives',
+    },
   ] as const
 
   return (
