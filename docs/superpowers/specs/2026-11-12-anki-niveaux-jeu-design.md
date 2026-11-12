@@ -33,6 +33,7 @@ Objectif produit : donner au ticket Anki la même sensation de progression que l
 | Niveau 1 | ouvert dès que l'étudiant a choisi le chapitre |
 | Niveau N déverrouillé | si et seulement si le niveau N-1 est **réussi** (5/5) |
 | Contenu d'un niveau | **5 questions tirées au hasard dans tout le chapitre** (tirage sans contrainte : une question déjà réussie peut revenir — c'est la révision intégrée) |
+| Nouvelle tentative | **chaque tentative = un NOUVEAU tirage de 5 dans tout le chapitre** : on ne rejoue jamais les 5 questions de la tentative précédente, et aucune question n'est exclue du tirage (une question déjà réussie peut donc revenir — c'est voulu) |
 | Réussite d'un niveau | 5 bonnes réponses sur 5 dans une même tentative |
 | Étoiles | 1 par bonne réponse (0 à 5) ; on conserve **la meilleure tentative** du niveau |
 | Rater un niveau | le niveau suivant reste verrouillé ; l'étudiant rejoue le même niveau (nouveau tirage) |
