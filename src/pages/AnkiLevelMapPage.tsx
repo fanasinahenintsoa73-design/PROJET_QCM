@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
 import { chapterTitle, findThemeForChapter } from '@/lib/themes'
-import { LevelGrid } from '@/components/anki/LevelGrid'
+import { LevelGrid, LevelLegend } from '@/components/anki/LevelGrid'
 import type { AnkiLevel } from '@/types'
 
 /** La carte des niveaux d'un chapitre : la trajectoire, chaque cadre est cliquable. */
@@ -68,20 +68,23 @@ export default function AnkiLevelMapPage() {
             <p className="text-[13px] text-mute">Ce chapitre n’a pas encore de questions.</p>
           </div>
         ) : (
-          <div className="mt-5 rounded-2xl border border-line bg-surface p-5 sm:p-7">
-            <div className="rounded-xl bg-canvas p-3 sm:p-4">
+          <>
+            <div className="mt-5 rounded-2xl border border-line bg-surface p-5 sm:p-7">
               <LevelGrid
                 levels={levels}
                 onSelect={(level) => {
                   navigate(`/app/medgame/${chapterId}/niveau/${level}`)
                 }}
+                chapterTitle={chapterTitle(chapterId)}
+                planche={1}
               />
+              <p className="mt-5 text-[12px] leading-relaxed text-mute">
+                5 bonnes réponses ouvrent le cadre suivant. Un cadre réussi se rejoue quand tu
+                veux : c’est ta révision.
+              </p>
             </div>
-            <p className="mt-5 text-[12px] leading-relaxed text-mute">
-              5 bonnes réponses ouvrent le cadre suivant. Un cadre réussi se rejoue quand tu
-              veux : c’est ta révision.
-            </p>
-          </div>
+            <LevelLegend />
+          </>
         )}
       </div>
     </div>

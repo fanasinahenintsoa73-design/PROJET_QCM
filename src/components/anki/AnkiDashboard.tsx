@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { chapterTitle, findThemeForChapter } from '@/lib/themes'
 import { buttonClasses } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
-import { LevelGrid } from '@/components/anki/LevelGrid'
+import { LevelGrid, LevelLegend } from '@/components/anki/LevelGrid'
 import type { AnkiChapterState, AnkiLevel } from '@/types'
 
 function formatDay(value: string | null | undefined): string {
@@ -20,10 +20,12 @@ function formatDay(value: string | null | undefined): string {
 function ChapterCard({
   chapter,
   levels,
+  planche,
   onOpenLevel,
 }: {
   chapter: AnkiChapterState
   levels: AnkiLevel[]
+  planche: number
   onOpenLevel: (level: number) => void
 }) {
   const theme = findThemeForChapter(chapter.chapterId)
@@ -47,9 +49,12 @@ function ChapterCard({
         </span>
       </div>
 
-      <div className="mt-5 rounded-xl border border-line bg-canvas p-3 sm:p-4">
-        <LevelGrid levels={levels} onSelect={onOpenLevel} />
-      </div>
+      <LevelGrid
+        levels={levels}
+        onSelect={onOpenLevel}
+        chapterTitle={chapterTitle(chapter.chapterId)}
+        planche={planche}
+      />
 
       <p className="mt-5 text-[12px] leading-relaxed text-mute">
         5 bonnes réponses ouvrent le cadre suivant. Un cadre réussi se rejoue quand tu veux : c’est
@@ -141,7 +146,8 @@ export default function AnkiDashboard() {
           <div className="mt-6 grid grid-cols-3 gap-3">
             <div className="rounded-xl border border-line bg-surface px-3 py-3 text-center">
               <p className="font-display text-[22px] leading-none text-ink">
-                {stats.passedLevels}/{stats.totalLevels}
+                {stats.passedLevels}
+                <span className="text-[12px] text-mute">/{stats.totalLevels}</span>
               </p>
               <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
                 Niveaux
@@ -177,18 +183,22 @@ export default function AnkiDashboard() {
             </div>
           </div>
         ) : (
-          <div className="mt-6 space-y-4">
-            {chapters.map((chapter) => (
-              <ChapterCard
-                key={chapter.chapterId}
-                chapter={chapter}
-                levels={levels[chapter.chapterId] ?? []}
-                onOpenLevel={(level) =>
-                  navigate(`/app/medgame/${chapter.chapterId}/niveau/${level}`)
-                }
-              />
-            ))}
-          </div>
+          <>
+            <div className="mt-6 space-y-4">
+              {chapters.map((chapter, index) => (
+                <ChapterCard
+                  key={chapter.chapterId}
+                  chapter={chapter}
+                  levels={levels[chapter.chapterId] ?? []}
+                  planche={index + 1}
+                  onOpenLevel={(level) =>
+                    navigate(`/app/medgame/${chapter.chapterId}/niveau/${level}`)
+                  }
+                />
+              ))}
+            </div>
+            <LevelLegend />
+          </>
         )}
       </div>
     </div>
