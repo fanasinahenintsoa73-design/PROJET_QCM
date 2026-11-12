@@ -57,8 +57,8 @@ Aucun niveau n'est « consommé » : le contenu étant tiré au hasard, on peut 
 
 ```
 Tableau de bord (/app)
-   └─ carte du chapitre : UE + nom + rangée de pastilles de niveaux + étoiles + « Jouer le niveau N »
-        └─ Carte des niveaux (/app/anki/:chapterId) : trajectoire de nœuds, un par niveau
+   └─ carte du chapitre : UE + nom + grille de cadres de niveaux (cliquables) + étoiles
+        └─ Carte des niveaux (/app/anki/:chapterId) : grille de cadres, un par niveau
              └─ Le niveau (/app/anki/:chapterId/niveau/:n) : 5 questions, sans correction
                   └─ Le bilan (/app/anki/:chapterId/niveau/:n/bilan) : verdict + corrections
 ```
@@ -66,23 +66,29 @@ Tableau de bord (/app)
 ### 3.1 Tableau de bord — la carte du chapitre
 
 - UE en petites capitales au-dessus du nom du chapitre (comme aujourd'hui).
-- **Rangée de pastilles** : une pastille par niveau (8 pour 40 questions). Pastille pleine et numérotée = réussi ; pastille cerclée = ouvert ; pastille grisée = verrouillé.
-- **Étoiles totales** du chapitre (somme des meilleures étoiles) et mention « X / Y niveaux ».
-- Action principale : **« Jouer le niveau N »** où N = premier niveau ni réussi ni verrouillé.
-- Lien secondaire (texte) : « Carte des niveaux ».
+- **Grille de cadres** (version miniature) : un cadre par niveau (8 pour 40 questions), regroupés dans **un seul panneau**. Chaque cadre porte son **numéro**, une **icône d'état** (cadenas s'il est verrouillé, coche s'il est réussi) et ses **étoiles** (points dorés).
+- **Les cadres sont cliquables** : un clic ouvre le QCM de ce niveau. Un cadre verrouillé renvoie le message « Termine le niveau N-1 pour ouvrir celui-ci. »
+- **Étoiles totales** du chapitre (somme des meilleures étoiles) et mention « X / Y niveaux réussis ».
+- **Aucun bouton « Jouer le niveau »** : le cadre est le bouton.
 - Disparition des deux compteurs « Nouvelles » / « À réviser ».
 
 ### 3.2 La carte des niveaux
 
-Trajectoire **verticale continue** (pas une grille de cartes détachées) : les niveaux s'enchaînent le long d'un rail, ce qui donne l'impression d'une progression et non d'une liste.
+Grille de **cadres** (4 colonnes sur desktop, 3 sur mobile) regroupés dans **un seul panneau** — un « plateau » de jeu, pas des cartes détachées.
 
-Chaque nœud montre : son numéro, son état (réussi / ouvert / verrouillé) et ses étoiles.
+**Anatomie d'un cadre** :
+- son **numéro** de niveau ;
+- une **icône** en haut à droite : **cadenas** (verrouillé) ou **coche** (réussi) ;
+- les **étoiles** (points dorés) si le niveau a été tenté.
 
-- Nœud réussi : coche verte + étoiles obtenues.
-- Nœud ouvert : anneau accent + halo vert.
-- Nœud verrouillé : cadenas, grisé.
-- Action principale : « Jouer le niveau N ».
-- Action secondaire : « Réviser : rejouer un niveau » (ouvre la liste des niveaux réussis pour en rejouer un librement).
+**États** :
+- réussi : fond vert accent, numéro blanc, coche blanche ;
+- ouvert : fond blanc, bordure accent 2 px + halo vert — c'est le niveau à jouer ;
+- verrouillé : fond gris, numéro gris, cadenas.
+
+**Les cadres sont cliquables** : un clic sur un cadre ouvert ou réussi ouvre son QCM. Aucun bouton « Jouer le niveau », aucun bouton « Réviser » : **rejouer un niveau réussi = cliquer sur son cadre**.
+
+Le cadre verrouillé reste visible (on voit la trajectoire complète) mais un clic renvoie le message « Termine le niveau 3 pour ouvrir celui-ci. »
 
 ### 3.3 Le niveau (5 questions, sans correction)
 
@@ -112,11 +118,13 @@ Le mode Anki devient un **jeu**, mais dans le monde visuel du projet (contrainte
 
 **Ajouter** :
 - une couleur réservée aux étoiles (or `#B98A2E`) — le seul or de l'interface ;
-- des pastilles de niveaux (carrés 8-10 px) ;
-- un halo discret sur le niveau ouvert.
+- les **cadres de niveau** : numéro + icône (cadenas / coche) + points d'étoiles ;
+- un halo discret sur le cadre ouvert.
+
+**Règle d'interaction** : dans le mode Anki, **le cadre de niveau est le bouton**. Aucun bouton « Jouer le niveau », aucun bouton « Réviser » à côté : on entre dans le niveau en **cliquant son cadre**. Les cadres sont regroupés dans un panneau unique (un plateau), pas des îlots séparés.
 
 **Interdits** (règles du projet + skill `impeccable`) :
-- pas de grille de cartes flottantes pour les niveaux (on veut une trajectoire, pas des îlots) ;
+- pas de grille de cadres flottants détachés pour les niveaux (un seul panneau continu) ;
 - pas de redondance (n'afficher les étoiles qu'une fois par écran) ;
 - pas de confettis, pas de badges « trophée », pas d'or doré brillant, pas d'animation autre que les transitions de 150–250 ms (déverrouillage, remplissage des étoiles) ;
 - pas de son.
@@ -220,8 +228,8 @@ Les textes sont validés avant d'être écrits dans le code.
 - `src/types.ts` : `AnkiLevel`, `AnkiLevelState`, `AnkiLevelResult`.
 - `src/lib/api.ts`, `src/lib/supabaseData.ts` : 3 nouvelles fonctions ; le moteur démo `src/lib/db.ts` doit refléter le même modèle (clé de stockage `medqcm.anki.v3`).
 - `src/App.tsx` : routes `/app/anki/:chapterId` (carte des niveaux), `/app/anki/:chapterId/niveau/:level` (niveau), `/app/anki/:chapterId/niveau/:level/bilan` (bilan) ; suppression de `/app/anki/:chapterId/reviser`.
-- `src/components/anki/AnkiDashboard.tsx` : nouvelle carte chapitre (rangée de niveaux, étoiles, « Jouer le niveau N ») ; suppression des compteurs Nouvelles/À réviser et du bouton « Réviser (N) ».
-- Nouveaux composants : `src/components/anki/LevelMap.tsx`, `src/components/anki/LevelRunner.tsx`, `src/components/anki/LevelBilan.tsx`.
+- `src/components/anki/AnkiDashboard.tsx` : nouvelle carte chapitre (grille de cadres de niveaux cliquables + étoiles) ; suppression des compteurs Nouvelles/À réviser et du bouton « Réviser (N) ».
+- Nouveaux composants : `src/components/anki/LevelGrid.tsx` (les cadres, réutilisés en version mini sur la carte du tableau de bord et en version grande sur la carte des niveaux), `src/components/anki/LevelRunner.tsx`, `src/components/anki/LevelBilan.tsx`.
 - `src/pages/AnkiQuizPage.tsx` : le composant `mode: 'revision'` devient inutile → à supprimer ou à repurposer en niveau unique.
 - `src/pages/AnkiHomePage.tsx` : textes « Comment ça marche » (section 7).
 - `src/pages/admin/AdminTicketsPage.tsx` : progression Anki en « niveaux réussis / total ».
@@ -233,11 +241,12 @@ Les textes sont validés avant d'être écrits dans le code.
 ## 10. Vérifications attendues
 
 1. Niveau 1 : 3/5 → pas de déblocage, 3 étoiles, rejouer possible.
-2. Rejouer niveau 1 : 5/5 → niveau 2 déverrouillé, 5 étoiles conservées.
-3. Niveau 2 : 4/5 → niveau 3 **toujours verrouillé**, 4 étoiles.
-4. Après rechargement de page : niveaux, étoiles et verrous conservés.
-5. Rejouer un niveau réussi : les étoiles montent si c'est mieux, aucun verrou ne saute.
-6. Les 8 niveaux d'un chapitre de 40 questions s'affichent, et le dernier niveau clôt le chapitre.
-7. L'historique continue d'alimenter l'onglet Historique (questions vues, fois ratées).
-8. Le portail docteur affiche « En cours · X/Y » en niveaux.
-9. Rendu mobile 360 px : la trajectoire de niveaux reste lisible.
+2. Un **clic sur un cadre ouvert** ouvre directement le QCM de ce niveau (aucun bouton intermédiaire) ; un clic sur un cadre verrouillé affiche « Termine le niveau N-1 pour ouvrir celui-ci. »
+3. Rejouer niveau 1 : 5/5 → niveau 2 déverrouillé, 5 étoiles conservées.
+4. Niveau 2 : 4/5 → niveau 3 **toujours verrouillé**, 4 étoiles.
+5. Après rechargement de page : niveaux, étoiles et verrous conservés.
+6. Rejouer un niveau réussi : les étoiles montent si c'est mieux, aucun verrou ne saute.
+7. Les 8 niveaux d'un chapitre de 40 questions s'affichent, et le dernier niveau clôt le chapitre.
+8. L'historique continue d'alimenter l'onglet Historique (questions vues, fois ratées).
+9. Le portail docteur affiche « En cours · X/Y » en niveaux.
+10. Rendu mobile 360 px : la grille de cadres reste lisible et cliquable.
