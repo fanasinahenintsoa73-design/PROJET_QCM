@@ -194,22 +194,16 @@ La progression d'un ticket Anki passe de « chapitres / questions vues » à **�
 
 ---
 
-## 7. Textes « Comment ça marche » (page d'accueil)
+## 7. Page d'accueil : suppression de « Comment ça marche »
 
-Réécriture complète, dans le même format court que l'existant (un principe + 4 étapes + 2 encadrés + les états + un exemple + le niveau + le résultat) :
+**Décision du docteur (12 nov. 2026) :** la section « Comment ça marche » de la page d'accueil est **supprimée** — elle est trop longue et elle décrit l'ancien modèle (bloc de 5 roulant, « À réviser »).
 
-- **Principe** : « Un chapitre = des niveaux de 5 questions. Tu les réussis, tu passes au niveau suivant. »
-- **Choisis** : « Un chapitre, dans l'UE que tu veux. 5 chapitres maximum. »
-- **Joue** : « 5 questions à la fois, tirées au hasard dans le chapitre. Tu réponds aux 5, puis tu soumets. »
-- **Réussis** : « 5 bonnes réponses : le niveau suivant se débloque. Sinon, tu refais le niveau. »
-- **Révise** : « Un niveau réussi se rejoue quand tu veux : c'est ta révision. »
-- **Encadré « Soumettre »** : « Tu réponds aux 5 questions, puis tu soumets : le bilan arrive avec les corrections. »
-- **Encadré « Rejouer »** : « Un niveau réussi se rejoue librement. Tes étoiles s'améliorent si tu fais mieux. »
-- **États** : « Ouvert · le premier niveau est libre » / « Verrouillé · il s'ouvre quand le précédent est réussi » / « Réussi · 5/5, le suivant s'ouvre ».
-- **Exemple** : « Tu rates 1 question au niveau 2 : 4 étoiles, le niveau 3 reste verrouillé. Tu rejoues, tu fais 5/5 : le niveau 3 s'ouvre. »
-- **Résultat** : « Le chapitre se termine quand tous les niveaux sont réussis. Ensuite tu peux rejouer n'importe quel niveau pour réviser. »
-
-Les textes sont validés avant d'être écrits dans le code.
+- La section correspondante de `src/pages/AnkiHomePage.tsx` (l.157 à 264, ~108 lignes) disparaît : titre « Comment ça marche », les 4 étapes, les encadrés Suivant / Afficher la réponse, les états de question, l'exemple, la phrase de niveau, le bandeau « Résultat ».
+- **Elle n'est pas remplacée par un autre bloc texte** : le jeu s'explique par la carte des niveaux (numéros, étoiles, cadenas), qui se lit sans mode d'emploi.
+- Seule l'**accroche** de la page est réécrite pour le jeu (titre + une ligne de sous-titre) :
+  - Titre : « Réussis PACES, un niveau à la fois. »
+  - Sous-titre : « Choisis tes chapitres. Réussis 5 questions à la fois pour débloquer le niveau suivant. »
+- Le reste de la page (choix des chapitres par UE, carte « Voir mon tableau Anki », expiration du ticket) ne change pas.
 
 ---
 
