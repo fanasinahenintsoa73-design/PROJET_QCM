@@ -79,14 +79,18 @@ export function LevelGrid({
   chapterId?: string
   planche?: number
 }) {
-  if (levels.length === 0) return null
-
   // Le tirage est calculé une seule fois à l'ouverture du chapitre, puis
   // conservé tant que le chapitre et le nombre de niveaux ne changent pas.
   const images = useMemo(
-    () => (chapterId ? visualsForChapter(chapterId, levels.length) : FALLBACK_IMAGES),
+    () =>
+      chapterId && levels.length > 0
+        ? visualsForChapter(chapterId, levels.length)
+        : FALLBACK_IMAGES,
     [chapterId, levels.length],
   )
+
+  if (levels.length === 0) return null
+
   const plancheLabel = planche ? `Planche ${String(planche).padStart(2, '0')}` : 'Planche'
 
   return (
