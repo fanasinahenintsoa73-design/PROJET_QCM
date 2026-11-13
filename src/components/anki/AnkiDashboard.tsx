@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { chapterTitle, findThemeForChapter } from '@/lib/themes'
 import { buttonClasses } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
-import { LevelGrid, LevelLegend } from '@/components/anki/LevelGrid'
+import { LevelGrid } from '@/components/anki/LevelGrid'
 import type { AnkiChapterState, AnkiLevel } from '@/types'
 
 function formatDay(value: string | null | undefined): string {
@@ -29,7 +29,6 @@ function ChapterCard({
   onOpenLevel: (level: number) => void
 }) {
   const theme = findThemeForChapter(chapter.chapterId)
-  const totalLevels = levels.length || chapter.totalLevels
 
   return (
     <article className="rounded-2xl border border-line bg-surface p-5 sm:p-7">
@@ -40,9 +39,6 @@ function ChapterCard({
               {chapterTitle(chapter.chapterId)}
             </Link>
           </h3>
-          <p className="mt-1 text-[12px] text-mute">
-            {totalLevels} niveaux · {chapter.totalQuestions} questions
-          </p>
         </div>
         <span className="shrink-0 rounded-full bg-accent-soft px-3 py-1 text-[11px] font-semibold text-accent">
           {theme?.title.split('—')[0].trim() ?? 'UE'}
@@ -57,8 +53,7 @@ function ChapterCard({
       />
 
       <p className="mt-5 text-[12px] leading-relaxed text-mute">
-        5 bonnes réponses ouvrent le cadre suivant. Un cadre réussi se rejoue quand tu veux : c’est
-        ta révision.
+        Réponds correctement aux 5 QCM pour accéder au niveau supérieur !
       </p>
     </article>
   )
@@ -183,22 +178,19 @@ export default function AnkiDashboard() {
             </div>
           </div>
         ) : (
-          <>
-            <div className="mt-6 space-y-4">
-              {chapters.map((chapter, index) => (
-                <ChapterCard
-                  key={chapter.chapterId}
-                  chapter={chapter}
-                  levels={levels[chapter.chapterId] ?? []}
-                  planche={index + 1}
-                  onOpenLevel={(level) =>
-                    navigate(`/app/medgame/${chapter.chapterId}/niveau/${level}`)
-                  }
-                />
-              ))}
-            </div>
-            <LevelLegend />
-          </>
+          <div className="mt-6 space-y-4">
+            {chapters.map((chapter, index) => (
+              <ChapterCard
+                key={chapter.chapterId}
+                chapter={chapter}
+                levels={levels[chapter.chapterId] ?? []}
+                planche={index + 1}
+                onOpenLevel={(level) =>
+                  navigate(`/app/medgame/${chapter.chapterId}/niveau/${level}`)
+                }
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

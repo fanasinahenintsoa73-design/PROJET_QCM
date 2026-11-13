@@ -216,31 +216,3 @@ export function LevelGrid({
   )
 }
 
-/** La légende des trois états, sous la planche. */
-export function LevelLegend() {
-  return (
-    <div className="mt-5 grid grid-cols-1 gap-3 text-[10px] leading-snug text-mute sm:grid-cols-3">
-      <div className="flex items-start gap-2">
-        <span className="mt-[3px] h-2 w-2 shrink-0 rounded-full bg-accent" />
-        <span>
-          <b className="block text-[10px] font-semibold text-ink">Réussi</b>
-          5/5 · le cadre suivant s’ouvre
-        </span>
-      </div>
-      <div className="flex items-start gap-2">
-        <span className="mt-[3px] h-2 w-2 shrink-0 rounded-full border border-accent bg-transparent" />
-        <span>
-          <b className="block text-[10px] font-semibold text-ink">Ouvert</b>
-          5 questions · 5 étoiles à prendre
-        </span>
-      </div>
-      <div className="flex items-start gap-2">
-        <span className="mt-[3px] h-2 w-2 shrink-0 rounded-full bg-line" />
-        <span>
-          <b className="block text-[10px] font-semibold text-ink">Verrouillé</b>
-          réussis le cadre précédent
-        </span>
-      </div>
-    </div>
-  )
-}
