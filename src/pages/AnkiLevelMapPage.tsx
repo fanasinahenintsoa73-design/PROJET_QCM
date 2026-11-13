@@ -75,6 +75,7 @@ export default function AnkiLevelMapPage() {
                 navigate(`/app/medgame/${chapterId}/niveau/${level}`)
               }}
               chapterTitle={chapterTitle(chapterId)}
+              chapterId={chapterId}
               planche={1}
             />
             <p className="mt-5 text-[12px] leading-relaxed text-mute">

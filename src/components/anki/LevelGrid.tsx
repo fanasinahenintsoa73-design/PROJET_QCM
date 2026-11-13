@@ -1,12 +1,15 @@
+import { useMemo } from 'react'
 import { Check, Lock } from 'lucide-react'
 import type { AnkiLevel } from '@/types'
 import { cn } from '@/lib/utils'
+import { visualsForChapter } from '@/lib/medgameVisuals'
 
 /**
- * Les fonds manga d'un niveau. L'ordre suit la maquette validée : les images
- * ne sont pas rangées dans l'ordre de leur nom de fichier.
+ * Les 8 anciennes photos, gardées en secours si un chapitre n'a pas encore
+ * de tirage. L'ordre suit la maquette validée : les images ne sont pas rangées
+ * dans l'ordre de leur nom de fichier.
  */
-const LEVEL_IMAGES = [
+const FALLBACK_IMAGES = [
   '/medgame/level-01.jpg',
   '/medgame/level-04.jpg',
   '/medgame/level-03.jpg',
@@ -21,8 +24,8 @@ const GOLD = '#C79A3C'
 const STAR_OFF = 'rgba(255,255,255,.28)'
 const STAR_OPEN = 'rgba(255,255,255,.62)'
 
-function imageForLevel(level: number): string {
-  return LEVEL_IMAGES[(Math.max(1, level) - 1) % LEVEL_IMAGES.length]
+function imageForLevel(images: readonly string[], level: number): string {
+  return images[(Math.max(1, level) - 1) % images.length] ?? FALLBACK_IMAGES[0]
 }
 
 function shadeFor(status: AnkiLevel['status']): string {
@@ -66,15 +69,24 @@ export function LevelGrid({
   levels,
   onSelect,
   chapterTitle,
+  chapterId,
   planche,
 }: {
   levels: AnkiLevel[]
   onSelect?: (level: number) => void
   chapterTitle?: string
+  /** Le tirage automatique des fonds est propre à chaque chapitre. */
+  chapterId?: string
   planche?: number
 }) {
   if (levels.length === 0) return null
 
+  // Le tirage est calculé une seule fois à l'ouverture du chapitre, puis
+  // conservé tant que le chapitre et le nombre de niveaux ne changent pas.
+  const images = useMemo(
+    () => (chapterId ? visualsForChapter(chapterId, levels.length) : FALLBACK_IMAGES),
+    [chapterId, levels.length],
+  )
   const plancheLabel = planche ? `Planche ${String(planche).padStart(2, '0')}` : 'Planche'
 
   return (
@@ -132,7 +144,7 @@ export function LevelGrid({
               )}
             >
               <img
-                src={imageForLevel(level.level)}
+                src={imageForLevel(images, level.level)}
                 alt=""
                 loading="lazy"
                 decoding="async"

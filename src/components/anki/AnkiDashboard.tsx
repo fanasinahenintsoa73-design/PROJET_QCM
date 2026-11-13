@@ -49,6 +49,7 @@ function ChapterCard({
         levels={levels}
         onSelect={onOpenLevel}
         chapterTitle={chapterTitle(chapter.chapterId)}
+        chapterId={chapter.chapterId}
         planche={planche}
       />
 

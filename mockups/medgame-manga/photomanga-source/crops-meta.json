@@ -1,0 +1,840 @@
+{
+  "sourceFolder": "C:/Users/WINDOWS 10/Desktop/photomanga",
+  "outputFolder": "C:\\Users\\WINDOWS 10\\Desktop\\photomanga\\crops",
+  "uniqueSources": 26,
+  "duplicateSources": [
+    {
+      "file": "Screenshot_20261112-192810 - Copie - Copie.png",
+      "duplicateOf": "Screenshot_20261112-2.png"
+    },
+    {
+      "file": "Screenshot_20261112-192810 - Copie.png",
+      "duplicateOf": "Screenshot_20261112-2.png"
+    },
+    {
+      "file": "Screenshot_20261112-192810.png",
+      "duplicateOf": "Screenshot_20261112-2.png"
+    },
+    {
+      "file": "Screenshot_20261112-192815.png",
+      "duplicateOf": "Screenshot_20261112-3.png"
+    },
+    {
+      "file": "Screenshot_20261112-192543 - Copie - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192543.png"
+    },
+    {
+      "file": "Screenshot_20261112-192543 - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192543.png"
+    },
+    {
+      "file": "Screenshot_20261112-192549 - Copie - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192549.png"
+    },
+    {
+      "file": "Screenshot_20261112-192549 - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192549.png"
+    },
+    {
+      "file": "Screenshot_20261112-192614 - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192614.png"
+    },
+    {
+      "file": "Screenshot_20261112-192646 - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192646.png"
+    },
+    {
+      "file": "Screenshot_20261112-192752 - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192752.png"
+    },
+    {
+      "file": "Screenshot_20261112-192823 - Copie.png",
+      "duplicateOf": "Screenshot_20261112-192823.png"
+    }
+  ],
+  "crops": [
+    {
+      "file": "Screenshot_20261112-2.png",
+      "box": {
+        "x": 8,
+        "y": 128,
+        "w": 1052,
+        "h": 1588,
+        "count": 25836
+      },
+      "label": "image principale",
+      "width": 1052,
+      "height": 1588,
+      "name": "photo-001.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-2.png",
+      "box": {
+        "x": 80,
+        "y": 2056,
+        "w": 344,
+        "h": 348,
+        "count": 3762
+      },
+      "label": "recommandation / grille",
+      "width": 344,
+      "height": 348,
+      "name": "photo-002.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-3.png",
+      "box": {
+        "x": 8,
+        "y": 136,
+        "w": 1068,
+        "h": 1396,
+        "count": 25347
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1396,
+      "name": "photo-003.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-3.png",
+      "box": {
+        "x": 544,
+        "y": 1932,
+        "w": 532,
+        "h": 472,
+        "count": 8174
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 472,
+      "name": "photo-004.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-3.png",
+      "box": {
+        "x": 8,
+        "y": 1948,
+        "w": 532,
+        "h": 456,
+        "count": 7651
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 456,
+      "name": "photo-005.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192321.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1600,
+        "count": 77462
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1600,
+      "name": "photo-006.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192321.png",
+      "box": {
+        "x": 40,
+        "y": 2104,
+        "w": 472,
+        "h": 300,
+        "count": 6416
+      },
+      "label": "recommandation / grille",
+      "width": 472,
+      "height": 300,
+      "name": "photo-007.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192506.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1892,
+        "count": 125748
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1892,
+      "name": "photo-008.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192528.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1892,
+        "count": 97678
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1892,
+      "name": "photo-009.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192538.png",
+      "box": {
+        "x": 8,
+        "y": 148,
+        "w": 1068,
+        "h": 1564,
+        "count": 56018
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1564,
+      "name": "photo-010.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192538.png",
+      "box": {
+        "x": 56,
+        "y": 2104,
+        "w": 484,
+        "h": 300,
+        "count": 6477
+      },
+      "label": "recommandation / grille",
+      "width": 484,
+      "height": 300,
+      "name": "photo-011.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192538.png",
+      "box": {
+        "x": 544,
+        "y": 2104,
+        "w": 532,
+        "h": 300,
+        "count": 5881
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 300,
+      "name": "photo-012.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192543.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1068,
+        "count": 41038
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1068,
+      "name": "photo-013.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192543.png",
+      "box": {
+        "x": 544,
+        "y": 1576,
+        "w": 532,
+        "h": 828,
+        "count": 24738
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 828,
+      "name": "photo-014.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192543.png",
+      "box": {
+        "x": 120,
+        "y": 1712,
+        "w": 328,
+        "h": 648,
+        "count": 9593
+      },
+      "label": "recommandation / grille",
+      "width": 328,
+      "height": 648,
+      "name": "photo-015.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192549.png",
+      "box": {
+        "x": 36,
+        "y": 112,
+        "w": 1016,
+        "h": 1600,
+        "count": 44312
+      },
+      "label": "image principale",
+      "width": 1016,
+      "height": 1600,
+      "name": "photo-016.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192610.png",
+      "box": {
+        "x": 8,
+        "y": 176,
+        "w": 1068,
+        "h": 1540,
+        "count": 75634
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1540,
+      "name": "photo-017.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192614.png",
+      "box": {
+        "x": 48,
+        "y": 164,
+        "w": 772,
+        "h": 1596,
+        "count": 36737
+      },
+      "label": "recommandation / grille",
+      "width": 772,
+      "height": 1596,
+      "name": "photo-018.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192635.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1068,
+        "count": 35506
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1068,
+      "name": "photo-019.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192646.png",
+      "box": {
+        "x": 288,
+        "y": 496,
+        "w": 788,
+        "h": 1508,
+        "count": 37908
+      },
+      "label": "recommandation / grille",
+      "width": 788,
+      "height": 1508,
+      "name": "photo-020.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192735.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1832,
+        "count": 91373
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1832,
+      "name": "photo-021.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192752.png",
+      "box": {
+        "x": 8,
+        "y": 240,
+        "w": 1068,
+        "h": 1472,
+        "count": 49699
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1472,
+      "name": "photo-022.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-192823.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1332,
+        "count": 21824
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1332,
+      "name": "photo-023.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221148.png",
+      "box": {
+        "x": 240,
+        "y": 552,
+        "w": 676,
+        "h": 1052,
+        "count": 14784
+      },
+      "label": "recommandation / grille",
+      "width": 676,
+      "height": 1052,
+      "name": "photo-024.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221148.png",
+      "box": {
+        "x": 10,
+        "y": 1744,
+        "w": 525,
+        "h": 655,
+        "manual": "left"
+      },
+      "label": "recommandation (gauche)",
+      "width": 525,
+      "height": 655,
+      "name": "photo-025.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221148.png",
+      "box": {
+        "x": 545,
+        "y": 1744,
+        "w": 525,
+        "h": 480,
+        "manual": "right"
+      },
+      "label": "recommandation (droite)",
+      "width": 525,
+      "height": 480,
+      "name": "photo-026.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221212.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1420,
+        "count": 94223
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1420,
+      "name": "photo-027.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221212.png",
+      "box": {
+        "x": 8,
+        "y": 1860,
+        "w": 532,
+        "h": 544,
+        "count": 18041
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 544,
+      "name": "photo-028.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221212.png",
+      "box": {
+        "x": 544,
+        "y": 1860,
+        "w": 532,
+        "h": 544,
+        "count": 18043
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 544,
+      "name": "photo-029.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221217.png",
+      "box": {
+        "x": 8,
+        "y": 376,
+        "w": 532,
+        "h": 892,
+        "count": 29587
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 892,
+      "name": "photo-030.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221217.png",
+      "box": {
+        "x": 544,
+        "y": 376,
+        "w": 532,
+        "h": 680,
+        "count": 22532
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 680,
+      "name": "photo-031.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221217.png",
+      "box": {
+        "x": 544,
+        "y": 1128,
+        "w": 532,
+        "h": 940,
+        "count": 31183
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 940,
+      "name": "photo-032.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221217.png",
+      "box": {
+        "x": 8,
+        "y": 1340,
+        "w": 532,
+        "h": 940,
+        "count": 31176
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 940,
+      "name": "photo-033.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221222.png",
+      "box": {
+        "x": 544,
+        "y": 188,
+        "w": 532,
+        "h": 944,
+        "count": 31295
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 944,
+      "name": "photo-034.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221222.png",
+      "box": {
+        "x": 8,
+        "y": 400,
+        "w": 532,
+        "h": 712,
+        "count": 23578
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 712,
+      "name": "photo-035.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221222.png",
+      "box": {
+        "x": 8,
+        "y": 1184,
+        "w": 532,
+        "h": 796,
+        "count": 26378
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 796,
+      "name": "photo-036.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221222.png",
+      "box": {
+        "x": 544,
+        "y": 1204,
+        "w": 532,
+        "h": 820,
+        "count": 27189
+      },
+      "label": "recommandation / grille",
+      "width": 532,
+      "height": 820,
+      "name": "photo-037.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221248.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1876,
+        "count": 124984
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1876,
+      "name": "photo-038.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221258.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1880,
+        "count": 125346
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1880,
+      "name": "photo-039.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221305.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1776,
+        "count": 109696
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1776,
+      "name": "photo-040.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221311.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1600,
+        "count": 106631
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1600,
+      "name": "photo-041.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221315.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1420,
+        "count": 94633
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1420,
+      "name": "photo-042.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221325.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1288,
+        "count": 85648
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1288,
+      "name": "photo-043.jpg",
+      "partial": false
+    },
+    {
+      "file": "Screenshot_20261112-221333.png",
+      "box": {
+        "x": 8,
+        "y": 112,
+        "w": 1068,
+        "h": 1600,
+        "count": 106652
+      },
+      "label": "image principale",
+      "width": 1068,
+      "height": 1600,
+      "name": "photo-044.jpg",
+      "partial": false
+    }
+  ],
+  "skipped": [
+    {
+      "file": "Screenshot_20261112-2.png",
+      "box": {
+        "x": 552,
+        "y": 2080,
+        "w": 520,
+        "h": 324,
+        "count": 4895
+      },
+      "reason": "vignette vide (uniforme)"
+    },
+    {
+      "file": "Screenshot_20261112-192321.png",
+      "box": {
+        "x": 624,
+        "y": 2132,
+        "w": 328,
+        "h": 272,
+        "count": 4106
+      },
+      "reason": "carte coupée en bas"
+    },
+    {
+      "file": "Screenshot_20261112-192610.png",
+      "box": {
+        "x": 8,
+        "y": 2172,
+        "w": 532,
+        "h": 232,
+        "count": 7453
+      },
+      "reason": "carte coupée en bas"
+    },
+    {
+      "file": "Screenshot_20261112-192610.png",
+      "box": {
+        "x": 544,
+        "y": 2172,
+        "w": 532,
+        "h": 232,
+        "count": 7281
+      },
+      "reason": "carte coupée en bas"
+    },
+    {
+      "file": "Screenshot_20261112-192635.png",
+      "box": {
+        "x": 544,
+        "y": 1576,
+        "w": 532,
+        "h": 536,
+        "count": 17734
+      },
+      "reason": "vignette vide (uniforme)"
+    },
+    {
+      "file": "Screenshot_20261112-221148.png",
+      "box": {
+        "x": 0,
+        "y": 1668,
+        "w": 1080,
+        "h": 792,
+        "count": 25837
+      },
+      "reason": "bandeau fusionné"
+    },
+    {
+      "file": "Screenshot_20261112-221222.png",
+      "box": {
+        "x": 8,
+        "y": 2052,
+        "w": 532,
+        "h": 232,
+        "count": 7680
+      },
+      "reason": "carte coupée en bas"
+    },
+    {
+      "file": "Screenshot_20261112-221315.png",
+      "box": {
+        "x": 8,
+        "y": 1896,
+        "w": 532,
+        "h": 508,
+        "count": 16855
+      },
+      "reason": "vignette vide (uniforme)"
+    },
+    {
+      "file": "Screenshot_20261112-221315.png",
+      "box": {
+        "x": 544,
+        "y": 1896,
+        "w": 532,
+        "h": 508,
+        "count": 16855
+      },
+      "reason": "vignette vide (uniforme)"
+    },
+    {
+      "file": "Screenshot_20261112-221325.png",
+      "box": {
+        "x": 8,
+        "y": 1764,
+        "w": 532,
+        "h": 532,
+        "count": 17613
+      },
+      "reason": "vignette vide (uniforme)"
+    },
+    {
+      "file": "Screenshot_20261112-221325.png",
+      "box": {
+        "x": 544,
+        "y": 1764,
+        "w": 532,
+        "h": 640,
+        "count": 21246
+      },
+      "reason": "vignette vide (uniforme)"
+    }
+  ]
+}
