@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MessageSquare, RefreshCw, Star } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
-import { findPaceTheme } from '@/lib/themes'
+import { themeTitle } from '@/lib/themes'
 import { cn, formatDateTime } from '@/lib/utils'
 import type { SeriesFeedbackReview } from '@/types'
 
@@ -71,7 +71,7 @@ export default function AdminFeedbackPage() {
       if (filterRating !== 0 && item.rating !== filterRating) return false
       if (onlyComments && !item.comment.trim()) return false
       if (!query) return true
-      const ueTitle = item.ueId ? findPaceTheme(item.ueId)?.title ?? item.ueId : ''
+      const ueTitle = item.ueId ? themeTitle(item.ueId) : ''
       const haystack = `${item.userName} ${item.userEmail} ${item.comment} ${ueTitle}`.toLowerCase()
       return haystack.includes(query)
     })
@@ -218,9 +218,7 @@ export default function AdminFeedbackPage() {
         ) : (
           <div>
             {filtered.map((item) => {
-              const ueTitle = item.ueId
-                ? findPaceTheme(item.ueId)?.title ?? item.ueId
-                : 'UE de QCM'
+              const ueTitle = item.ueId ? themeTitle(item.ueId) : 'UE de QCM'
               return (
                 <article key={item.attemptId} className="border-b border-hairline py-5">
                   <div className="flex flex-wrap items-center gap-3">

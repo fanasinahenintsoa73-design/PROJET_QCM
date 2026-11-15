@@ -267,6 +267,129 @@ export interface AnkiReviewCard {
   options: Partial<QuestionOptions>
 }
 
+/** Quota partagé Pres Concours + MEDGAME. */
+export interface SeriesQuota {
+  used: number
+  limit: number
+  remaining: number
+  reached: boolean
+}
+
+/** Progression MEDGAME : un parcours fixe, indépendant des runs. */
+export type MedgameProgressStatus = 'active' | 'completed' | 'archived'
+export type MedgameRunStatus = 'in_progress' | 'failed' | 'completed' | 'abandoned'
+
+export interface MedgameProgress {
+  id: string
+  studentId: string
+  ticketId?: string
+  ueId: string
+  chapterIds: string[]
+  /** Questions mélangées une seule fois pour tout le parcours. */
+  questionIds: string[]
+  /** Copie figée des questions du parcours (mode démonstration). */
+  questionSnapshots?: Question[]
+  levelCount: number
+  currentLevel: number
+  status: MedgameProgressStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MedgameRun {
+  id: string
+  progressId: string
+  studentId: string
+  status: MedgameRunStatus
+  currentLevel: number
+  startedAt: string
+  lastActivityAt: string
+  endedAt?: string
+  consumedAt?: string
+  consumedReason?: string
+  resumedFromRunId?: string
+}
+
+export interface MedgameLevel {
+  level: number
+  totalLevels: number
+  questionCount: number
+  status: 'passed' | 'unlocked' | 'locked'
+}
+
+export interface MedgameAnswerInput {
+  questionId: string
+  given: string[]
+}
+
+export interface MedgameAnswerResult {
+  questionId: string
+  given: string[]
+  correctAnswers: string[]
+  explanation: string
+  correct: boolean
+}
+
+export interface MedgameResult {
+  runId: string
+  level: number
+  correct: number
+  total: number
+  stars: number
+  passed: boolean
+  completed: boolean
+  failed: boolean
+  nextLevel: number | null
+  answers: MedgameAnswerResult[]
+  consumed: boolean
+  quota: SeriesQuota
+}
+
+export interface MedgameOverview {
+  progress: MedgameProgress | null
+  run: MedgameRun | null
+  levels: MedgameLevel[]
+  quota: SeriesQuota
+}
+
+export interface MedgameRunState {
+  run: MedgameRun
+  progress: MedgameProgress
+  questions: Question[]
+  levels: MedgameLevel[]
+  quota: SeriesQuota
+}
+
+/** Support de cours déposé par le docteur. */
+export interface CourseSupport {
+  id: string
+  ueId: string
+  chapterId: string
+  title: string
+  description: string
+  fileName: string
+  mimeType: string
+  /** Données locales (mode démonstration). */
+  dataUrl?: string
+  /** Chemin du fichier dans le stockage privé Supabase. */
+  storagePath?: string
+  createdAt: string
+}
+
+/** Sujet d'examen déposé par le docteur. */
+export interface ExamSubject {
+  id: string
+  year: number
+  ueId: string
+  title: string
+  description: string
+  fileName: string
+  mimeType: string
+  dataUrl?: string
+  storagePath?: string
+  createdAt: string
+}
+
 export interface Database {
   version: number
   users: User[]
@@ -275,4 +398,10 @@ export interface Database {
   assignments: SubjectAssignment[]
   questions: Question[]
   attempts: Attempt[]
+  /**
+   * Séries déjà consommées par MEDGAME pour l'utilisateur courant.
+   * renseigné côté Supabase (mode distant) ; en mode démonstration la valeur
+   * vient du stockage local des consommations MEDGAME.
+   */
+  medgameSeriesUsed?: number
 }

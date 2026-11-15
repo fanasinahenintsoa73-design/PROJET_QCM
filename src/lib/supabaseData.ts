@@ -9,8 +9,14 @@ import type {
   AnkiLevelResult,
   AnkiReviewCard,
   Attempt,
+  CourseSupport,
   Database,
+  ExamSubject,
   GeneratedTicket,
+  MedgameAnswerInput,
+  MedgameOverview,
+  MedgameResult,
+  MedgameRunState,
   Question,
   Receipt,
   RequestStatus,
@@ -351,6 +357,7 @@ export function emptyDatabase(): Database {
     assignments: [],
     questions: [],
     attempts: [],
+    medgameSeriesUsed: 0,
   }
 }
 
@@ -450,6 +457,18 @@ export async function fetchDatabase(currentProfile?: User): Promise<Database> {
     )
   }
 
+  // Séries consommées par MEDGAME : elles partagent le quota de 30 séries
+  // avec Pres Concours, donc le compteur du tableau de bord doit les inclure.
+  let medgameSeriesUsed = 0
+  if (!professor) {
+    const { count, error: consumptionError } = await client
+      .from('series_consumptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profile.id)
+    if (consumptionError) throw asFrenchError(consumptionError)
+    medgameSeriesUsed = count ?? 0
+  }
+
   return {
     version: 3,
     users: profiles.map(mapProfile),
@@ -458,6 +477,7 @@ export async function fetchDatabase(currentProfile?: User): Promise<Database> {
     assignments,
     attempts,
     questions: [],
+    medgameSeriesUsed,
   }
 }
 
@@ -1567,4 +1587,264 @@ export async function recordAnkiLevel(input: {
     bestStars: row.bestStars ?? 0,
     totalLevels: row.totalLevels ?? 0,
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* MEDGAME — parcours, runs et quota partagé                           */
+/* ------------------------------------------------------------------ */
+
+export async function getMedgameOverview(): Promise<MedgameOverview> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('medgame_overview')
+  if (error) throw asFrenchError(error)
+  return data as MedgameOverview
+}
+
+export async function createMedgameProgress(
+  ueId: string,
+  chapterIds: string[],
+): Promise<MedgameOverview> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('medgame_create_progress', {
+    p_ue_id: ueId,
+    p_chapter_ids: chapterIds,
+  })
+  if (error) throw asFrenchError(error)
+  return data as MedgameOverview
+}
+
+export async function startMedgameRun(): Promise<MedgameRunState> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('medgame_start_run')
+  if (error) throw asFrenchError(error)
+  return data as MedgameRunState
+}
+
+export async function getMedgameRun(runId: string): Promise<MedgameRunState> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('medgame_run_state', { p_run_id: runId })
+  if (error) throw asFrenchError(error)
+  return data as MedgameRunState
+}
+
+export async function submitMedgameLevel(
+  runId: string,
+  answers: MedgameAnswerInput[],
+): Promise<MedgameResult> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('medgame_submit_level', {
+    p_run_id: runId,
+    p_answers: answers,
+  })
+  if (error) throw asFrenchError(error)
+  return data as MedgameResult
+}
+
+export async function heartbeatMedgameRun(runId: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('medgame_heartbeat', { p_run_id: runId })
+  if (error) throw asFrenchError(error)
+}
+
+export async function abandonMedgameRun(runId: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('medgame_abandon', { p_run_id: runId })
+  if (error) throw asFrenchError(error)
+}
+
+/* ------------------------------------------------------------------ */
+/* Supports du cours et sujets concours                                */
+/* ------------------------------------------------------------------ */
+
+const CONTENT_BUCKET = 'course-content'
+
+interface ContentRow {
+  id: string
+  ue_id: string
+  chapter_id?: string | null
+  year?: number | null
+  title: string
+  description: string
+  storage_path: string
+  mime_type: string
+  file_name: string
+  created_at: string
+}
+
+function mapCourseSupport(row: ContentRow): CourseSupport {
+  return {
+    id: row.id,
+    ueId: row.ue_id,
+    chapterId: row.chapter_id ?? '',
+    title: row.title,
+    description: row.description,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    storagePath: row.storage_path,
+    createdAt: row.created_at,
+  }
+}
+
+function mapExamSubject(row: ContentRow): ExamSubject {
+  return {
+    id: row.id,
+    year: row.year ?? new Date(row.created_at).getFullYear(),
+    ueId: row.ue_id,
+    title: row.title,
+    description: row.description,
+    fileName: row.file_name,
+    mimeType: row.mime_type,
+    storagePath: row.storage_path,
+    createdAt: row.created_at,
+  }
+}
+
+function safeFileName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(-120)
+}
+
+async function uploadContentFile(
+  folder: string,
+  fileName: string,
+  dataUrl: string,
+): Promise<string> {
+  const client = requireSupabase()
+  const blob = await (await fetch(dataUrl)).blob()
+  const path = `${folder}/${crypto.randomUUID()}-${safeFileName(fileName)}`
+  const { error } = await client.storage.from(CONTENT_BUCKET).upload(path, blob, {
+    contentType: blob.type,
+    upsert: false,
+  })
+  if (error) throw asFrenchError(error)
+  return path
+}
+
+export async function resolveContentUrl(path: string): Promise<string> {
+  const client = requireSupabase()
+  const { data, error } = await client.storage
+    .from(CONTENT_BUCKET)
+    .createSignedUrl(path, 3600)
+  if (error) throw asFrenchError(error)
+  return data.signedUrl
+}
+
+export async function listCourseSupports(): Promise<CourseSupport[]> {
+  const client = requireSupabase()
+  const { data, error } = await client
+    .from('course_supports')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as ContentRow[]).map(mapCourseSupport)
+}
+
+export async function saveCourseSupport(input: {
+  id?: string
+  ueId: string
+  chapterId: string
+  title: string
+  description: string
+  fileName: string
+  mimeType: string
+  dataUrl?: string
+  storagePath?: string
+}): Promise<CourseSupport> {
+  const client = requireSupabase()
+  let storagePath = input.storagePath ?? null
+  if (input.dataUrl) {
+    storagePath = await uploadContentFile('supports', input.fileName, input.dataUrl)
+  }
+  if (!storagePath) throw new AppError('CONTENT_INVALID', 'Ajoutez un fichier PDF ou image.')
+
+  const row = {
+    ue_id: input.ueId,
+    chapter_id: input.chapterId,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    storage_path: storagePath,
+    mime_type: input.mimeType,
+    file_name: input.fileName,
+  }
+  const { data, error } = input.id
+    ? await client.from('course_supports').update(row).eq('id', input.id).select('*').single()
+    : await client.from('course_supports').insert(row).select('*').single()
+  if (error) throw asFrenchError(error)
+  return mapCourseSupport(data as ContentRow)
+}
+
+export async function deleteCourseSupport(id: string): Promise<void> {
+  const client = requireSupabase()
+  const { data, error } = await client
+    .from('course_supports')
+    .select('storage_path')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw asFrenchError(error)
+  const { error: deleteError } = await client.from('course_supports').delete().eq('id', id)
+  if (deleteError) throw asFrenchError(deleteError)
+  const path = (data as { storage_path?: string } | null)?.storage_path
+  if (path) await client.storage.from(CONTENT_BUCKET).remove([path])
+}
+
+export async function listExamSubjects(): Promise<ExamSubject[]> {
+  const client = requireSupabase()
+  const { data, error } = await client
+    .from('exam_subjects')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as ContentRow[]).map(mapExamSubject)
+}
+
+export async function saveExamSubject(input: {
+  id?: string
+  year: number
+  ueId: string
+  title: string
+  description: string
+  fileName: string
+  mimeType: string
+  dataUrl?: string
+  storagePath?: string
+}): Promise<ExamSubject> {
+  const client = requireSupabase()
+  let storagePath = input.storagePath ?? null
+  if (input.dataUrl) {
+    storagePath = await uploadContentFile('examens', input.fileName, input.dataUrl)
+  }
+  if (!storagePath) throw new AppError('CONTENT_INVALID', 'Ajoutez un fichier PDF ou image.')
+
+  const row = {
+    year: input.year,
+    ue_id: input.ueId,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    storage_path: storagePath,
+    mime_type: input.mimeType,
+    file_name: input.fileName,
+  }
+  const { data, error } = input.id
+    ? await client.from('exam_subjects').update(row).eq('id', input.id).select('*').single()
+    : await client.from('exam_subjects').insert(row).select('*').single()
+  if (error) throw asFrenchError(error)
+  return mapExamSubject(data as ContentRow)
+}
+
+export async function deleteExamSubject(id: string): Promise<void> {
+  const client = requireSupabase()
+  const { data, error } = await client
+    .from('exam_subjects')
+    .select('storage_path')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw asFrenchError(error)
+  const { error: deleteError } = await client.from('exam_subjects').delete().eq('id', id)
+  if (deleteError) throw asFrenchError(deleteError)
+  const path = (data as { storage_path?: string } | null)?.storage_path
+  if (path) await client.storage.from(CONTENT_BUCKET).remove([path])
 }

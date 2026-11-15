@@ -104,7 +104,6 @@ export default function AdminTicketsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [count, setCount] = useState('50')
-  const [ticketType, setTicketType] = useState<TicketType>('series')
   const [search, setSearch] = useState('')
   const [generating, setGenerating] = useState(false)
   const [busyCode, setBusyCode] = useState<string | null>(null)
@@ -124,29 +123,16 @@ export default function AdminTicketsPage() {
   const lastBatch = getGeneratedTickets()
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
 
-  const activeType: TicketType = searchParams.get('type') === 'anki' ? 'anki' : 'series'
+  // Un seul type de ticket désormais : le parcours 30 séries (Pres Concours + MEDGAME).
   const archivedView = searchParams.get('vue') === 'archives'
   const filterParam = searchParams.get('statut')
   const activeFilter = !archivedView && isTicketFilter(filterParam) ? filterParam : null
   const normalizedSearch = search.trim().toUpperCase()
 
-  const seriesCount = tickets.filter((item) => item.type === 'series' && !item.archivedAt).length
-  const ankiCount = tickets.filter((item) => item.type === 'anki' && !item.archivedAt).length
-  // Les archives suivent le parcours affiché, comme les autres compteurs :
-  // le bloc « Anki » et le bloc « 30 séries » de l'accueil du docteur
-  // pointent chacun vers leurs propres tickets archivés.
-  const archivedCount = tickets.filter(
-    (item) => item.type === activeType && item.archivedAt !== null,
-  ).length
-  const archivedOtherType: TicketType = activeType === 'anki' ? 'series' : 'anki'
-  const archivedOtherCount = tickets.filter(
-    (item) => item.type === archivedOtherType && item.archivedAt !== null,
-  ).length
+  const seriesCount = tickets.filter((item) => !item.archivedAt).length
+  const archivedCount = tickets.filter((item) => item.archivedAt !== null).length
 
-  const activeTypeTickets = useMemo(
-    () => tickets.filter((item) => item.type === activeType),
-    [tickets, activeType],
-  )
+  const activeTypeTickets = tickets
 
   const counts = useMemo(() => {
     const current = activeTypeTickets.filter((item) => !item.archivedAt)
@@ -182,7 +168,7 @@ export default function AdminTicketsPage() {
 
   useEffect(() => {
     setSelected(new Set())
-  }, [activeType, activeFilter, archivedView, normalizedSearch])
+  }, [activeFilter, archivedView, normalizedSearch])
 
   useEffect(() => {
     if (activeFilter) setSearch('')
@@ -279,7 +265,7 @@ export default function AdminTicketsPage() {
     }
     setGenerating(true)
     try {
-      const created = await api.generateTickets(n, ticketType)
+      const created = await api.generateTickets(n, 'series')
       setGeneratedTickets(created)
       toast(`${created.length} ticket${created.length > 1 ? 's' : ''} généré${created.length > 1 ? 's' : ''}.`)
       navigate('/admin/tickets/generes')
@@ -404,8 +390,8 @@ export default function AdminTicketsPage() {
             Tickets d’accès.
           </h1>
           <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-mute">
-            Un ticket = un étudiant. Choisis le parcours 30 séries ou Anki, génère les ID et
-            numéros, puis suis l’activité. Un ticket utilisé ne se supprime pas : il s’archive.
+            Un ticket = un étudiant. Génère les ID et numéros, puis suis l’activité. Un ticket
+            utilisé ne se supprime pas : il s’archive.
           </p>
         </div>
         <Button variant="outline" onClick={() => void load()} loading={loading}>
@@ -415,17 +401,6 @@ export default function AdminTicketsPage() {
 
       <section className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-6">
         <div className="flex flex-wrap items-end gap-4">
-          <Field label="Type de ticket" htmlFor="ticket-type" className="w-52">
-            <select
-              id="ticket-type"
-              value={ticketType}
-              onChange={(event) => setTicketType(event.target.value as TicketType)}
-              className="h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[14px] text-ink outline-none transition focus:border-accent"
-            >
-              <option value="series">30 séries</option>
-              <option value="anki">Anki · 5 chapitres</option>
-            </select>
-          </Field>
           <Field label="Nombre de tickets" htmlFor="ticket-count" className="w-40">
             <Input
               id="ticket-count"
@@ -460,37 +435,11 @@ export default function AdminTicketsPage() {
 
       <section className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line">
-          <div className="flex gap-5" role="tablist" aria-label="Type de ticket">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeType === 'series'}
-              onClick={() => updateParams({ type: 'series', statut: null, vue: null })}
-              className={cn(
-                'inline-flex items-center gap-2 border-b-2 pb-3 text-[13px] font-medium transition',
-                activeType === 'series'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-mute hover:text-ink',
-              )}
-            >
-              30 séries
+          <div className="flex gap-5">
+            <span className="inline-flex items-center gap-2 border-b-2 border-accent pb-3 text-[13px] font-medium text-accent">
+              Tickets
               <span className="rounded-full bg-cloud px-2 py-0.5 text-[10px] text-mute">{seriesCount}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeType === 'anki'}
-              onClick={() => updateParams({ type: 'anki', statut: null, vue: null })}
-              className={cn(
-                'inline-flex items-center gap-2 border-b-2 pb-3 text-[13px] font-medium transition',
-                activeType === 'anki'
-                  ? 'border-accent text-accent'
-                  : 'border-transparent text-mute hover:text-ink',
-              )}
-            >
-              Anki
-              <span className="rounded-full bg-cloud px-2 py-0.5 text-[10px] text-mute">{ankiCount}</span>
-            </button>
+            </span>
           </div>
           <button
             type="button"
@@ -541,18 +490,6 @@ export default function AdminTicketsPage() {
               de fonctionner normalement : ses données sont conservées et tu peux le réactiver à tout
               moment.
             </p>
-            {archivedOtherCount > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  updateParams({ type: archivedOtherType, vue: 'archives', statut: null })
-                }
-              >
-                {archivedOtherCount} archivé{archivedOtherCount > 1 ? 's' : ''} ·{' '}
-                {archivedOtherType === 'anki' ? 'Anki' : '30 séries'}
-              </Button>
-            ) : null}
             <Button
               variant="ghost"
               size="sm"
@@ -575,7 +512,7 @@ export default function AdminTicketsPage() {
               id="ticket-search"
               value={search}
               onChange={(event) => setSearch(event.target.value.toUpperCase())}
-              placeholder={`Rechercher un ID (ex. ${activeType === 'anki' ? 'ANKI0001' : 'PACES0001'})`}
+              placeholder="Rechercher un ID (ex. PACES0001)"
               aria-label="Rechercher un ticket par ID"
               autoComplete="off"
               spellCheck={false}

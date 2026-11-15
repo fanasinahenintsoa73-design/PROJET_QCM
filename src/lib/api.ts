@@ -7,7 +7,13 @@ import type {
   AnkiLevelAnswer,
   AnkiLevelResult,
   AnkiReviewCard,
+  CourseSupport,
+  ExamSubject,
   GeneratedTicket,
+  MedgameAnswerInput,
+  MedgameOverview,
+  MedgameResult,
+  MedgameRunState,
   Question,
   Receipt,
   SeriesFeedback,
@@ -22,6 +28,7 @@ import type {
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { sendNotification, type NotificationPayload } from '@/lib/notify'
 import * as demo from '@/lib/db'
+import * as medgame from '@/lib/medgame'
 import * as remote from '@/lib/supabaseData'
 import {
   getSeriesFeedback as getLocalFeedback,
@@ -481,6 +488,113 @@ export const api = {
   async myTicketInfo(): Promise<TicketInfo | null> {
     if (isSupabaseConfigured) return remote.myTicketInfo()
     return Promise.resolve(demo.myTicketInfo())
+  },
+
+  /* ---------------------------------------------------------------- */
+  /* MEDGAME — parcours, runs et quota partagé                        */
+  /* ---------------------------------------------------------------- */
+
+  async getMedgameOverview(): Promise<MedgameOverview> {
+    if (isSupabaseConfigured) return remote.getMedgameOverview()
+    const studentId = demo.getSessionUserId()
+    if (!studentId) throw new AppError('ACCESS_EXPIRED', 'Votre session a expiré.')
+    return medgame.getMedgameOverview(studentId)
+  },
+
+  async createMedgameProgress(ueId: string, chapterIds: string[]): Promise<MedgameOverview> {
+    if (isSupabaseConfigured) return remote.createMedgameProgress(ueId, chapterIds)
+    const studentId = demo.getSessionUserId()
+    if (!studentId) throw new AppError('ACCESS_EXPIRED', 'Votre session a expiré.')
+    return medgame.createMedgameProgress({ studentId, ueId, chapterIds })
+  },
+
+  async startMedgameRun(): Promise<MedgameRunState> {
+    if (isSupabaseConfigured) return remote.startMedgameRun()
+    const studentId = demo.getSessionUserId()
+    if (!studentId) throw new AppError('ACCESS_EXPIRED', 'Votre session a expiré.')
+    return medgame.startMedgameRun(studentId)
+  },
+
+  async getMedgameRun(runId: string): Promise<MedgameRunState> {
+    if (isSupabaseConfigured) return remote.getMedgameRun(runId)
+    return medgame.getMedgameRun(runId)
+  },
+
+  async submitMedgameLevel(
+    runId: string,
+    answers: MedgameAnswerInput[],
+  ): Promise<MedgameResult> {
+    if (isSupabaseConfigured) return remote.submitMedgameLevel(runId, answers)
+    return medgame.submitMedgameLevel(runId, answers)
+  },
+
+  async heartbeatMedgameRun(runId: string): Promise<void> {
+    if (isSupabaseConfigured) return remote.heartbeatMedgameRun(runId)
+    medgame.heartbeatMedgameRun(runId)
+  },
+
+  async abandonMedgameRun(runId: string): Promise<void> {
+    if (isSupabaseConfigured) return remote.abandonMedgameRun(runId)
+    medgame.abandonMedgameRun(runId)
+  },
+
+  /* ---------------------------------------------------------------- */
+  /* Supports du cours et sujets concours                             */
+  /* ---------------------------------------------------------------- */
+
+  async listCourseSupports(): Promise<CourseSupport[]> {
+    if (isSupabaseConfigured) return remote.listCourseSupports()
+    return Promise.resolve(demo.listCourseSupports())
+  },
+
+  async saveCourseSupport(input: {
+    id?: string
+    ueId: string
+    chapterId: string
+    title: string
+    description: string
+    fileName: string
+    mimeType: string
+    dataUrl?: string
+    storagePath?: string
+  }): Promise<CourseSupport> {
+    if (isSupabaseConfigured) return remote.saveCourseSupport(input)
+    return Promise.resolve(demo.saveCourseSupport(input))
+  },
+
+  async deleteCourseSupport(id: string): Promise<void> {
+    if (isSupabaseConfigured) return remote.deleteCourseSupport(id)
+    return Promise.resolve(demo.deleteCourseSupport(id))
+  },
+
+  async listExamSubjects(): Promise<ExamSubject[]> {
+    if (isSupabaseConfigured) return remote.listExamSubjects()
+    return Promise.resolve(demo.listExamSubjects())
+  },
+
+  async saveExamSubject(input: {
+    id?: string
+    year: number
+    ueId: string
+    title: string
+    description: string
+    fileName: string
+    mimeType: string
+    dataUrl?: string
+    storagePath?: string
+  }): Promise<ExamSubject> {
+    if (isSupabaseConfigured) return remote.saveExamSubject(input)
+    return Promise.resolve(demo.saveExamSubject(input))
+  },
+
+  async deleteExamSubject(id: string): Promise<void> {
+    if (isSupabaseConfigured) return remote.deleteExamSubject(id)
+    return Promise.resolve(demo.deleteExamSubject(id))
+  },
+
+  async resolveContentUrl(path: string): Promise<string> {
+    if (isSupabaseConfigured) return remote.resolveContentUrl(path)
+    return path
   },
 
   /* ---------------------------------------------------------------- */

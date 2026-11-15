@@ -1,13 +1,23 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BookOpen, LayoutDashboard, LogOut, Star, Ticket } from 'lucide-react'
+import { BookOpen, FileText, LayoutDashboard, Library, LogOut, Star, Ticket } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 import { fullName, initials } from '@/lib/utils'
 
-const navItems = [
+type AdminNavItem = {
+  to: string
+  label: string
+  icon: typeof LayoutDashboard
+  end?: boolean
+  mobileLabel?: string
+}
+
+const navItems: AdminNavItem[] = [
   { to: '/admin', label: 'Page d’accueil', icon: LayoutDashboard, end: true },
   { to: '/admin/tickets', label: 'Tickets', icon: Ticket },
   { to: '/admin/themes', label: 'Sujets', icon: BookOpen },
+  { to: '/admin/supports', label: 'Supports', icon: Library },
+  { to: '/admin/sujets-concours', label: 'Sujets concours', mobileLabel: 'Concours', icon: FileText },
   { to: '/admin/avis', label: 'Avis', icon: Star },
 ]
 
@@ -64,7 +74,7 @@ export function AdminLayout() {
 
         <div className="border-t border-line md:hidden">
           <nav
-            className="mx-auto grid max-w-content grid-cols-4 items-stretch px-2 sm:px-8"
+            className="mx-auto grid max-w-content grid-cols-6 items-stretch px-2 sm:px-8"
             aria-label="Navigation docteur mobile"
           >
             {navItems.map((item) => {
@@ -82,7 +92,7 @@ export function AdminLayout() {
                   }
                 >
                   <Icon className="hidden size-3.5 sm:block" strokeWidth={1.7} />
-                  {item.label}
+                  {item.mobileLabel ?? item.label}
                 </NavLink>
               )
             })}

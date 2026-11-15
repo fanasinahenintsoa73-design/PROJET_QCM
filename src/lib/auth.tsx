@@ -318,9 +318,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const homePath = useMemo(() => {
     if (!user) return isDoctorPortal ? '/' : '/acces'
     if (user.role === 'professor') return '/admin'
-    if (ticketInfo?.type === 'anki') return '/app/medgame/choisir'
     return studentHomePath(user, db)
-  }, [db, user, clock, ticketInfo])
+  }, [db, user, clock])
 
   const login = useCallback(
     async (
@@ -424,7 +423,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTicketInfo(freshInfo)
       return {
         ...result,
-        homePath: freshInfo?.type === 'anki' ? '/app/medgame/choisir' : result.homePath,
+        homePath: result.homePath,
       }
     },
     [login, logout],

@@ -323,6 +323,11 @@ export function findPaceTheme(value: string): PaceThemeDefinition | undefined {
   return matches.length === 1 ? matches[0] : undefined
 }
 
+/** Titre lisible d'une UE : le libellé du thème s'il existe, sinon l'identifiant brut. */
+export function themeTitle(themeId: string): string {
+  return findPaceTheme(themeId)?.title ?? themeId
+}
+
 export function themeNumber(title: string): number | undefined {
   const theme = findPaceTheme(title)
   if (!theme) return undefined

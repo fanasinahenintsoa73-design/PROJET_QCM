@@ -5,8 +5,8 @@ import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 import { getPublishedSubjects } from '@/lib/db'
 import { usePageTitle } from '@/components/Layouts'
-import { cn, isExpired } from '@/lib/utils'
-import type { TicketItem, TicketType } from '@/types'
+import { cn } from '@/lib/utils'
+import type { TicketItem } from '@/types'
 
 type TicketCounts = {
   available: number
@@ -16,7 +16,7 @@ type TicketCounts = {
   archived: number
 }
 
-function countTickets(tickets: TicketItem[], type: TicketType): TicketCounts {
+function countTickets(tickets: TicketItem[]): TicketCounts {
   const counts: TicketCounts = {
     available: 0,
     inProgress: 0,
@@ -25,7 +25,6 @@ function countTickets(tickets: TicketItem[], type: TicketType): TicketCounts {
     archived: 0,
   }
   for (const item of tickets) {
-    if (item.type !== type) continue
     // Un ticket archivé est mis de côté : il ne fait plus partie des listes
     // actives, mais son compte continue de fonctionner.
     if (item.archivedAt) {
@@ -36,14 +35,6 @@ function countTickets(tickets: TicketItem[], type: TicketType): TicketCounts {
       counts.suspended += 1
       continue
     }
-    if (type === 'anki') {
-      const expired = isExpired(item.expiresAt ?? undefined)
-      const finished = expired || (item.ankiChapters > 0 && item.ankiCompleted >= item.ankiChapters)
-      if (finished) counts.finished += 1
-      else if (item.ankiChapters > 0) counts.inProgress += 1
-      else counts.available += 1
-      continue
-    }
     if (item.seriesUsed >= 30) counts.finished += 1
     else if (item.status === 'used' || item.usedAt) counts.inProgress += 1
     else counts.available += 1
@@ -52,14 +43,12 @@ function countTickets(tickets: TicketItem[], type: TicketType): TicketCounts {
 }
 
 function TicketBlock({
-  type,
   title,
   description,
   counts,
   activeCount,
   links,
 }: {
-  type: TicketType
   title: string
   description: string
   counts: TicketCounts
@@ -86,7 +75,7 @@ function TicketBlock({
         {links.map((item) => (
           <Link
             key={item.key}
-            to={item.href ?? `/admin/tickets?type=${type}&statut=${item.key}`}
+            to={item.href ?? `/admin/tickets?statut=${item.key}`}
             className="group flex items-center gap-3 border-b border-hairline py-3.5 transition-colors hover:bg-cloud sm:px-2"
           >
             <span className={cn('size-1.5 shrink-0 rounded-full', item.dot)} />
@@ -101,11 +90,11 @@ function TicketBlock({
       </div>
 
       <Link
-        to={`/admin/tickets?type=${type}`}
+        to="/admin/tickets"
         className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-medium text-charcoal hover:text-ink"
       >
         <Ticket className="size-3" />
-        Gérer les tickets {type === 'series' ? '30 séries' : 'Anki'}
+        Gérer les tickets
       </Link>
     </section>
   )
@@ -130,10 +119,8 @@ export default function AdminDashboardPage() {
   const subjects = getPublishedSubjects(db)
   const questionCount = subjects.reduce((total, item) => total + item.questionCount, 0)
 
-  const seriesCounts = countTickets(tickets, 'series')
-  const ankiCounts = countTickets(tickets, 'anki')
+  const seriesCounts = countTickets(tickets)
   const seriesActive = seriesCounts.available + seriesCounts.inProgress + seriesCounts.finished + seriesCounts.suspended
-  const ankiActive = ankiCounts.available + ankiCounts.inProgress + ankiCounts.finished + ankiCounts.suspended
 
   const seriesLinks = [
     { key: 'available', label: 'Disponibles', note: 'Pas encore utilisés', dot: 'bg-success' },
@@ -145,21 +132,7 @@ export default function AdminDashboardPage() {
       label: 'Archivés',
       note: 'Mis de côté, le compte continue',
       dot: 'bg-mute',
-      href: '/admin/tickets?type=series&vue=archives',
-    },
-  ] as const
-
-  const ankiLinks = [
-    { key: 'available', label: 'Disponibles', note: 'Aucun chapitre choisi', dot: 'bg-success' },
-    { key: 'inProgress', label: 'En cours', note: 'Chapitres en cours', dot: 'bg-info' },
-    { key: 'finished', label: 'Terminés', note: 'Tous les chapitres terminés', dot: 'bg-stone' },
-    { key: 'suspended', label: 'Suspendus', note: 'Accès fermé', dot: 'bg-sale' },
-    {
-      key: 'archived',
-      label: 'Archivés',
-      note: 'Mis de côté, le compte continue',
-      dot: 'bg-mute',
-      href: '/admin/tickets?type=anki&vue=archives',
+      href: '/admin/tickets?vue=archives',
     },
   ] as const
 
@@ -170,8 +143,8 @@ export default function AdminDashboardPage() {
           <h1 className="display text-[clamp(2.75rem,6vw,4.5rem)]">Page d’accueil.</h1>
           <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-mute">
             {user ? `Bonjour ${user.firstName}. ` : ''}
-            Deux parcours séparés : 30 séries et Anki. Chaque ticket est un étudiant. Un ticket
-            utilisé ne se supprime pas : il s’archive.
+            Un seul ticket, 30 séries partagées entre Pres Concours et MEDGAME. Chaque ticket est
+            un étudiant. Un ticket utilisé ne se supprime pas : il s’archive.
           </p>
         </div>
       </section>
@@ -185,21 +158,11 @@ export default function AdminDashboardPage() {
           ) : null}
 
           <TicketBlock
-            type="series"
-            title="30 séries"
-            description="Le parcours historique : un ticket, un étudiant, jusqu’à 30 séries. Disponible, en cours, terminé ou suspendu."
+            title="30 séries partagées"
+            description="Un ticket, un étudiant, jusqu’à 30 séries réparties librement entre Pres Concours et MEDGAME. Disponible, en cours, terminé ou suspendu."
             counts={seriesCounts}
             activeCount={seriesActive}
             links={seriesLinks}
-          />
-
-          <TicketBlock
-            type="anki"
-            title="Anki"
-            description="Le parcours de révision : jusqu’à 5 chapitres choisis un par un. Le ticket suit les chapitres terminés, pas les séries."
-            counts={ankiCounts}
-            activeCount={ankiActive}
-            links={ankiLinks}
           />
         </div>
 

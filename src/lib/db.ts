@@ -9,7 +9,9 @@ import type {
   AnkiLevelResult,
   AnkiReviewCard,
   Attempt,
+  CourseSupport,
   Database,
+  ExamSubject,
   GeneratedTicket,
   Question,
   Receipt,
@@ -22,6 +24,7 @@ import type {
   User,
 } from '@/types'
 import { makeTicketSecret, ticketLoginEmail } from '@/lib/tickets'
+import { getActiveRun, getMedgameConsumptionCount } from '@/lib/medgameStore'
 import { createSeedDatabase, PROFESSOR_FIRST_NAME, PROFESSOR_LAST_NAME, randomQuestionIds } from '@/lib/seed'
 import {
   PACE_THEMES,
@@ -76,7 +79,25 @@ function migrateDatabase(database: Database): Database {
       lastName: PROFESSOR_LAST_NAME,
     }
   })
-  return changed ? { ...database, users } : database
+
+  // Les bases de démonstration créées avant les chapitres ne portent qu'un
+  // sujet par UE, sans chapterId. Sans cette migration, MEDGAME affiche
+  // « 0 chapitre disponible » et Pres Concours ne retrouve plus ses sujets.
+  // On rattache chaque ancien sujet au premier chapitre de son UE : le contenu
+  // reste intact et les deux parcours retrouvent immédiatement leurs questions.
+  const subjects = database.subjects.map((subject) => {
+    if (subject.chapterId) return subject
+    const theme =
+      findPaceTheme(subject.title) ??
+      PACE_THEMES.find((candidate) => candidate.id === subject.id) ??
+      PACE_THEMES.find((candidate) => candidate.title === subject.title)
+    const chapter = theme?.chapters[0]
+    if (!chapter) return subject
+    changed = true
+    return { ...subject, chapterId: chapter.id }
+  })
+
+  return changed ? { ...database, users, subjects } : database
 }
 
 function loadFromStorage(): Database {
@@ -449,7 +470,11 @@ export interface SeriesUsage {
 /** Nombre de séries soumises dans le cycle courant, au regard de la limite. */
 export function getSeriesUsage(userId: string, db: Database = getDB()): SeriesUsage {
   const assignment = getCurrentAssignment(userId, db)
-  const used = getCurrentCycleAttempts(userId, db, assignment).length
+  const presConcoursUsed = getCurrentCycleAttempts(userId, db, assignment).length
+  // En mode Supabase, les consommations MEDGAME viennent du serveur ; en mode
+  // démonstration, elles sont comptées dans le stockage local.
+  const medgameUsed = db.medgameSeriesUsed ?? getMedgameConsumptionCount(userId)
+  const used = presConcoursUsed + medgameUsed
   return {
     assignment,
     used,
@@ -1094,6 +1119,12 @@ export function startSeries(
   if (!assignment) {
     throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Contactez le docteur pour un nouveau ticket.')
   }
+  if (getActiveRun(userId)) {
+    throw new AppError(
+      'MEDGAME_RUN_ACTIVE',
+      'Une partie MEDGAME est en cours. Terminez-la ou abandonnez-la avant de lancer Pres Concours.',
+    )
+  }
   if (getSeriesUsage(userId, db).reached) {
     throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
   }
@@ -1167,6 +1198,12 @@ export function startChapterSeries(
   const assignment = getCurrentAssignment(userId, db)
   if (!assignment) {
     throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Contactez le docteur pour un nouveau ticket.')
+  }
+  if (getActiveRun(userId)) {
+    throw new AppError(
+      'MEDGAME_RUN_ACTIVE',
+      'Une partie MEDGAME est en cours. Terminez-la ou abandonnez-la avant de lancer Pres Concours.',
+    )
   }
 
   const theme = PACE_THEMES.find((candidate) => candidate.id === ueId)
@@ -1530,7 +1567,7 @@ function nextTicketNumber(records: DemoTicket[], prefix = 'PACES'): number {
 }
 
 /** Génère un lot de tickets (mode démonstration). */
-export function generateTickets(count: number, type: TicketType = 'series'): GeneratedTicket[] {
+export function generateTickets(count: number, _type: TicketType = 'series'): GeneratedTicket[] {
   if (!Number.isInteger(count) || count < 1 || count > 500) {
     throw new Error('Nombre de tickets invalide (1 à 500).')
   }
@@ -1540,8 +1577,7 @@ export function generateTickets(count: number, type: TicketType = 'series'): Gen
   const assignments = [...db.assignments]
   const created: GeneratedTicket[] = []
   const now = new Date()
-  const prefix = type === 'anki' ? 'ANKI' : 'PACES'
-  // Le mois Anki part du lancement (1re connexion), pas de la création.
+  const prefix = 'PACES'
   const expiresAt: string | null = null
   let next = nextTicketNumber(records, prefix)
 
@@ -1573,7 +1609,7 @@ export function generateTickets(count: number, type: TicketType = 'series'): Gen
       secret,
       userId,
       status: 'available',
-      type,
+      type: 'series',
       expiresAt,
       createdAt: now.toISOString(),
       usedAt: null,
@@ -1581,7 +1617,7 @@ export function generateTickets(count: number, type: TicketType = 'series'): Gen
       archivedAt: null,
       logins: [],
     })
-    created.push({ code, secret, type })
+    created.push({ code, secret, type: 'series' })
     next += 1
   }
 
@@ -1699,10 +1735,6 @@ export function recordTicketLogin(): void {
   if (record.archivedAt) throw new Error('Ce ticket est archivé.')
   const now = new Date().toISOString()
   record.logins.push(now)
-  // Le mois Anki démarre à la première connexion et ne bouge plus ensuite.
-  if (record.type === 'anki' && !record.usedAt) {
-    record.expiresAt = addDays(new Date(now), 30).toISOString()
-  }
   record.usedAt = record.usedAt ?? now
   record.lastLoginAt = now
   if (record.status === 'available') record.status = 'used'
@@ -1722,6 +1754,146 @@ export function myTicketInfo(): TicketInfo | null {
   const ticket = currentDemoTicket()
   if (!ticket) return null
   return { status: ticket.status, type: ticket.type, expiresAt: ticket.expiresAt }
+}
+
+/* ------------------------------------------------------------------ */
+/* Supports du cours et sujets concours (mode démonstration)           */
+/* ------------------------------------------------------------------ */
+
+const CONTENT_KEY = 'medqcm.content.v1'
+
+interface DemoContentStore {
+  supports: CourseSupport[]
+  examSubjects: ExamSubject[]
+}
+
+function loadContentStore(): DemoContentStore {
+  try {
+    const raw = localStorage.getItem(CONTENT_KEY)
+    if (!raw) return { supports: [], examSubjects: [] }
+    const parsed = JSON.parse(raw) as Partial<DemoContentStore>
+    return {
+      supports: Array.isArray(parsed.supports) ? parsed.supports : [],
+      examSubjects: Array.isArray(parsed.examSubjects) ? parsed.examSubjects : [],
+    }
+  } catch {
+    return { supports: [], examSubjects: [] }
+  }
+}
+
+function saveContentStore(store: DemoContentStore): void {
+  try {
+    localStorage.setItem(CONTENT_KEY, JSON.stringify(store))
+  } catch {
+    /* stockage indisponible */
+  }
+}
+
+export function listCourseSupports(): CourseSupport[] {
+  return [...loadContentStore().supports].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )
+}
+
+export function saveCourseSupport(input: {
+  id?: string
+  ueId: string
+  chapterId: string
+  title: string
+  description: string
+  fileName: string
+  mimeType: string
+  dataUrl?: string
+  storagePath?: string
+}): CourseSupport {
+  if (!input.ueId || !input.chapterId) {
+    throw new AppError('CONTENT_INVALID', 'Choisissez une UE et un chapitre.')
+  }
+  if (!input.title.trim()) {
+    throw new AppError('CONTENT_INVALID', 'Le titre est obligatoire.')
+  }
+  const store = loadContentStore()
+  const existing = input.id
+    ? store.supports.find((item) => item.id === input.id)
+    : undefined
+  const support: CourseSupport = {
+    id: existing?.id ?? uid('support'),
+    ueId: input.ueId,
+    chapterId: input.chapterId,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    dataUrl: input.dataUrl ?? existing?.dataUrl,
+    storagePath: input.storagePath ?? existing?.storagePath,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+  }
+  store.supports = existing
+    ? store.supports.map((item) => (item.id === support.id ? support : item))
+    : [support, ...store.supports]
+  saveContentStore(store)
+  return support
+}
+
+export function deleteCourseSupport(id: string): void {
+  const store = loadContentStore()
+  store.supports = store.supports.filter((item) => item.id !== id)
+  saveContentStore(store)
+}
+
+export function listExamSubjects(): ExamSubject[] {
+  return [...loadContentStore().examSubjects].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )
+}
+
+export function saveExamSubject(input: {
+  id?: string
+  year: number
+  ueId: string
+  title: string
+  description: string
+  fileName: string
+  mimeType: string
+  dataUrl?: string
+  storagePath?: string
+}): ExamSubject {
+  if (!Number.isInteger(input.year) || input.year < 2014 || input.year > 2026) {
+    throw new AppError('CONTENT_INVALID', 'Choisissez une année entre 2014 et 2026.')
+  }
+  if (!input.ueId) {
+    throw new AppError('CONTENT_INVALID', 'Choisissez une UE.')
+  }
+  if (!input.title.trim()) {
+    throw new AppError('CONTENT_INVALID', 'Le titre est obligatoire.')
+  }
+  const store = loadContentStore()
+  const existing = input.id
+    ? store.examSubjects.find((item) => item.id === input.id)
+    : undefined
+  const subject: ExamSubject = {
+    id: existing?.id ?? uid('exam'),
+    year: input.year,
+    ueId: input.ueId,
+    title: input.title.trim(),
+    description: input.description.trim(),
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    dataUrl: input.dataUrl ?? existing?.dataUrl,
+    storagePath: input.storagePath ?? existing?.storagePath,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+  }
+  store.examSubjects = existing
+    ? store.examSubjects.map((item) => (item.id === subject.id ? subject : item))
+    : [subject, ...store.examSubjects]
+  saveContentStore(store)
+  return subject
+}
+
+export function deleteExamSubject(id: string): void {
+  const store = loadContentStore()
+  store.examSubjects = store.examSubjects.filter((item) => item.id !== id)
+  saveContentStore(store)
 }
 
 /* ------------------------------------------------------------------ */

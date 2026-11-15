@@ -11,8 +11,6 @@ import {
   RequireGuest,
   RequireStudent,
   RequireStudentAccount,
-  RequireSeriesStudent,
-  RequireAnkiStudent,
   RequireBlocked,
   RequireAdmin,
   ScrollToTop,
@@ -23,16 +21,17 @@ import { LandingPage } from '@/pages/LandingPage'
 import { TicketAccessPage } from '@/pages/TicketAccessPage'
 import { ExpirationPage } from '@/pages/ExpirationPage'
 import DashboardPage from '@/pages/DashboardPage'
+import PresConcoursDashboardPage from '@/pages/PresConcoursDashboardPage'
 import ChapterSelectionPage from '@/pages/ChapterSelectionPage'
 import QuizPage from '@/pages/QuizPage'
-import AnkiHomePage from '@/pages/AnkiHomePage'
-import AnkiLevelMapPage from '@/pages/AnkiLevelMapPage'
-import AnkiLevelPage from '@/pages/AnkiLevelPage'
-import AnkiLevelResultPage from '@/pages/AnkiLevelResultPage'
+import MedgameHomePage from '@/pages/MedgameHomePage'
+import MedgameRunPage from '@/pages/MedgameRunPage'
+import { CourseSupportsPage, ExamSubjectsPage } from '@/pages/ContentLibraryPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminTicketsPage from '@/pages/admin/AdminTicketsPage'
 import AdminFeedbackPage from '@/pages/admin/AdminFeedbackPage'
+import { AdminCourseSupportsPage, AdminExamSubjectsPage } from '@/pages/admin/AdminContentPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 // xlsx is heavy: only load the publication module when a professor needs it.
@@ -83,9 +82,7 @@ function StudentRoutes() {
       <Route element={<RequireStudentAccount />}>
         {/* Le résultat de la 30e série reste consultable après la fermeture du cycle. */}
         <Route element={<StudentLayout />}>
-          <Route element={<RequireSeriesStudent />}>
-            <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
-          </Route>
+          <Route path="/app/resultat/:attemptId" element={<ResultPage />} />
         </Route>
       </Route>
 
@@ -93,19 +90,23 @@ function StudentRoutes() {
         <Route path="/app/historique" element={<Navigate to="/app" replace />} />
         <Route element={<StudentLayout />}>
           <Route path="/app" element={<DashboardPage />} />
-          <Route element={<RequireSeriesStudent />}>
-            <Route path="/app/ue/:ueId" element={<ChapterSelectionPage />} />
-            <Route path="/app/entrainement" element={<QuizPage />} />
-          </Route>
-          <Route element={<RequireAnkiStudent />}>
-            <Route path="/app/medgame/choisir" element={<AnkiHomePage />} />
-            <Route path="/app/medgame/:chapterId" element={<AnkiLevelMapPage />} />
-            <Route path="/app/medgame/:chapterId/niveau/:level" element={<AnkiLevelPage />} />
-            <Route
-              path="/app/medgame/:chapterId/niveau/:level/bilan"
-              element={<AnkiLevelResultPage />}
-            />
-          </Route>
+          <Route path="/app/pres-concours" element={<PresConcoursDashboardPage />} />
+          <Route path="/app/ue/:ueId" element={<ChapterSelectionPage />} />
+          <Route path="/app/entrainement" element={<QuizPage />} />
+          <Route path="/app/medgame" element={<MedgameHomePage />} />
+          <Route path="/app/medgame/run" element={<MedgameRunPage />} />
+          <Route path="/app/medgame/choisir" element={<Navigate to="/app/medgame" replace />} />
+          <Route path="/app/medgame/:chapterId" element={<Navigate to="/app/medgame" replace />} />
+          <Route
+            path="/app/medgame/:chapterId/niveau/:level"
+            element={<Navigate to="/app/medgame" replace />}
+          />
+          <Route
+            path="/app/medgame/:chapterId/niveau/:level/bilan"
+            element={<Navigate to="/app/medgame" replace />}
+          />
+          <Route path="/app/supports" element={<CourseSupportsPage />} />
+          <Route path="/app/sujets" element={<ExamSubjectsPage />} />
         </Route>
       </Route>
 
@@ -155,6 +156,8 @@ function DoctorRoutes() {
               </Suspense>
             }
           />
+          <Route path="/admin/supports" element={<AdminCourseSupportsPage />} />
+          <Route path="/admin/sujets-concours" element={<AdminExamSubjectsPage />} />
           <Route path="/admin/avis" element={<AdminFeedbackPage />} />
         </Route>
       </Route>
