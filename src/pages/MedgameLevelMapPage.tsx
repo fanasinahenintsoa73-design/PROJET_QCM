@@ -9,12 +9,12 @@ import { LevelGrid } from '@/components/anki/LevelGrid'
 import type { AnkiLevel, MedgameBoard, MedgameOverview } from '@/types'
 
 /**
- * Les planches MEDGAME : une planche par UE choisie, avec un cadre par
- * niveau. Chaque niveau est tiré au hasard parmi les chapitres choisis dans
- * l'UE, et il faut 5/5 pour ouvrir le suivant.
+ * Le jeu MEDGAME : une partie par UE choisie, avec un cadre par niveau.
+ * Chaque niveau est tiré au hasard parmi les chapitres choisis dans l'UE, et
+ * il faut 5/5 pour ouvrir le suivant.
  */
 export default function MedgameLevelMapPage() {
-  usePageTitle('Mes planches — MEDGAME — MEDQCM mada')
+  usePageTitle('Mon jeu — MEDGAME — MEDQCM mada')
   const navigate = useNavigate()
   const [overview, setOverview] = useState<MedgameOverview | null>(null)
   const [loading, setLoading] = useState(true)
@@ -26,7 +26,7 @@ export default function MedgameLevelMapPage() {
       setOverview(await api.getMedgameOverview())
       setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Les planches sont indisponibles.')
+      setError(err instanceof Error ? err.message : 'Le jeu est indisponible.')
     } finally {
       setLoading(false)
     }
@@ -62,7 +62,7 @@ export default function MedgameLevelMapPage() {
       <div className="mx-auto flex min-h-[60vh] max-w-content items-center justify-center px-5">
         <div className="text-center">
           <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          <p className="mt-4 text-sm text-mute">Chargement des planches…</p>
+          <p className="mt-4 text-sm text-mute">Chargement de ton jeu…</p>
         </div>
       </div>
     )
@@ -71,13 +71,13 @@ export default function MedgameLevelMapPage() {
   if (boards.length === 0) {
     return (
       <div className="mx-auto max-w-content px-5 py-16 sm:px-8 lg:px-10">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Aucune planche</p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Aucune partie</p>
         <h1 className="mt-3 font-display text-[2.4rem] leading-none text-ink">
           Choisis d’abord tes chapitres.
         </h1>
         <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-mute">
-          Une planche MEDGAME se construit à partir d’une UE et de ses chapitres. Tes questions
-          seront tirées au hasard par blocs de 5.
+          Ton jeu se construit à partir d’une UE et de ses chapitres. Tes questions seront tirées au
+          hasard par blocs de 5.
         </p>
         <Link
           to="/app/medgame"
@@ -105,15 +105,15 @@ export default function MedgameLevelMapPage() {
               MEDGAME
             </span>
             <h1 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.035em] text-ink">
-              Mes planches
+              Mon jeu
             </h1>
             <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-mute">
-              Une planche par UE choisie. Chaque niveau est tiré au hasard dans tes chapitres, et il
+              Un jeu par UE choisie. Chaque niveau est tiré au hasard dans tes chapitres, et il
               faut 5/5 pour ouvrir le suivant.
             </p>
             <div className="mt-4 flex items-center gap-3 text-[12px] text-mute">
               <span>
-                {boards.length} planche{boards.length > 1 ? 's' : ''} ouverte
+                {boards.length} partie{boards.length > 1 ? 's' : ''} ouverte{boards.length > 1 ? 's' : ''}
                 {boards.length > 1 ? 's' : ''}
               </span>
               <span className="h-1 w-1 rounded-full bg-line" />
@@ -186,11 +186,6 @@ export default function MedgameLevelMapPage() {
                     {title}
                   </h2>
                 </div>
-                <p className="text-[12px] text-mute">
-                  {progress.chapterIds.length} chapitre{progress.chapterIds.length > 1 ? 's' : ''}{' '}
-                  · {progress.questionIds.length} questions · {levels.length} cadre
-                  {levels.length > 1 ? 's' : ''}
-                </p>
               </div>
 
               <div className="mt-5">

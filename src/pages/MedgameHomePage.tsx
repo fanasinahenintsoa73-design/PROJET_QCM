@@ -1,29 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
 import { getUsableQuestions } from '@/lib/db'
-import { chaptersForTheme, PACE_THEMES, themeNumber, themeTitle } from '@/lib/themes'
+import { chaptersForTheme, PACE_THEMES } from '@/lib/themes'
 import { findChapterSubjects } from '@/lib/subjects'
 import { usePageTitle } from '@/components/Layouts'
 import { buttonClasses } from '@/components/ui/Button'
-import type { MedgameBoard, MedgameOverview } from '@/types'
+import type { MedgameOverview } from '@/types'
 
 /**
- * Accueil MEDGAME : les unités d'enseignement, les planches déjà ouvertes et
- * le quota partagé. La planche de niveaux se reached ensuite, une fois le
- * parcours choisi.
+ * Accueil MEDGAME : le jeu, les unités d'enseignement et le quota partagé.
  */
 export default function MedgameHomePage() {
   usePageTitle('MEDGAME — MEDQCM mada')
-  const navigate = useNavigate()
   const { db } = useAuth()
   const [overview, setOverview] = useState<MedgameOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [resumingId, setResumingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -66,20 +62,6 @@ export default function MedgameHomePage() {
   const activeRunId =
     boards.find((board) => board.run?.status === 'in_progress')?.run?.id ?? null
   useMedgameKeepAlive(activeRunId)
-
-  async function resume(board: MedgameBoard) {
-    if (resumingId) return
-    setResumingId(board.progress.id)
-    setError('')
-    try {
-      if (!board.run) await api.startMedgameRun(board.progress.id)
-      navigate('/app/medgame/parcours')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Le parcours n’a pas pu être repris.')
-    } finally {
-      setResumingId(null)
-    }
-  }
 
   if (loading) {
     return (
@@ -124,66 +106,22 @@ export default function MedgameHomePage() {
           </div>
         ) : null}
 
-        {boards.length > 0 ? (
-          <section className="mt-8">
-            <div className="flex items-end justify-between gap-3 border-b border-line pb-4">
-              <div>
-                <h2 className="font-display text-[1.6rem] leading-none text-ink">Tes planches</h2>
-                <p className="mt-2 text-[12px] text-mute">
-                  Une planche par UE choisie. Chaque niveau est tiré au hasard parmi tes chapitres.
-                </p>
-              </div>
-              <Link
-                to="/app/medgame/parcours"
-                className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent"
-              >
-                Voir les planches <ArrowRight size={13} />
-              </Link>
+        <section className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-4">
+            <div>
+              <h2 className="font-display text-[1.6rem] leading-none text-ink">Mon jeu</h2>
+              <p className="mt-2 text-[12px] text-mute">
+                Reprends ton parcours, niveau après niveau, jusqu’à la réussite.
+              </p>
             </div>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {boards.map((board) => {
-                const progress = board.progress
-                const number = themeNumber(progress.ueId)
-                return (
-                  <article
-                    key={progress.id}
-                    className="rounded-2xl border border-line bg-surface p-5 transition hover:border-accent/40"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="inline-block rounded-md bg-accent-soft px-2 py-1 text-[12px] font-semibold uppercase leading-snug tracking-[0.04em] text-accent">
-                        {number ? `UE${number}` : 'UE'}
-                      </span>
-                      <h3 className="font-display text-[1.2rem] leading-tight text-ink">
-                        {themeTitle(progress.ueId)}
-                      </h3>
-                    </div>
-                    <p className="mt-2 font-display text-[1.35rem] leading-tight text-ink">
-                      Niveau {Math.min(progress.currentLevel, progress.levelCount)} /{' '}
-                      {progress.levelCount}
-                    </p>
-                    <p className="mt-1 text-[12px] leading-relaxed text-mute">
-                      {progress.chapterIds.length} chapitre
-                      {progress.chapterIds.length > 1 ? 's' : ''} ·{' '}
-                      {progress.questionIds.length} questions dans la banque.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        disabled={resumingId === progress.id}
-                        onClick={() => void resume(board)}
-                        className={buttonClasses('primary', 'md')}
-                      >
-                        {resumingId === progress.id ? 'Ouverture…' : 'Reprendre le parcours'}
-                        <ArrowRight size={15} />
-                      </button>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          </section>
-        ) : null}
+            <Link
+              to="/app/medgame/parcours"
+              className={buttonClasses('primary', 'md', 'inline-flex items-center gap-1.5')}
+            >
+              Voir mon jeu <ArrowRight size={15} />
+            </Link>
+          </div>
+        </section>
 
         <section className="mt-8">
           <div className="flex items-end justify-between gap-3 border-b border-line pb-4">
@@ -222,7 +160,7 @@ export default function MedgameHomePage() {
                   <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[11px]">
                     <span className="font-medium text-ink">
                       {board
-                        ? `Planche ouverte · ${board.progress.levelCount} niveau${board.progress.levelCount > 1 ? 'x' : ''}`
+                        ? `Jeu ouvert · ${board.progress.levelCount} niveau${board.progress.levelCount > 1 ? 'x' : ''}`
                         : availableCount > 0
                           ? 'Choisir des chapitres'
                           : 'Voir les chapitres'}
