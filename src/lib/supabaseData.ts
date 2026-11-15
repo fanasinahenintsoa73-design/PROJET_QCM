@@ -465,6 +465,7 @@ export async function fetchDatabase(currentProfile?: User): Promise<Database> {
       .from('series_consumptions')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', profile.id)
+      .is('archived_at', null)
     if (consumptionError) throw asFrenchError(consumptionError)
     medgameSeriesUsed = count ?? 0
   }
@@ -1196,6 +1197,21 @@ export async function generateTickets(
   }))
 }
 
+/**
+ * Renouvelle l'accès d'un ticket (docteur uniquement).
+ *
+ * L'identifiant est conservé, mais un nouveau numéro d'enregistrement est
+ * généré : l'ancien ne fonctionne plus. Le quota de 30 séries repart de zéro.
+ */
+export async function renewTicket(code: string): Promise<GeneratedTicket> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('renew_ticket', { p_code: code })
+  if (error) throw asFrenchError(error)
+  const row = ((data ?? []) as Array<{ code: string; secret: string }>)[0]
+  if (!row) throw new AppError('RENEWAL_FAILED', 'Le renouvellement a échoué.')
+  return { code: row.code, secret: row.secret, type: 'series' }
+}
+
 /** Tous les tickets (docteur uniquement). */
 export async function listTickets(): Promise<TicketItem[]> {
   const client = requireSupabase()
@@ -1613,9 +1629,11 @@ export async function createMedgameProgress(
   return data as MedgameOverview
 }
 
-export async function startMedgameRun(): Promise<MedgameRunState> {
+export async function startMedgameRun(progressId: string): Promise<MedgameRunState> {
   const client = requireSupabase()
-  const { data, error } = await client.rpc('medgame_start_run')
+  const { data, error } = await client.rpc('medgame_start_run', {
+    p_progress_id: progressId,
+  })
   if (error) throw asFrenchError(error)
   return data as MedgameRunState
 }

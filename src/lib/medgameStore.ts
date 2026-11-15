@@ -122,6 +122,25 @@ export function recordMedgameConsumption(
 }
 
 /**
+ * Rafraîchit l'activité de toutes les parties actives de l'étudiant.
+ *
+ * Tant que l'étudiant reste dans MEDGAME, aucune partie n'est abandonnée :
+ * passer d'une UE à l'autre n'est pas une sortie de MEDGAME.
+ */
+export function touchMedgameRuns(studentId: string): number {
+  const store = readStore()
+  const now = new Date().toISOString()
+  let touched = 0
+  for (const run of store.runs) {
+    if (run.studentId !== studentId || run.status !== 'in_progress') continue
+    run.lastActivityAt = now
+    touched += 1
+  }
+  if (touched > 0) writeStore(store)
+  return touched
+}
+
+/**
  * Marque abandonnée toute run active sans activité depuis plus de deux
  * minutes, et enregistre la consommation. Idempotent.
  */
@@ -155,9 +174,15 @@ export function sweepExpiredRuns(
   return changed ? 1 : 0
 }
 
-export function getActiveProgress(studentId: string): MedgameProgress | null {
+export function getActiveProgress(
+  studentId: string,
+  ueId?: string,
+): MedgameProgress | null {
   const progresses = readStore().progresses.filter(
-    (item) => item.studentId === studentId && item.status === 'active',
+    (item) =>
+      item.studentId === studentId &&
+      item.status === 'active' &&
+      (ueId === undefined || item.ueId === ueId),
   )
   return (
     progresses.sort(
@@ -166,13 +191,26 @@ export function getActiveProgress(studentId: string): MedgameProgress | null {
   )
 }
 
+/** Toutes les planches ouvertes de l'étudiant : une par UE choisie. */
+export function listActiveProgresses(studentId: string): MedgameProgress[] {
+  return readStore()
+    .progresses.filter((item) => item.studentId === studentId && item.status === 'active')
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+}
+
 export function getProgressById(progressId: string): MedgameProgress | null {
   return readStore().progresses.find((item) => item.id === progressId) ?? null
 }
 
-export function getActiveRun(studentId: string): MedgameRun | null {
+export function getActiveRun(
+  studentId: string,
+  progressId?: string,
+): MedgameRun | null {
   const runs = readStore().runs.filter(
-    (item) => item.studentId === studentId && item.status === 'in_progress',
+    (item) =>
+      item.studentId === studentId &&
+      item.status === 'in_progress' &&
+      (progressId === undefined || item.progressId === progressId),
   )
   return (
     runs.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0] ??
@@ -200,11 +238,24 @@ export function saveProgress(progress: MedgameProgress): void {
   writeStore(store)
 }
 
-export function archiveOtherProgresses(studentId: string, keepId: string): void {
+/**
+ * Archive les parcours d'une même UE : changer les chapitres d'une UE ne
+ * touche pas les planches ouvertes dans les autres UE.
+ */
+export function archiveOtherProgresses(
+  studentId: string,
+  ueId: string,
+  keepId: string,
+): void {
   const store = readStore()
   let changed = false
   for (const progress of store.progresses) {
-    if (progress.studentId === studentId && progress.id !== keepId && progress.status === 'active') {
+    if (
+      progress.studentId === studentId &&
+      progress.ueId === ueId &&
+      progress.id !== keepId &&
+      progress.status === 'active'
+    ) {
       progress.status = 'archived'
       progress.updatedAt = new Date().toISOString()
       changed = true
@@ -233,4 +284,29 @@ export function getRunAnswers(runId: string): MedgameAnswerResult[] {
 
 export function resetMedgameStore(): void {
   writeStore(emptyStore())
+}
+
+/**
+ * Remet à zéro le cycle MEDGAME d'un étudiant : les consommations du cycle
+ * précédent sont purgées, les parcours actifs archivés et les runs en cours
+ * refermés. Utilisé lors du renouvellement d'un ticket, pour que le quota
+ * partagé reparte de zéro.
+ */
+export function resetMedgameCycle(studentId: string): void {
+  const store = readStore()
+  const now = new Date().toISOString()
+  store.consumptions = store.consumptions.filter((item) => item.studentId !== studentId)
+  for (const progress of store.progresses) {
+    if (progress.studentId === studentId && progress.status === 'active') {
+      progress.status = 'archived'
+      progress.updatedAt = now
+    }
+  }
+  for (const run of store.runs) {
+    if (run.studentId === studentId && run.status === 'in_progress') {
+      run.status = 'abandoned'
+      run.endedAt = now
+    }
+  }
+  writeStore(store)
 }

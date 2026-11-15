@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
@@ -10,6 +10,7 @@ type BilanState = {
   result: AnkiLevelResult
   questions: Question[]
   answers: Record<string, string[]>
+  progressId?: string
   consumed?: boolean
   runAlreadyConsumed?: boolean
   completed?: boolean
@@ -25,10 +26,12 @@ export default function MedgameLevelResultPage() {
   usePageTitle('Bilan du niveau — MEDGAME — MEDQCM mada')
   const location = useLocation()
   const navigate = useNavigate()
+  const { progressId: progressIdParam = '' } = useParams()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const state = (location.state ?? null) as BilanState | null
+  const progressId = state?.progressId ?? progressIdParam
 
   const note = useMemo(() => {
     if (!state) return null
@@ -57,7 +60,7 @@ export default function MedgameLevelResultPage() {
           to="/app/medgame/parcours"
           className="mt-6 inline-flex items-center gap-2 text-[13px] font-medium text-accent"
         >
-          <ArrowLeft size={15} /> Retour à la planche des niveaux
+          <ArrowLeft size={15} /> Retour à mes planches
         </Link>
       </div>
     )
@@ -67,12 +70,12 @@ export default function MedgameLevelResultPage() {
   const isLastLevel = result.level >= result.totalLevels
 
   async function replay() {
-    if (busy) return
+    if (busy || !progressId) return
     setBusy(true)
     setError('')
     try {
-      const started = await api.startMedgameRun()
-      navigate(`/app/medgame/parcours/niveau/${started.run.currentLevel}`)
+      const started = await api.startMedgameRun(progressId)
+      navigate(`/app/medgame/parcours/${progressId}/niveau/${started.run.currentLevel}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Le niveau n’a pas pu être relancé.')
       setBusy(false)
@@ -105,7 +108,7 @@ export default function MedgameLevelResultPage() {
             state.failed
               ? 'Rejouer le niveau'
               : state.completed
-                ? 'Retour au parcours'
+                ? 'Retour à mes planches'
                 : 'Niveau suivant'
           }
           onPrimary={
@@ -113,7 +116,8 @@ export default function MedgameLevelResultPage() {
               ? () => void replay()
               : state.completed
                 ? () => navigate('/app/medgame/parcours')
-                : () => navigate(`/app/medgame/parcours/niveau/${result.level + 1}`)
+                : () =>
+                    navigate(`/app/medgame/parcours/${progressId}/niveau/${result.level + 1}`)
           }
           secondaryLabel="Carte des niveaux"
           onSecondary={() => navigate('/app/medgame/parcours')}

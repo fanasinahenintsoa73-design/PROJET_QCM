@@ -24,7 +24,7 @@ import { useToast } from '@/components/ui/Toast'
 import { copyText } from '@/lib/downloadTickets'
 import { getGeneratedTickets, setGeneratedTickets } from '@/lib/generatedTicketsSession'
 import { cn, formatDateLong, formatDateTime } from '@/lib/utils'
-import type { TicketItem, TicketType } from '@/types'
+import type { GeneratedTicket, TicketItem, TicketType } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
 
@@ -119,6 +119,9 @@ export default function AdminTicketsPage() {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [detail, setDetail] = useState<TicketItem | null>(null)
   const [deleteTargets, setDeleteTargets] = useState<TicketItem[]>([])
+  const [renewTarget, setRenewTarget] = useState<TicketItem | null>(null)
+  const [renewed, setRenewed] = useState<GeneratedTicket | null>(null)
+  const [renewing, setRenewing] = useState(false)
 
   const lastBatch = getGeneratedTickets()
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
@@ -346,6 +349,26 @@ export default function AdminTicketsPage() {
       toast(err instanceof Error ? err.message : 'La suppression a échoué.', 'error')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  function requestRenew(item: TicketItem) {
+    setRenewTarget(item)
+    setRenewed(null)
+  }
+
+  async function performRenew() {
+    if (!renewTarget) return
+    setRenewing(true)
+    try {
+      const result = await api.renewTicket(renewTarget.code)
+      setRenewed(result)
+      toast(`Accès de ${renewTarget.code} renouvelé.`)
+      await load()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Le renouvellement a échoué.', 'error')
+    } finally {
+      setRenewing(false)
     }
   }
 
@@ -922,6 +945,99 @@ export default function AdminTicketsPage() {
         </div>
       ) : null}
 
+      {renewTarget ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-ink/30 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-renew-title"
+        >
+          <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-xl">
+            {renewed ? (
+              <>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
+                  Accès renouvelé
+                </p>
+                <h2
+                  id="ticket-renew-title"
+                  className="mt-1 font-display text-[24px] tracking-[-0.02em] text-ink"
+                >
+                  {renewTarget.code}
+                </h2>
+                <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                  L’identifiant est inchangé, mais le numéro d’enregistrement a changé : l’ancien
+                  ne fonctionne plus. Le quota repart à 30 séries.
+                </p>
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-mute">
+                      Nouveau numéro d’enregistrement
+                    </p>
+                    <p className="mt-1 font-mono text-[18px] tracking-[0.18em] text-ink">
+                      {renewed.secret}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleCopySecret(renewed.secret)}
+                  >
+                    <Copy size={13} /> Copier
+                  </Button>
+                </div>
+                <p className="mt-3 text-[12px] leading-relaxed text-mute">
+                  Communique ce nouveau numéro à l’étudiant : il remplace celui qu’il utilisait.
+                </p>
+                <div className="mt-5 flex justify-end">
+                  <Button
+                    onClick={() => {
+                      setRenewTarget(null)
+                      setRenewed(null)
+                    }}
+                  >
+                    Fermer
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2
+                  id="ticket-renew-title"
+                  className="font-display text-[24px] tracking-[-0.02em] text-ink"
+                >
+                  Renouveler l’accès ?
+                </h2>
+                <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                  L’identifiant{' '}
+                  <span className="font-mono text-ink">{renewTarget.code}</span> est conservé, mais
+                  un nouveau numéro d’enregistrement est généré : l’ancien ne fonctionne plus. Le
+                  quota repart à 30 séries.
+                </p>
+                <div className="mt-3 rounded-xl border border-line bg-cloud px-4 py-3 text-[12px] leading-relaxed text-mute">
+                  Le parcours MEDGAME en cours est refermé et les séries déjà utilisées sont remises
+                  à zéro.
+                </div>
+                <div className="mt-5 flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setRenewTarget(null)
+                      setRenewed(null)
+                    }}
+                    disabled={renewing}
+                  >
+                    Annuler
+                  </Button>
+                  <Button loading={renewing} onClick={() => void performRenew()}>
+                    Renouveler l’accès
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {menu && menuItem && menuStyle
         ? createPortal(
             <>
@@ -947,6 +1063,19 @@ export default function AdminTicketsPage() {
                 >
                   <Eye size={14} /> Vérifier l’état
                 </button>
+                {!menuItem.archivedAt ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenu(null)
+                      requestRenew(menuItem)
+                    }}
+                    disabled={busyCode === menuItem.code}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} /> Renouveler l’accès
+                  </button>
+                ) : null}
                 {!menuItem.archivedAt ? (
                   <button
                     type="button"

@@ -100,11 +100,11 @@ function StudentRoutes() {
           <Route path="/app/medgame/ue/:ueId" element={<MedgameChapterSelectionPage />} />
           <Route path="/app/medgame/parcours" element={<MedgameLevelMapPage />} />
           <Route
-            path="/app/medgame/parcours/niveau/:level"
+            path="/app/medgame/parcours/:progressId/niveau/:level"
             element={<MedgameLevelPage />}
           />
           <Route
-            path="/app/medgame/parcours/niveau/:level/bilan"
+            path="/app/medgame/parcours/:progressId/niveau/:level/bilan"
             element={<MedgameLevelResultPage />}
           />
           <Route path="/app/medgame/choisir" element={<Navigate to="/app/medgame" replace />} />

@@ -304,6 +304,8 @@ export interface MedgameRun {
   studentId: string
   status: MedgameRunStatus
   currentLevel: number
+  /** Questions tirées au hasard pour le niveau en cours (5 par tentative). */
+  questionIds?: string[]
   startedAt: string
   lastActivityAt: string
   endedAt?: string
@@ -349,10 +351,16 @@ export interface MedgameResult {
   quota: SeriesQuota
 }
 
-export interface MedgameOverview {
-  progress: MedgameProgress | null
+/** Une planche MEDGAME : le parcours d'une UE, avec son run éventuel. */
+export interface MedgameBoard {
+  progress: MedgameProgress
   run: MedgameRun | null
   levels: MedgameLevel[]
+}
+
+export interface MedgameOverview {
+  /** Une planche par UE choisie, du parcours le plus récent au plus ancien. */
+  boards: MedgameBoard[]
   quota: SeriesQuota
 }
 

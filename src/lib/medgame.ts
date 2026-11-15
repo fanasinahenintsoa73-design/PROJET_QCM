@@ -1,4 +1,5 @@
 import type {
+  Database,
   MedgameAnswerInput,
   MedgameAnswerResult,
   MedgameLevel,
@@ -19,12 +20,14 @@ import {
   getRunById,
   getRunAnswers,
   hasRunConsumption,
+  listActiveProgresses,
   recordMedgameConsumption,
   saveProgress,
   saveRun,
   saveRunAnswers,
   sweepExpiredRuns,
   archiveOtherProgresses,
+  touchMedgameRuns,
 } from '@/lib/medgameStore'
 import { findChapterSelectionSubjects } from '@/lib/subjects'
 import { PACE_THEMES } from '@/lib/themes'
@@ -67,8 +70,14 @@ function normalizeStatement(statement: string): string {
     .trim()
 }
 
-function buildQuestionBank(chapterIds: readonly string[]): Question[] {
-  const db = getDB()
+/**
+ * Banque de questions distinctes des chapitres choisis : les énoncés répétés
+ * d'un chapitre à l'autre ne comptent qu'une fois.
+ */
+function collectQuestionBank(
+  db: Database,
+  chapterIds: readonly string[],
+): Question[] {
   const subjects = findChapterSelectionSubjects(chapterIds, db.subjects)
   const seen = new Set<string>()
   const bank: Question[] = []
@@ -82,12 +91,28 @@ function buildQuestionBank(chapterIds: readonly string[]): Question[] {
     }
   }
 
-  return shuffle(bank)
+  return bank
+}
+
+function buildQuestionBank(chapterIds: readonly string[]): Question[] {
+  return shuffle(collectQuestionBank(getDB(), chapterIds))
+}
+
+/** Nombre de questions réellement disponibles dans les chapitres choisis. */
+export function medgameBankSize(
+  db: Database,
+  chapterIds: readonly string[],
+): number {
+  return collectQuestionBank(db, chapterIds).length
 }
 
 function levelQuestions(progress: MedgameProgress, level: number): Question[] {
   const start = Math.max(0, (level - 1) * LEVEL_SIZE)
   const ids = progress.questionIds.slice(start, start + LEVEL_SIZE)
+  return questionsFromBank(progress, ids)
+}
+
+function questionsFromBank(progress: MedgameProgress, ids: readonly string[]): Question[] {
   const snapshots = progress.questionSnapshots ?? []
   const byId = new Map(snapshots.map((question) => [question.id, question]))
   const db = getDB()
@@ -95,6 +120,16 @@ function levelQuestions(progress: MedgameProgress, level: number): Question[] {
   return ids
     .map((id) => byId.get(id) ?? db.questions.find((question) => question.id === id))
     .filter((question): question is Question => Boolean(question))
+}
+
+/**
+ * Tirage d'un niveau : 5 questions prises au hasard parmi les chapitres
+ * choisis dans l'UE. Le tirage est refait à chaque tentative : rejouer un
+ * niveau propose d'autres questions.
+ */
+function drawLevelQuestions(progress: MedgameProgress): Question[] {
+  const ids = shuffle(progress.questionIds).slice(0, LEVEL_SIZE)
+  return questionsFromBank(progress, ids)
 }
 
 function levelsFor(progress: MedgameProgress | null): MedgameLevel[] {
@@ -152,23 +187,28 @@ function progressForRun(run: MedgameRun): MedgameProgress {
 
 function runState(run: MedgameRun): MedgameRunState {
   const progress = progressForRun(run)
+  const drawn = run.questionIds?.length
+    ? questionsFromBank(progress, run.questionIds)
+    : levelQuestions(progress, run.currentLevel)
   return {
     run,
     progress,
-    questions: levelQuestions(progress, run.currentLevel),
+    questions: drawn,
     levels: levelsFor(progress),
     quota: toQuota(run.studentId),
   }
 }
 
+/** Vue d'ensemble : une planche par UE choisie. */
 export function getMedgameOverview(studentId: string): MedgameOverview {
   sweepExpiredRuns(studentId)
-  const run = getActiveRun(studentId)
-  const progress = run ? progressForRun(run) : getActiveProgress(studentId)
-  return {
+  const boards = listActiveProgresses(studentId).map((progress) => ({
     progress,
-    run,
+    run: getActiveRun(studentId, progress.id),
     levels: levelsFor(progress),
+  }))
+  return {
+    boards,
     quota: toQuota(studentId),
   }
 }
@@ -180,10 +220,13 @@ export function createMedgameProgress(input: {
 }): MedgameOverview {
   assertAccess(input.studentId)
 
-  if (getActiveRun(input.studentId)) {
+  // Une partie en cours bloque le changement de chapitres, mais seulement dans
+  // la même UE : les autres UE gardent leur propre planche.
+  const activeProgress = getActiveProgress(input.studentId, input.ueId)
+  if (activeProgress && getActiveRun(input.studentId, activeProgress.id)) {
     throw new AppError(
       'MEDGAME_RUN_ACTIVE',
-      'Une partie MEDGAME est déjà en cours. Reprenez-la avant de changer de parcours.',
+      'Une partie MEDGAME est déjà en cours dans cette UE. Reprenez-la avant de changer de chapitres.',
     )
   }
 
@@ -235,26 +278,30 @@ export function createMedgameProgress(input: {
     updatedAt: now,
   }
 
-  archiveOtherProgresses(input.studentId, progress.id)
+  archiveOtherProgresses(input.studentId, input.ueId, progress.id)
   saveProgress(progress)
 
   return getMedgameOverview(input.studentId)
 }
 
 /**
- * Démarre une run sur le parcours actif, ou reprend la run active si elle
- * existe encore. Une run reprise après un abandon consomme immédiatement une
- * nouvelle série ; une run neuve ne consomme qu'à sa fin.
+ * Démarre une run sur une planche (une UE), ou reprend la run active de cette
+ * planche si elle existe encore. Une run reprise après un abandon consomme
+ * immédiatement une nouvelle série ; une run neuve ne consomme qu'à sa fin.
+ * Les 5 questions du niveau sont tirées au hasard à chaque tentative.
  */
-export function startMedgameRun(studentId: string): MedgameRunState {
+export function startMedgameRun(
+  studentId: string,
+  progressId: string,
+): MedgameRunState {
   assertAccess(studentId)
   sweepExpiredRuns(studentId)
 
-  const active = getActiveRun(studentId)
+  const active = getActiveRun(studentId, progressId)
   if (active) return runState(active)
 
-  const progress = getActiveProgress(studentId)
-  if (!progress) {
+  const progress = getProgressById(progressId)
+  if (!progress || progress.status !== 'active') {
     throw new AppError(
       'MEDGAME_NO_PROGRESS',
       'Choisissez d’abord une UE et au moins un chapitre.',
@@ -268,12 +315,14 @@ export function startMedgameRun(studentId: string): MedgameRunState {
 
   const latest = getLatestRunForProgress(progress.id)
   const now = new Date().toISOString()
+  const drawn = drawLevelQuestions(progress)
   const run: MedgameRun = {
     id: uid('medrun'),
     progressId: progress.id,
     studentId,
     status: 'in_progress',
     currentLevel: progress.currentLevel,
+    questionIds: drawn.map((question) => question.id),
     startedAt: now,
     lastActivityAt: now,
     resumedFromRunId:
@@ -307,8 +356,9 @@ export function getMedgameRun(runId: string): MedgameRunState {
 export function heartbeatMedgameRun(runId: string): void {
   const run = getRunById(runId)
   if (!run || run.status !== 'in_progress') return
-  run.lastActivityAt = new Date().toISOString()
-  saveRun(run)
+  // Un battement garde vivres TOUTES les parties de l'étudiant : quitter une
+  // UE pour en ouvrir une autre n'est pas un abandon.
+  touchMedgameRuns(run.studentId)
 }
 
 export function abandonMedgameRun(runId: string): boolean {
@@ -340,7 +390,9 @@ export function submitMedgameLevel(
 
   const progress = progressForRun(run)
   const level = run.currentLevel
-  const questions = levelQuestions(progress, level)
+  const questions = run.questionIds?.length
+    ? questionsFromBank(progress, run.questionIds)
+    : levelQuestions(progress, level)
   if (!questions.length) {
     throw new AppError('MEDGAME_EMPTY_LEVEL', 'Ce niveau ne contient aucune question.')
   }

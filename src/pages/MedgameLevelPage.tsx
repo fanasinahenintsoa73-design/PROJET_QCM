@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '@/lib/api'
+import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
 import { usePageTitle } from '@/components/Layouts'
 import { LevelRunner } from '@/components/anki/LevelRunner'
 import type { AnkiLevelResult, MedgameRunState, Question } from '@/types'
 
 /**
- * Un niveau MEDGAME : les 5 questions du niveau, répondues sans correction,
- * puis une seule soumission. Le bilan reprend la même grammaire que les séries
- * de questions.
+ * Un niveau MEDGAME : les 5 questions tirées au hasard dans les chapitres
+ * choisis, répondues sans correction, puis une seule soumission. Le bilan
+ * reprend la même grammaire que les séries de questions.
  */
 export default function MedgameLevelPage() {
   usePageTitle('Niveau — MEDGAME — MEDQCM mada')
   const navigate = useNavigate()
+  const { progressId = '' } = useParams()
   const [state, setState] = useState<MedgameRunState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -20,33 +22,29 @@ export default function MedgameLevelPage() {
   const load = useCallback(async () => {
     try {
       const overview = await api.getMedgameOverview()
-      let runId = overview.run?.id ?? null
-      if (!runId) {
-        const started = await api.startMedgameRun()
-        runId = started.run.id
+      const board = overview.boards.find((item) => item.progress.id === progressId)
+      if (!board) {
+        throw new Error('Cette planche n’est plus ouverte.')
       }
-      setState(await api.getMedgameRun(runId))
+      const runId = board.run?.id ?? null
+      const started = runId
+        ? await api.getMedgameRun(runId)
+        : await api.startMedgameRun(progressId)
+      setState(started)
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ce niveau est indisponible.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [progressId])
 
   useEffect(() => {
     void load()
   }, [load])
 
   // Tant que le niveau est ouvert, le parcours reste vivant.
-  useEffect(() => {
-    const runId = state?.run?.id
-    if (!runId) return
-    const timer = window.setInterval(() => {
-      void api.heartbeatMedgameRun(runId)
-    }, 25_000)
-    return () => window.clearInterval(timer)
-  }, [state])
+  useMedgameKeepAlive(state?.run?.status === 'in_progress' ? state.run.id : null)
 
   async function submit(answers: Record<string, string[]>) {
     if (!state) return
@@ -80,11 +78,12 @@ export default function MedgameLevelPage() {
       totalLevels: state.progress.levelCount,
     }
 
-    navigate(`/app/medgame/parcours/niveau/${result.level}/bilan`, {
+    navigate(`/app/medgame/parcours/${progressId}/niveau/${result.level}/bilan`, {
       state: {
         result: bilan,
         questions,
         answers,
+        progressId,
         consumed: result.consumed,
         runAlreadyConsumed: state.run.consumedReason === 'resume_after_abandonment',
         completed: result.completed,
@@ -119,7 +118,7 @@ export default function MedgameLevelPage() {
           onClick={() => navigate('/app/medgame/parcours')}
           className="mt-6 inline-flex items-center gap-2 text-[13px] font-medium text-accent"
         >
-          Retour à la planche des niveaux
+          Retour à mes planches
         </button>
       </div>
     )

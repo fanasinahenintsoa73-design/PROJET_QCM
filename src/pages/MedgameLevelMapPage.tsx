@@ -1,31 +1,34 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
-import { themeTitle } from '@/lib/themes'
+import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
+import { themeNumber, themeTitle } from '@/lib/themes'
 import { usePageTitle } from '@/components/Layouts'
 import { LevelGrid } from '@/components/anki/LevelGrid'
 import { MedgameAbandonModal } from '@/components/MedgameAbandonModal'
-import type { AnkiLevel, MedgameOverview } from '@/types'
+import type { AnkiLevel, MedgameBoard, MedgameOverview } from '@/types'
 
 /**
- * La planche des niveaux d'un parcours MEDGAME : un cadre par niveau, sur fond
- * manga. Seul le niveau en cours est jouable.
+ * Les planches MEDGAME : une planche par UE choisie, avec un cadre par
+ * niveau. Chaque niveau est tiré au hasard parmi les chapitres choisis dans
+ * l'UE, et il faut 5/5 pour ouvrir le suivant.
  */
 export default function MedgameLevelMapPage() {
-  usePageTitle('Planche des niveaux — MEDGAME — MEDQCM mada')
+  usePageTitle('Mes planches — MEDGAME — MEDQCM mada')
   const navigate = useNavigate()
   const [overview, setOverview] = useState<MedgameOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [abandonOpen, setAbandonOpen] = useState(false)
+  const [abandonRunId, setAbandonRunId] = useState<string | null>(null)
+  const [startingId, setStartingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       setOverview(await api.getMedgameOverview())
       setError('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Le parcours est indisponible.')
+      setError(err instanceof Error ? err.message : 'Les planches sont indisponibles.')
     } finally {
       setLoading(false)
     }
@@ -35,60 +38,48 @@ export default function MedgameLevelMapPage() {
     void load()
   }, [load])
 
-  // Le parcours doit rester vivant : un battement toutes les 25 secondes.
-  useEffect(() => {
-    const runId = overview?.run?.id
-    if (!runId || overview?.run?.status !== 'in_progress') return
-    const timer = window.setInterval(() => {
-      void api.heartbeatMedgameRun(runId)
-    }, 25_000)
-    return () => window.clearInterval(timer)
-  }, [overview])
-
-  const progress = overview?.progress ?? null
+  const boards = overview?.boards ?? []
+  // Les parcours doivent rester vivants : un battement toutes les 25 secondes.
+  const activeRunId =
+    boards.find((board) => board.run?.status === 'in_progress')?.run?.id ?? null
+  useMedgameKeepAlive(activeRunId)
   const quota = overview?.quota ?? null
   const usedPercent = quota && quota.limit > 0 ? (quota.used / quota.limit) * 100 : 0
 
-  const levels: AnkiLevel[] = (overview?.levels ?? []).map((level) => {
-    const completed = progress?.status === 'completed'
-    const status: AnkiLevel['status'] = completed || level.level < progress!.currentLevel
-      ? 'passed'
-      : level.level === progress!.currentLevel
-        ? 'unlocked'
-        : 'locked'
-    return {
-      level: level.level,
-      totalLevels: level.totalLevels,
-      status,
-      bestStars: level.bestStars ?? 0,
-      attempts: 0,
-      passedAt: null,
+  async function start(board: MedgameBoard) {
+    if (startingId) return
+    setStartingId(board.progress.id)
+    setError('')
+    try {
+      const state = await api.startMedgameRun(board.progress.id)
+      navigate(`/app/medgame/parcours/${board.progress.id}/niveau/${state.run.currentLevel}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Le parcours n’a pas pu être repris.')
+      setStartingId(null)
     }
-  })
-
-  const playableLevel = progress?.status === 'completed' ? undefined : progress?.currentLevel
+  }
 
   if (loading) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-content items-center justify-center px-5">
         <div className="text-center">
           <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          <p className="mt-4 text-sm text-mute">Chargement de la planche…</p>
+          <p className="mt-4 text-sm text-mute">Chargement des planches…</p>
         </div>
       </div>
     )
   }
 
-  if (!progress) {
+  if (boards.length === 0) {
     return (
       <div className="mx-auto max-w-content px-5 py-16 sm:px-8 lg:px-10">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Aucun parcours</p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Aucune planche</p>
         <h1 className="mt-3 font-display text-[2.4rem] leading-none text-ink">
           Choisis d’abord tes chapitres.
         </h1>
         <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-mute">
-          Un parcours MEDGAME se construit à partir d’une UE et de ses chapitres. Tes questions
-          seront mélangées en niveaux de 5.
+          Une planche MEDGAME se construit à partir d’une UE et de ses chapitres. Tes questions
+          seront tirées au hasard par blocs de 5.
         </p>
         <Link
           to="/app/medgame"
@@ -116,19 +107,24 @@ export default function MedgameLevelMapPage() {
               MEDGAME
             </span>
             <h1 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.035em] text-ink">
-              {themeTitle(progress.ueId)}
+              Mes planches
             </h1>
-            <div className="mt-3 flex items-center gap-3 text-[12px] text-mute">
+            <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-mute">
+              Une planche par UE choisie. Chaque niveau est tiré au hasard dans tes chapitres, et il
+              faut 5/5 pour ouvrir le suivant.
+            </p>
+            <div className="mt-4 flex items-center gap-3 text-[12px] text-mute">
               <span>
-                Niveau{' '}
-                <strong className="text-ink">
-                  {Math.min(progress.currentLevel, progress.levelCount)}
-                </strong>{' '}
-                / {progress.levelCount}
+                {boards.length} planche{boards.length > 1 ? 's' : ''} ouverte
+                {boards.length > 1 ? 's' : ''}
               </span>
               <span className="h-1 w-1 rounded-full bg-line" />
               <span>
-                {quota ? `${quota.remaining} série${quota.remaining > 1 ? 's' : ''} restante${quota.remaining > 1 ? 's' : ''}` : '—'}
+                {quota
+                  ? `${quota.remaining} série${quota.remaining > 1 ? 's' : ''} restante${
+                      quota.remaining > 1 ? 's' : ''
+                    }`
+                  : '—'}
               </span>
             </div>
             <div className="mt-4 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-cloud">
@@ -139,23 +135,12 @@ export default function MedgameLevelMapPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            {overview?.run?.status === 'in_progress' ? (
-              <button
-                type="button"
-                onClick={() => setAbandonOpen(true)}
-                className="text-[12px] font-medium text-mute transition hover:text-sale"
-              >
-                Quitter MEDGAME
-              </button>
-            ) : null}
-            <Link
-              to="/app"
-              className="text-[12px] font-medium text-mute transition hover:text-accent"
-            >
-              Quitter le parcours
-            </Link>
-          </div>
+          <Link
+            to="/app/medgame"
+            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent"
+          >
+            Ouvrir une autre UE <ArrowRight size={13} />
+          </Link>
         </div>
 
         {error ? (
@@ -164,31 +149,110 @@ export default function MedgameLevelMapPage() {
           </div>
         ) : null}
 
-        {progress.status === 'completed' ? (
-          <div className="mt-6 rounded-xl border border-accent/20 bg-accent-soft/40 px-4 py-3 text-[13px] text-ink">
-            Parcours terminé. Toutes les étoiles sont récoltées.
-          </div>
-        ) : null}
+        {boards.map((board, index) => {
+          const progress = board.progress
+          const title = themeTitle(progress.ueId)
+          const number = themeNumber(progress.ueId)
+          const levels: AnkiLevel[] = board.levels.map((level) => {
+            const completed = progress.status === 'completed'
+            const status: AnkiLevel['status'] =
+              completed || level.level < progress.currentLevel
+                ? 'passed'
+                : level.level === progress.currentLevel
+                  ? 'unlocked'
+                  : 'locked'
+            return {
+              level: level.level,
+              totalLevels: level.totalLevels,
+              status,
+              bestStars: level.bestStars ?? 0,
+              attempts: 0,
+              passedAt: null,
+            }
+          })
+          const playableLevel =
+            progress.status === 'completed' ? undefined : progress.currentLevel
+          const running = board.run?.status === 'in_progress'
 
-        <div className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-7">
-          <LevelGrid
-            levels={levels}
-            chapterTitle={themeTitle(progress.ueId)}
-            chapterId={progress.chapterIds.join('_')}
-            planche={1}
-            playableLevel={playableLevel}
-            onSelect={(level) => navigate(`/app/medgame/parcours/niveau/${level}`)}
-          />
-        </div>
+          return (
+            <section
+              key={progress.id}
+              className="mt-8 rounded-2xl border border-line bg-surface p-5 sm:p-7"
+            >
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="inline-block rounded-md bg-accent-soft px-2 py-1 text-[12px] font-semibold uppercase leading-snug tracking-[0.04em] text-accent">
+                    {number ? `UE${number}` : 'UE'}
+                  </span>
+                  <h2 className="font-display text-[1.4rem] leading-tight tracking-[-0.02em] text-ink">
+                    {title}
+                  </h2>
+                </div>
+                <p className="text-[12px] text-mute">
+                  {progress.chapterIds.length} chapitre{progress.chapterIds.length > 1 ? 's' : ''}{' '}
+                  · {progress.questionIds.length} questions · {levels.length} cadre
+                  {levels.length > 1 ? 's' : ''}
+                </p>
+              </div>
+
+              <div className="mt-5">
+                <LevelGrid
+                  levels={levels}
+                  chapterTitle={title}
+                  chapterId={progress.chapterIds.join('_')}
+                  planche={index + 1}
+                  playableLevel={playableLevel}
+                  onSelect={(level) =>
+                    navigate(`/app/medgame/parcours/${progress.id}/niveau/${level}`)
+                  }
+                />
+              </div>
+
+              <p className="mt-4 text-[12px] leading-relaxed text-mute">
+                Répondre correctement aux 5 questions pour accéder au niveau supérieur.
+              </p>
+
+              <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-line pt-4">
+                {progress.status === 'completed' ? (
+                  <p className="text-[12px] text-accent">
+                    Parcours terminé. Toutes les étoiles sont récoltées.
+                  </p>
+                ) : running ? (
+                  <button
+                    type="button"
+                    onClick={() => setAbandonRunId(board.run?.id ?? null)}
+                    className="text-[12px] font-medium text-mute transition hover:text-sale"
+                  >
+                    Quitter cette partie
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={startingId === progress.id}
+                    onClick={() => void start(board)}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent transition hover:text-accent-deep disabled:opacity-60"
+                  >
+                    {startingId === progress.id ? 'Ouverture…' : 'Jouer le niveau suivant'}
+                    <ArrowRight size={13} />
+                  </button>
+                )}
+                <span className="text-[12px] text-mute">
+                  Niveau {Math.min(progress.currentLevel, progress.levelCount)} /{' '}
+                  {progress.levelCount}
+                </span>
+              </div>
+            </section>
+          )
+        })}
       </div>
 
       <MedgameAbandonModal
-        open={abandonOpen}
-        onClose={() => setAbandonOpen(false)}
-        runId={overview?.run?.id ?? null}
+        open={abandonRunId !== null}
+        onClose={() => setAbandonRunId(null)}
+        runId={abandonRunId}
         onAbandoned={() => {
-          setAbandonOpen(false)
-          navigate('/app')
+          setAbandonRunId(null)
+          void load()
         }}
       />
     </div>

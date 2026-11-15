@@ -24,7 +24,7 @@ import type {
   User,
 } from '@/types'
 import { makeTicketSecret, ticketLoginEmail } from '@/lib/tickets'
-import { getActiveRun, getMedgameConsumptionCount } from '@/lib/medgameStore'
+import { getActiveRun, getMedgameConsumptionCount, resetMedgameCycle } from '@/lib/medgameStore'
 import { createSeedDatabase, PROFESSOR_FIRST_NAME, PROFESSOR_LAST_NAME, randomQuestionIds } from '@/lib/seed'
 import {
   PACE_THEMES,
@@ -100,11 +100,34 @@ function migrateDatabase(database: Database): Database {
   return changed ? { ...database, users, subjects } : database
 }
 
+/**
+ * Aligne les profils étudiants sur les identifiants PACES#### : un compte créé
+ * par un ancien ticket ANKI#### garde son numéro d'enregistrement mais porte
+ * le nouvel identifiant, comme en production.
+ */
+function migrateDemoTickets(database: Database): Database {
+  const { records, renamed } = migrateDemoTicketRecords()
+  if (renamed.size === 0) return database
+
+  const users = database.users.map((user) => {
+    const ticket = records.find((record) => record.userId === user.id)
+    if (!ticket || !ticket.code.startsWith('PACES')) return user
+    return {
+      ...user,
+      firstName: 'PACES',
+      lastName: ticket.code.slice('PACES'.length),
+      email: ticketLoginEmail(ticket.code),
+    }
+  })
+
+  return { ...database, users }
+}
+
 function loadFromStorage(): Database {
   try {
     const raw = localStorage.getItem(DB_KEY)
     if (!raw) {
-      const seeded = cloneSeed()
+      const seeded = migrateDemoTickets(cloneSeed())
       localStorage.setItem(DB_KEY, JSON.stringify(seeded))
       return seeded
     }
@@ -112,11 +135,11 @@ function loadFromStorage(): Database {
     if (!parsed || !Array.isArray(parsed.users) || !Array.isArray(parsed.questions)) {
       throw new Error('Invalid database')
     }
-    const migrated = migrateDatabase(parsed)
+    const migrated = migrateDemoTickets(migrateDatabase(parsed))
     if (migrated !== parsed) localStorage.setItem(DB_KEY, JSON.stringify(migrated))
     return migrated
   } catch {
-    const seeded = cloneSeed()
+    const seeded = migrateDemoTickets(cloneSeed())
     try {
       localStorage.setItem(DB_KEY, JSON.stringify(seeded))
     } catch {
@@ -1524,7 +1547,7 @@ interface DemoTicket {
   logins: string[]
 }
 
-function loadDemoTickets(): DemoTicket[] {
+function readDemoTickets(): DemoTicket[] {
   try {
     const raw = localStorage.getItem(TICKETS_KEY)
     if (!raw) return []
@@ -1546,6 +1569,67 @@ function loadDemoTickets(): DemoTicket[] {
   } catch {
     return []
   }
+}
+
+/**
+ * Correspondance des anciens identifiants ANKI#### vers la série PACES####.
+ * Les tickets historiques sont renumérotés à la suite des tickets PACES déjà
+ * distribués ; le numéro d'enregistrement (secret) reste inchangé.
+ */
+function legacyTicketCodeMap(records: DemoTicket[]): Map<string, string> {
+  const renamed = new Map<string, string>()
+  const legacy = records.filter((record) => /^ANKI\d+$/i.test(record.code))
+  if (legacy.length === 0) return renamed
+
+  const used = new Set(
+    records.filter((record) => !/^ANKI\d+$/i.test(record.code)).map((record) => record.code),
+  )
+  let next = nextTicketNumber(records, 'PACES')
+
+  for (const record of legacy) {
+    let candidate = `PACES${String(next).padStart(4, '0')}`
+    while (used.has(candidate)) {
+      next += 1
+      candidate = `PACES${String(next).padStart(4, '0')}`
+    }
+    used.add(candidate)
+    next += 1
+    renamed.set(record.code, candidate)
+  }
+
+  return renamed
+}
+
+/**
+ * Renumérote les tickets de démonstration hérités d'ANKI#### en PACES####.
+ * L'historique MEDGAME suit le nouveau code pour rester rattaché au ticket.
+ */
+function migrateDemoTicketRecords(): { records: DemoTicket[]; renamed: Map<string, string> } {
+  const records = readDemoTickets()
+  const renamed = legacyTicketCodeMap(records)
+  if (renamed.size === 0) return { records, renamed }
+
+  const migrated = records.map((record) => {
+    const code = renamed.get(record.code)
+    if (!code) return record
+    return { ...record, code, type: 'series' as TicketType }
+  })
+  saveDemoTickets(migrated)
+
+  const store = loadAnkiStore()
+  if (Object.keys(store).length > 0) {
+    const migratedStore: DemoAnkiStore = {}
+    for (const [code, state] of Object.entries(store)) {
+      migratedStore[renamed.get(code) ?? code] = state
+    }
+    saveAnkiStore(migratedStore)
+  }
+
+  return { records: migrated, renamed }
+}
+
+function loadDemoTickets(): DemoTicket[] {
+  return migrateDemoTicketRecords().records
 }
 
 function saveDemoTickets(records: DemoTicket[]) {
@@ -1624,6 +1708,51 @@ export function generateTickets(count: number, _type: TicketType = 'series'): Ge
   commit({ ...db, users, assignments })
   saveDemoTickets(records)
   return created
+}
+
+/**
+ * Renouvelle l'accès d'un ticket (mode démonstration).
+ *
+ * L'identifiant du ticket est conservé (l'étudiant garde son code), mais le
+ * numéro d'enregistrement change : l'ancien ne fonctionne plus. Un nouveau
+ * cycle de 30 séries est ouvert.
+ */
+export function renewTicket(code: string): GeneratedTicket {
+  const records = loadDemoTickets()
+  const record = records.find((candidate) => candidate.code === code)
+  if (!record) throw new Error('Ticket introuvable.')
+  if (record.archivedAt) throw new Error('Désarchive le ticket avant de le renouveler.')
+
+  const db = getDB()
+  const secret = makeTicketSecret()
+  record.secret = secret
+  // Le ticket reste utilisé (l'étudiant a un accès actif) : il ne doit plus
+  // être supprimable, seulement renouvelé ou archivé.
+  record.status = 'used'
+
+  const users = db.users.map((user) =>
+    user.id === record.userId ? { ...user, password: secret } : user,
+  )
+
+  const now = new Date()
+  const assignments = [
+    ...db.assignments,
+    {
+      id: uid('assign'),
+      userId: record.userId,
+      subjectId: null,
+      startedAt: now.toISOString(),
+      expiresAt: addDays(now, 36500).toISOString(),
+    },
+  ]
+
+  // Le cycle MEDGAME repart de zéro : consommations purgées, parcours
+  // archivés et runs refermés.
+  resetMedgameCycle(record.userId)
+
+  commit({ ...db, users, assignments })
+  saveDemoTickets(records)
+  return { code: record.code, secret, type: record.type }
 }
 
 /** Tous les tickets (mode démonstration). */

@@ -438,6 +438,15 @@ export const api = {
     return demo.listTickets()
   },
 
+  /**
+   * Renouvelle l'accès d'un ticket (docteur uniquement) : même identifiant,
+   * nouveau numéro d'enregistrement et 30 séries neuves.
+   */
+  async renewTicket(code: string): Promise<GeneratedTicket> {
+    if (isSupabaseConfigured) return remote.renewTicket(code)
+    return demo.renewTicket(code)
+  },
+
   /** Suspend un ticket, ou le réactive (statut 'active'). */
   async setTicketStatus(code: string, status: 'suspended' | 'active'): Promise<void> {
     if (isSupabaseConfigured) return remote.setTicketStatus(code, status)
@@ -508,11 +517,11 @@ export const api = {
     return medgame.createMedgameProgress({ studentId, ueId, chapterIds })
   },
 
-  async startMedgameRun(): Promise<MedgameRunState> {
-    if (isSupabaseConfigured) return remote.startMedgameRun()
+  async startMedgameRun(progressId: string): Promise<MedgameRunState> {
+    if (isSupabaseConfigured) return remote.startMedgameRun(progressId)
     const studentId = demo.getSessionUserId()
     if (!studentId) throw new AppError('ACCESS_EXPIRED', 'Votre session a expiré.')
-    return medgame.startMedgameRun(studentId)
+    return medgame.startMedgameRun(studentId, progressId)
   },
 
   async getMedgameRun(runId: string): Promise<MedgameRunState> {

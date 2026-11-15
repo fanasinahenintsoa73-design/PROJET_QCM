@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
 import { getUsableQuestions } from '@/lib/db'
+import { medgameBankSize } from '@/lib/medgame'
 import { chaptersForTheme, PACE_THEMES } from '@/lib/themes'
 import { findChapterSubjects } from '@/lib/subjects'
 import { ChapterList } from '@/components/ChapterList'
@@ -23,6 +25,8 @@ export default function MedgameChapterSelectionPage() {
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState('')
   const [runInProgress, setRunInProgress] = useState(false)
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
+  useMedgameKeepAlive(activeRunId)
 
   const theme = PACE_THEMES.find((candidate) => candidate.id === ueId)
   usePageTitle(`${theme?.title ?? 'UE'} — MEDGAME — MEDQCM mada`)
@@ -43,17 +47,20 @@ export default function MedgameChapterSelectionPage() {
     })
   }, [db.questions, db.subjects, theme])
 
-  // Un parcours déjà commencé est proposé présélectionné.
+  // La planche déjà ouverte dans cette UE est proposée présélectionnée.
   useEffect(() => {
     let cancelled = false
     void api
       .getMedgameOverview()
       .then((overview) => {
         if (cancelled) return
-        setRunInProgress(overview.run?.status === 'in_progress')
-        const active = overview.progress?.status === 'active' ? overview.progress : null
-        if (!active || active.ueId !== ueId) return
-        const ids = active.chapterIds.filter((id) =>
+        // Tant que l'étudiant reste dans MEDGAME, ses parties restent vivantes.
+        const active = overview.boards.find((item) => item.run?.status === 'in_progress')
+        setActiveRunId(active?.run?.id ?? null)
+        const board = overview.boards.find((item) => item.progress.ueId === ueId)
+        if (!board) return
+        setRunInProgress(board.run?.status === 'in_progress')
+        const ids = board.progress.chapterIds.filter((id) =>
           chaptersForTheme(ueId).some((chapter) => chapter.id === id),
         )
         if (ids.length > 0) setSelected(new Set(ids))
@@ -64,12 +71,15 @@ export default function MedgameChapterSelectionPage() {
     }
   }, [ueId])
 
-  const totalQuestions = chapters.reduce(
-    (total, chapter) => (selected.has(chapter.id) ? total + chapter.questionCount : total),
-    0,
+  // Les questions disponibles : les énoncés répétés d'un chapitre à l'autre ne
+  // comptent qu'une fois, comme dans la banque réellement tirée.
+  const bankSize = useMemo(
+    () => (selected.size > 0 ? medgameBankSize(db, [...selected]) : 0),
+    [db, selected],
   )
+  const levelCount = Math.ceil(bankSize / 5)
   const allSelected = chapters.length > 0 && selected.size === chapters.length
-  const canLaunch = selected.size > 0 && totalQuestions > 0 && !runInProgress
+  const canLaunch = selected.size > 0 && bankSize > 0 && !runInProgress
 
   function toggle(chapterId: string) {
     setSelected((current) => {
@@ -90,8 +100,10 @@ export default function MedgameChapterSelectionPage() {
     setStarting(true)
     setError('')
     try {
-      await api.createMedgameProgress(theme.id, [...selected])
-      await api.startMedgameRun()
+      const overview = await api.createMedgameProgress(theme.id, [...selected])
+      const board = overview.boards.find((item) => item.progress.ueId === theme.id)
+      if (!board) throw new Error('La planche n’a pas pu être créée.')
+      await api.startMedgameRun(board.progress.id)
       navigate('/app/medgame/parcours')
     } catch (err) {
       setError(
@@ -159,8 +171,8 @@ export default function MedgameChapterSelectionPage() {
 
         {runInProgress ? (
           <div className="mb-6 rounded-xl border border-accent/20 bg-accent-soft/40 px-4 py-3 text-[13px] text-ink">
-            Une partie MEDGAME est déjà en cours. Termine-la ou abandonne-la avant de lancer un
-            nouveau parcours.
+            Une partie MEDGAME est déjà en cours dans cette UE. Termine-la ou abandonne-la avant de
+            lancer un nouveau parcours.
           </div>
         ) : null}
 
@@ -211,11 +223,12 @@ export default function MedgameChapterSelectionPage() {
               </p>
 
               <div className="mt-5 rounded-xl bg-cloud px-3 py-2.5 text-[11px] leading-relaxed text-mute">
-                Chaque niveau contient 5 questions tirées au hasard dans tes chapitres. Il faut
-                5/5 pour valider un niveau. Une série est consommée à la fin du parcours.
+                Tes {bankSize} questions forment {levelCount} niveau{levelCount > 1 ? 'x' : ''}{' '}
+                de 5. Chaque niveau est tiré au hasard dans tes chapitres : il faut 5/5 pour valider
+                un niveau. Une série est consommée à la fin du parcours.
               </div>
 
-              {selected.size > 0 && totalQuestions === 0 ? (
+              {selected.size > 0 && bankSize === 0 ? (
                 <p className="mt-3 text-[11px] leading-relaxed text-sale">
                   Ajoute un autre chapitre : il faut au moins une question.
                 </p>
