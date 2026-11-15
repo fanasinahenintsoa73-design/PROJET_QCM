@@ -239,7 +239,6 @@ export default function MedgameLevelMapPage() {
           )
         })}
       </div>
-      </div>
     </div>
   )
 }
