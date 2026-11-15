@@ -205,7 +205,7 @@ export default function PresConcoursDashboardPage() {
           <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="font-display text-[clamp(2.2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-ink">
-                Bonjour, {user?.firstName}.
+                Bonjour PACES.
               </h1>
               <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
                 Des séries de dix questions, à votre rythme.
