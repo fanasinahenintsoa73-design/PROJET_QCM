@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
+import { MedgameAbandonModal } from '@/components/MedgameAbandonModal'
 import { usePageTitle } from '@/components/Layouts'
 import { LevelRunner } from '@/components/anki/LevelRunner'
 import type { AnkiLevelResult, MedgameRunState, Question } from '@/types'
@@ -18,6 +19,10 @@ export default function MedgameLevelPage() {
   const [state, setState] = useState<MedgameRunState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showQuit, setShowQuit] = useState(false)
+  const finished = useRef(false)
+  const allowExit = useRef(false)
+  const guardPushed = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -46,6 +51,57 @@ export default function MedgameLevelPage() {
   // Tant que le niveau est ouvert, le parcours reste vivant.
   useMedgameKeepAlive(state?.run?.status === 'in_progress' ? state.run.id : null)
 
+  // Une sortie avant soumission doit demander confirmation, comme Pres Concours.
+  useEffect(() => {
+    if (!state || finished.current || guardPushed.current) return
+    window.history.pushState({ medgameLevel: true }, '', window.location.href)
+    guardPushed.current = true
+  }, [state])
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (!state || finished.current || allowExit.current) return
+      window.history.pushState({ medgameLevel: true }, '', window.location.href)
+      setShowQuit(true)
+    }
+    const onClick = (event: MouseEvent) => {
+      if (!state || finished.current || allowExit.current) return
+      const anchor = (event.target as Element | null)?.closest?.('a[href]')
+      if (!anchor) return
+      const href = anchor.getAttribute('href') ?? ''
+      if (!href.startsWith('/')) return
+      const nextPath = href.split('?')[0].split('#')[0]
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation()
+      setShowQuit(true)
+    }
+    window.addEventListener('popstate', onPopState)
+    document.addEventListener('click', onClick, true)
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      document.removeEventListener('click', onClick, true)
+    }
+  }, [state])
+
+  useEffect(() => {
+    const onAndroidBack = () => {
+      if (state && !finished.current) setShowQuit(true)
+    }
+    window.addEventListener('medqcm:request-exit', onAndroidBack)
+    return () => window.removeEventListener('medqcm:request-exit', onAndroidBack)
+  }, [state])
+
+  useEffect(() => {
+    if (!state || finished.current) return
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [state])
+
   async function submit(answers: Record<string, string[]>) {
     if (!state) return
     const payload = state.questions.map((question) => ({
@@ -53,6 +109,8 @@ export default function MedgameLevelPage() {
       given: answers[question.id] ?? [],
     }))
     const result = await api.submitMedgameLevel(state.run.id, payload)
+    finished.current = true
+    allowExit.current = true
 
     // La correction est complétée par le serveur : on enrichit les questions
     // avec la bonne réponse et l'explication avant d'afficher le bilan.
@@ -130,11 +188,22 @@ export default function MedgameLevelPage() {
         <LevelRunner
           level={state.run.currentLevel}
           questions={state.questions}
-          onExit={() => navigate('/app/medgame/parcours')}
+          onExit={() => setShowQuit(true)}
           onSubmit={submit}
           backLabel="Planche des niveaux"
         />
       </div>
+
+      <MedgameAbandonModal
+        open={showQuit}
+        runId={state.run.id}
+        onClose={() => setShowQuit(false)}
+        onAbandoned={() => {
+          finished.current = true
+          allowExit.current = true
+          navigate('/app/medgame/parcours', { replace: true })
+        }}
+      />
     </div>
   )
 }

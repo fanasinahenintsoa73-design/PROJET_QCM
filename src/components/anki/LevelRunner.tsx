@@ -65,12 +65,6 @@ export function LevelRunner({
   }
 
   const leave = () => {
-    if (
-      answeredCount > 0 &&
-      !window.confirm('Tu quittes le niveau ? Tes réponses ne seront pas enregistrées.')
-    ) {
-      return
-    }
     onExit()
   }
 

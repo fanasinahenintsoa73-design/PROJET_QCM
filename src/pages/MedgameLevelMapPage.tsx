@@ -6,7 +6,6 @@ import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
 import { themeNumber, themeTitle } from '@/lib/themes'
 import { usePageTitle } from '@/components/Layouts'
 import { LevelGrid } from '@/components/anki/LevelGrid'
-import { MedgameAbandonModal } from '@/components/MedgameAbandonModal'
 import type { AnkiLevel, MedgameBoard, MedgameOverview } from '@/types'
 
 /**
@@ -20,7 +19,6 @@ export default function MedgameLevelMapPage() {
   const [overview, setOverview] = useState<MedgameOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [abandonRunId, setAbandonRunId] = useState<string | null>(null)
   const [startingId, setStartingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -218,13 +216,9 @@ export default function MedgameLevelMapPage() {
                     Parcours terminé. Toutes les étoiles sont récoltées.
                   </p>
                 ) : running ? (
-                  <button
-                    type="button"
-                    onClick={() => setAbandonRunId(board.run?.id ?? null)}
-                    className="text-[12px] font-medium text-mute transition hover:text-sale"
-                  >
-                    Quitter cette partie
-                  </button>
+                  <p className="text-[12px] font-medium text-ink">
+                    Partie en cours. Reprenez-la depuis l’accueil MEDGAME.
+                  </p>
                 ) : (
                   <button
                     type="button"
@@ -245,16 +239,7 @@ export default function MedgameLevelMapPage() {
           )
         })}
       </div>
-
-      <MedgameAbandonModal
-        open={abandonRunId !== null}
-        onClose={() => setAbandonRunId(null)}
-        runId={abandonRunId}
-        onAbandoned={() => {
-          setAbandonRunId(null)
-          void load()
-        }}
-      />
+      </div>
     </div>
   )
 }

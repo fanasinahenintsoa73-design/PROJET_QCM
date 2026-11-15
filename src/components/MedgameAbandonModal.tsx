@@ -4,8 +4,8 @@ import { Modal } from '@/components/ui/Modal'
 import { buttonClasses } from '@/components/ui/Button'
 
 /**
- * Confirmation d'abandon : quitter MEDGAME consomme une série, la progression
- * dans le parcours est conservée.
+ * Demande de confirmation avant de quitter un niveau MEDGAME lancé.
+ * Sortir sans soumettre consomme une série. La progression du parcours est conservée.
  */
 export function MedgameAbandonModal({
   open,
@@ -25,49 +25,54 @@ export function MedgameAbandonModal({
     if (!runId || busy) return
     setBusy(true)
     setError('')
+
     try {
       await api.abandonMedgameRun(runId)
       onAbandoned()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Abandon impossible. Réessaie.')
-    } finally {
+    } catch {
+      setError('Impossible de quitter. Réessaie dans un instant.')
       setBusy(false)
     }
   }
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      eyebrow="Abandon"
-      title="Quitter MEDGAME ?"
-      size="sm"
-      footer={
-        <div className="flex flex-col gap-2 sm:flex-row">
+    <Modal open={open} onClose={onClose} maxWidth="max-w-md">
+      <div className="p-6">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sale">
+          Quitter le niveau
+        </p>
+        <h2 className="mt-2 font-display text-[1.45rem] leading-tight text-ink">
+          Voulez-vous vraiment quitter ?
+        </h2>
+        <p className="mt-3 text-[13px] leading-relaxed text-mute">
+          Ce niveau compte 1 série, même si vous le quittez sans le soumettre. Votre progression
+          dans le parcours est conservée.
+        </p>
+
+        {error ? (
+          <p className="mt-4 rounded-xl border border-sale/25 bg-sale/5 px-4 py-3 text-[12px] text-sale">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}
-            className={buttonClasses('secondary', 'md', 'w-full')}
+            disabled={busy}
+            className={buttonClasses('secondary', 'md', busy ? 'opacity-60' : '')}
           >
-            Rester
+            Annuler
           </button>
           <button
             type="button"
-            disabled={busy}
             onClick={() => void abandon()}
-            className={buttonClasses('primary', 'md', 'w-full')}
+            disabled={busy}
+            className={buttonClasses('primary', 'md', busy ? 'opacity-60' : '')}
           >
-            {busy ? 'Abandon…' : 'Quitter et abandonner'}
+            {busy ? 'Patientez…' : 'Confirmer'}
           </button>
         </div>
-      }
-    >
-      <div className="space-y-3">
-        <p className="text-[13px] leading-relaxed text-mute">
-          Quitter maintenant compte comme un abandon et consomme une série. Ta progression dans le
-          parcours est conservée.
-        </p>
-        {error ? <p className="text-[12px] leading-relaxed text-sale">{error}</p> : null}
       </div>
     </Modal>
   )

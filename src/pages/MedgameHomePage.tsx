@@ -9,7 +9,6 @@ import { chaptersForTheme, PACE_THEMES, themeNumber, themeTitle } from '@/lib/th
 import { findChapterSubjects } from '@/lib/subjects'
 import { usePageTitle } from '@/components/Layouts'
 import { buttonClasses } from '@/components/ui/Button'
-import { MedgameAbandonModal } from '@/components/MedgameAbandonModal'
 import type { MedgameBoard, MedgameOverview } from '@/types'
 
 /**
@@ -24,7 +23,6 @@ export default function MedgameHomePage() {
   const [overview, setOverview] = useState<MedgameOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [abandonRunId, setAbandonRunId] = useState<string | null>(null)
   const [resumingId, setResumingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -179,15 +177,6 @@ export default function MedgameHomePage() {
                         {resumingId === progress.id ? 'Ouverture…' : 'Reprendre le parcours'}
                         <ArrowRight size={15} />
                       </button>
-                      {board.run?.status === 'in_progress' ? (
-                        <button
-                          type="button"
-                          onClick={() => setAbandonRunId(board.run?.id ?? null)}
-                          className={buttonClasses('secondary', 'md')}
-                        >
-                          Abandonner
-                        </button>
-                      ) : null}
                     </div>
                   </article>
                 )
@@ -248,16 +237,6 @@ export default function MedgameHomePage() {
           </div>
         </section>
       </div>
-
-      <MedgameAbandonModal
-        open={abandonRunId !== null}
-        onClose={() => setAbandonRunId(null)}
-        runId={abandonRunId}
-        onAbandoned={() => {
-          setAbandonRunId(null)
-          void load()
-        }}
-      />
-    </div>
+      </div>
   )
 }
