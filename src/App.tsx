@@ -25,7 +25,10 @@ import PresConcoursDashboardPage from '@/pages/PresConcoursDashboardPage'
 import ChapterSelectionPage from '@/pages/ChapterSelectionPage'
 import QuizPage from '@/pages/QuizPage'
 import MedgameHomePage from '@/pages/MedgameHomePage'
-import MedgameRunPage from '@/pages/MedgameRunPage'
+import MedgameChapterSelectionPage from '@/pages/MedgameChapterSelectionPage'
+import MedgameLevelMapPage from '@/pages/MedgameLevelMapPage'
+import MedgameLevelPage from '@/pages/MedgameLevelPage'
+import MedgameLevelResultPage from '@/pages/MedgameLevelResultPage'
 import { CourseSupportsPage, ExamSubjectsPage } from '@/pages/ContentLibraryPage'
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
@@ -94,7 +97,16 @@ function StudentRoutes() {
           <Route path="/app/ue/:ueId" element={<ChapterSelectionPage />} />
           <Route path="/app/entrainement" element={<QuizPage />} />
           <Route path="/app/medgame" element={<MedgameHomePage />} />
-          <Route path="/app/medgame/run" element={<MedgameRunPage />} />
+          <Route path="/app/medgame/ue/:ueId" element={<MedgameChapterSelectionPage />} />
+          <Route path="/app/medgame/parcours" element={<MedgameLevelMapPage />} />
+          <Route
+            path="/app/medgame/parcours/niveau/:level"
+            element={<MedgameLevelPage />}
+          />
+          <Route
+            path="/app/medgame/parcours/niveau/:level/bilan"
+            element={<MedgameLevelResultPage />}
+          />
           <Route path="/app/medgame/choisir" element={<Navigate to="/app/medgame" replace />} />
           <Route path="/app/medgame/:chapterId" element={<Navigate to="/app/medgame" replace />} />
           <Route

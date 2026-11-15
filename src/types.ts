@@ -289,6 +289,8 @@ export interface MedgameProgress {
   questionIds: string[]
   /** Copie figée des questions du parcours (mode démonstration). */
   questionSnapshots?: Question[]
+  /** Meilleure tentative par niveau : clé = numéro de niveau, valeur = étoiles. */
+  levelStars?: Record<string, number>
   levelCount: number
   currentLevel: number
   status: MedgameProgressStatus
@@ -315,6 +317,8 @@ export interface MedgameLevel {
   totalLevels: number
   questionCount: number
   status: 'passed' | 'unlocked' | 'locked'
+  /** Meilleure tentative du niveau (0 à 5 étoiles). */
+  bestStars?: number
 }
 
 export interface MedgameAnswerInput {

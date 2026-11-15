@@ -71,6 +71,7 @@ export function LevelGrid({
   chapterTitle,
   chapterId,
   planche,
+  playableLevel,
 }: {
   levels: AnkiLevel[]
   onSelect?: (level: number) => void
@@ -78,6 +79,8 @@ export function LevelGrid({
   /** Le tirage automatique des fonds est propre à chaque chapitre. */
   chapterId?: string
   planche?: number
+  /** Seul ce niveau peut être joué. Les autres restent visibles mais inactifs. */
+  playableLevel?: number
 }) {
   // Le tirage est calculé une seule fois à l'ouverture du chapitre, puis
   // conservé tant que le chapitre et le nombre de niveaux ne changent pas.
@@ -115,21 +118,24 @@ export function LevelGrid({
           const locked = level.status === 'locked'
           const passed = level.status === 'passed'
           const unlocked = level.status === 'unlocked'
+          const playable = playableLevel === undefined || level.level === playableLevel
           const number = String(level.level).padStart(2, '0')
           const score = `${level.bestStars}/5`
           const title = locked
             ? level.level > 1
               ? `Termine le niveau ${level.level - 1} pour ouvrir celui-ci.`
               : 'Ce niveau est verrouillé.'
-            : passed
-              ? `Rejouer le niveau ${level.level}`
-              : `Jouer le niveau ${level.level}`
+            : !playable
+              ? 'Niveau validé.'
+              : passed
+                ? `Rejouer le niveau ${level.level}`
+                : `Jouer le niveau ${level.level}`
 
           return (
             <button
               key={level.level}
               type="button"
-              disabled={locked}
+              disabled={locked || !playable}
               onClick={() => onSelect?.(level.level)}
               title={title}
               aria-label={`Niveau ${level.level}${

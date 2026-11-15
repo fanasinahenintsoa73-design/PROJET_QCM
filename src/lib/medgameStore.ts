@@ -36,6 +36,25 @@ function emptyStore(): MedgameStore {
   return { progresses: [], runs: [], answers: {}, consumptions: [] }
 }
 
+/**
+ * Les étoiles par niveau sont stockées avec la progression. Les progressions
+ * enregistrées avant cette feature (ou une entrée corrompue) sont complétées
+ * avec un objet vide : le parcours reste jouable.
+ */
+function normalizeProgress(progress: MedgameProgress): MedgameProgress {
+  const stars = progress.levelStars
+  if (!stars || typeof stars !== 'object' || Array.isArray(stars)) {
+    return { ...progress, levelStars: {} }
+  }
+  const cleaned: Record<string, number> = {}
+  for (const [level, value] of Object.entries(stars)) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      cleaned[level] = Math.max(0, Math.round(value))
+    }
+  }
+  return { ...progress, levelStars: cleaned }
+}
+
 function readStore(): MedgameStore {
   try {
     if (typeof localStorage === 'undefined') return emptyStore()
@@ -43,7 +62,9 @@ function readStore(): MedgameStore {
     if (!raw) return emptyStore()
     const parsed = JSON.parse(raw) as Partial<MedgameStore>
     return {
-      progresses: Array.isArray(parsed.progresses) ? parsed.progresses : [],
+      progresses: (Array.isArray(parsed.progresses) ? parsed.progresses : []).map(
+        normalizeProgress,
+      ),
       runs: Array.isArray(parsed.runs) ? parsed.runs : [],
       answers:
         parsed.answers && typeof parsed.answers === 'object' && !Array.isArray(parsed.answers)

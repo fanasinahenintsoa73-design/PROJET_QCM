@@ -43,6 +43,10 @@ export function ExpirationPage() {
                   : 'Ton ticket est terminé. Contacte le docteur pour un nouveau ticket et continuer tes séries.'}
             </p>
 
+            <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-mute">
+              Avec un nouveau ticket, tu retrouves les supports du cours et les sujets concours.
+            </p>
+
             <div className="mt-6 flex max-w-lg items-start gap-2.5 rounded-xl border border-line bg-surface px-4 py-3.5 text-[13px] leading-relaxed text-mute">
               <Phone size={15} className="mt-0.5 shrink-0 text-accent" />
               <span>{doctorContactLine()}</span>

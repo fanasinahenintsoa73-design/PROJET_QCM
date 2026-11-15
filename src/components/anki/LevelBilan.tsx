@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Check, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { answerLetters, cn } from '@/lib/utils'
@@ -20,15 +21,39 @@ export function LevelBilan({
   result,
   questions,
   answers,
+  completionLabel = 'Chapitre terminé',
+  failureHint,
+  note,
+  primaryLabel = 'Rejouer le niveau',
+  secondaryLabel = 'Carte des niveaux',
+  primaryTo,
+  secondaryTo,
+  onPrimary,
+  onSecondary,
 }: {
   chapterId: string
   level: number
   result: AnkiLevelResult
   questions: Question[]
   answers: Record<string, string[]>
+  completionLabel?: string
+  failureHint?: (missing: number) => string
+  note?: ReactNode
+  primaryLabel?: string
+  secondaryLabel?: string
+  primaryTo?: string
+  secondaryTo?: string
+  onPrimary?: () => void
+  onSecondary?: () => void
 }) {
   const passed = result.passed
   const missing = result.total - result.correct
+  const primaryHref = primaryTo ?? `/app/medgame/${chapterId}/niveau/${level}`
+  const secondaryHref = secondaryTo ?? `/app/medgame/${chapterId}`
+  const primaryClass =
+    'block w-full rounded-xl bg-accent px-5 py-3.5 text-center text-[13px] font-semibold text-white transition hover:bg-accent-deep'
+  const secondaryClass =
+    'block w-full rounded-xl border border-accent px-5 py-3.5 text-center text-[13px] font-semibold text-accent transition hover:bg-accent hover:text-white'
 
   return (
     <article className="overflow-hidden rounded-2xl border border-line bg-surface">
@@ -72,14 +97,22 @@ export function LevelBilan({
             {passed
               ? level < result.totalLevels
                 ? `Félicitations ! Niveau ${level + 1} débloqué`
-                : 'Félicitations ! Chapitre terminé'
+                : `Félicitations ! ${completionLabel}`
               : `${result.stars} étoile${result.stars > 1 ? 's' : ''} · À refaire`}
           </p>
           {!passed ? (
             <p className="mt-1 text-[12px] leading-relaxed text-mute">
-              Il te manque {missing} bonne{missing > 1 ? 's' : ''} réponse
-              {missing > 1 ? 's' : ''} pour débloquer le niveau {level + 1}.
+              {failureHint
+                ? failureHint(missing)
+                : `Il te manque ${missing} bonne${missing > 1 ? 's' : ''} réponse${
+                    missing > 1 ? 's' : ''
+                  } pour débloquer le niveau ${level + 1}.`}
             </p>
+          ) : null}
+          {note ? (
+            <div className="mt-4 rounded-lg bg-cloud px-4 py-3 text-left text-[12px] leading-relaxed text-ash">
+              {note}
+            </div>
           ) : null}
         </div>
 
@@ -197,18 +230,24 @@ export function LevelBilan({
         </div>
 
         <div className="mt-5 space-y-2.5">
-          <Link
-            to={`/app/medgame/${chapterId}/niveau/${level}`}
-            className="block w-full rounded-xl bg-accent px-5 py-3.5 text-center text-[13px] font-semibold text-white transition hover:bg-accent-deep"
-          >
-            Rejouer le niveau
-          </Link>
-          <Link
-            to={`/app/medgame/${chapterId}`}
-            className="block w-full rounded-xl border border-accent px-5 py-3.5 text-center text-[13px] font-semibold text-accent transition hover:bg-accent hover:text-white"
-          >
-            Carte des niveaux
-          </Link>
+          {onPrimary ? (
+            <button type="button" onClick={onPrimary} className={primaryClass}>
+              {primaryLabel}
+            </button>
+          ) : (
+            <Link to={primaryHref} className={primaryClass}>
+              {primaryLabel}
+            </Link>
+          )}
+          {onSecondary ? (
+            <button type="button" onClick={onSecondary} className={secondaryClass}>
+              {secondaryLabel}
+            </button>
+          ) : (
+            <Link to={secondaryHref} className={secondaryClass}>
+              {secondaryLabel}
+            </Link>
+          )}
         </div>
       </div>
     </article>

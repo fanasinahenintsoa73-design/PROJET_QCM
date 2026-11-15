@@ -1,12 +1,10 @@
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
-  BookOpen,
   FileText,
   Gamepad2,
   GraduationCap,
   Library,
-  Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { getSeriesUsage } from '@/lib/db'
@@ -58,10 +56,12 @@ export default function DashboardPage() {
             <div>
               <p className="text-[12px] text-mute">PACES · Espace étudiant</p>
               <h1 className="mt-3 font-display text-[clamp(2.2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-ink">
-                Bonjour, {user?.firstName}.
+                Bonjour PACES.
               </h1>
               <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
-                Choisis ton espace. Pres Concours et MEDGAME partagent les mêmes 30 séries.
+                Pres Concours tire une série de 10 questions dans les chapitres que tu choisis.
+                MEDGAME reprend ces mêmes questions, mélangées en niveaux de 5 questions à valider
+                5/5. Les deux parcours partagent les mêmes 30 séries.
               </p>
             </div>
             <StatusPill tone={reached ? 'warning' : 'success'} dot>
@@ -122,14 +122,6 @@ export default function DashboardPage() {
               </Link>
             )
           })}
-        </div>
-
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 text-[12px] leading-relaxed text-mute">
-          <Sparkles size={16} className="mt-0.5 shrink-0 text-accent" />
-          <p>
-            Les supports du cours et les sujets concours restent accessibles même quand les 30
-            séries sont épuisées.
-          </p>
         </div>
       </section>
     </div>

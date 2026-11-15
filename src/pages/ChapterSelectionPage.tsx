@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, ListChecks } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { getUsableQuestions } from '@/lib/db'
 import { chaptersForTheme, PACE_THEMES } from '@/lib/themes'
 import { findChapterSubjects } from '@/lib/subjects'
+import { ChapterList } from '@/components/ChapterList'
 import { Button } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
-import { cn, SERIES_SIZE } from '@/lib/utils'
+import { SERIES_SIZE } from '@/lib/utils'
 
 export default function ChapterSelectionPage() {
   const { ueId = '' } = useParams()
@@ -129,63 +130,21 @@ export default function ChapterSelectionPage() {
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div className="rounded-2xl border border-line bg-surface">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-                <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
-                  <ListChecks size={16} className="text-accent" />
-                  Chapitres
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleAll}
-                  className="text-[12px] font-medium text-accent transition hover:text-accent-deep"
-                >
-                  {allSelected ? 'Tout décocher' : 'Tout sélectionner'}
-                </button>
-              </div>
-
-              <div className="divide-y divide-line">
-                {chapters.map((chapter) => {
-                  const checked = selected.has(chapter.id)
-                  return (
-                    <button
-                      key={chapter.id}
-                      type="button"
-                      onClick={() => toggle(chapter.id)}
-                      className={cn(
-                        'flex w-full items-center gap-4 px-5 py-4 text-left transition sm:px-6',
-                        checked ? 'bg-accent-soft/60' : 'hover:bg-cloud/50',
-                      )}
-                      aria-pressed={checked}
-                    >
-                      <span
-                        className={cn(
-                          'grid h-5 w-5 shrink-0 place-items-center rounded border transition',
-                          checked
-                            ? 'border-accent bg-accent text-white'
-                            : 'border-line bg-surface text-transparent',
-                        )}
-                      >
-                        <Check size={13} strokeWidth={3} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[14px] font-medium text-ink">
-                          {chapter.title}
-                        </span>
-                        <span className="mt-0.5 block text-[11px] text-mute">
-                          {chapter.subjects.length} sujet{chapter.subjects.length > 1 ? 's' : ''}
-                        </span>
-                      </span>
-                      {chapter.questionCount < SERIES_SIZE ? (
-                        <span className="shrink-0 rounded-full bg-cloud px-2 py-1 text-[9px] font-medium uppercase tracking-[0.08em] text-mute">
-                          À compléter
-                        </span>
-                      ) : null}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+            <ChapterList
+              entries={chapters.map((chapter) => ({
+                id: chapter.id,
+                title: chapter.title,
+                meta: `${chapter.subjects.length} sujet${chapter.subjects.length > 1 ? 's' : ''}`,
+                badge:
+                  chapter.questionCount < SERIES_SIZE
+                    ? { label: 'À compléter', tone: 'cloud' }
+                    : null,
+              }))}
+              selectedIds={selected}
+              onToggle={toggle}
+              onToggleAll={toggleAll}
+              toggleAllLabel={allSelected ? 'Tout décocher' : 'Tout sélectionner'}
+            />
 
             <aside className="h-fit rounded-2xl border border-line bg-surface p-5 sm:p-6 lg:sticky lg:top-5">
               <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Votre série</p>

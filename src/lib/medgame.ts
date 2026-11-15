@@ -113,8 +113,33 @@ function levelsFor(progress: MedgameProgress | null): MedgameLevel[] {
       totalLevels: progress.levelCount,
       questionCount: Math.max(0, Math.min(LEVEL_SIZE, remaining)),
       status,
+      bestStars: bestStarsFor(progress, level),
     }
   })
+}
+
+/** Meilleure tentative connue pour un niveau (0 à 5 étoiles). */
+function bestStarsFor(progress: MedgameProgress, level: number): number {
+  const stars = progress.levelStars?.[String(level)]
+  return Number.isFinite(stars) ? Math.max(0, Math.min(LEVEL_SIZE, stars as number)) : 0
+}
+
+/**
+ * Mémorise les étoiles d'un niveau réussi. Seul le meilleur score est
+ * conservé : un échec plus tard ne doit jamais effacer les étoiles déjà
+ * gagnées sur ce niveau.
+ */
+function recordLevelStars(
+  progress: MedgameProgress,
+  level: number,
+  stars: number,
+): void {
+  const key = String(level)
+  const previous = progress.levelStars?.[key] ?? 0
+  progress.levelStars = {
+    ...(progress.levelStars ?? {}),
+    [key]: Math.max(previous, stars),
+  }
 }
 
 function progressForRun(run: MedgameRun): MedgameProgress {
@@ -202,6 +227,7 @@ export function createMedgameProgress(input: {
       options: { ...question.options },
       correctAnswers: [...question.correctAnswers],
     })),
+    levelStars: {},
     levelCount: Math.ceil(bank.length / LEVEL_SIZE),
     currentLevel: 1,
     status: 'active',
@@ -347,6 +373,10 @@ export function submitMedgameLevel(
   let consumed = false
 
   if (passed) {
+    // Les étoiles du niveau réussi sont conservées dans la progression :
+    // le meilleur score est gardé, même après un échec plus tard.
+    recordLevelStars(progress, level, correct)
+
     if (level >= progress.levelCount) {
       completed = true
       run.status = 'completed'

@@ -1,50 +1,30 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
-import { api } from '@/lib/api'
 import { answerLetters, cn } from '@/lib/utils'
-import type { AnkiLevelAnswer, Question } from '@/types'
+import type { Question } from '@/types'
 
 /**
- * Un niveau : 5 questions tirées au hasard dans le chapitre, répondues sans
- * correction, puis une seule submission. C'est le même rythme que les séries
- * de 30 questions : on répond aux 5, puis on soumet.
+ * Un niveau : les questions du niveau, répondues sans correction, puis une
+ * seule submission. C'est le même rythme que les séries de 10 questions :
+ * on répond, puis on soumet.
  */
 export function LevelRunner({
-  chapterId,
   level,
+  questions,
   onExit,
+  onSubmit,
+  backLabel = 'Carte des niveaux',
 }: {
-  chapterId: string
   level: number
+  questions: Question[]
   onExit: () => void
+  onSubmit: (answers: Record<string, string[]>) => Promise<void>
+  backLabel?: string
 }) {
-  const navigate = useNavigate()
-  const [questions, setQuestions] = useState<Question[]>([])
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const list = await api.getAnkiLevelQuestions(chapterId, level)
-      setQuestions(list)
-      setIndex(0)
-      setAnswers({})
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de charger ce niveau.')
-    } finally {
-      setLoading(false)
-    }
-  }, [chapterId, level])
-
-  useEffect(() => {
-    void load()
-  }, [load])
 
   const question = questions[index]
   const answeredCount = Object.keys(answers).length
@@ -52,7 +32,7 @@ export function LevelRunner({
   const isLast = index === questions.length - 1
   const currentAnswered = Boolean(question && answers[question.id]?.length)
 
-  // Comme dans les séries de 30 questions : le clic sélectionne la réponse et
+  // Comme dans les séries de questions : le clic sélectionne la réponse et
   // l'on reste sur la question. On passe à la suite avec « Question suivante »
   // et on peut revenir en arrière pour modifier une réponse.
   const choose = (letter: string) => {
@@ -75,15 +55,8 @@ export function LevelRunner({
     if (!allAnswered || saving) return
     setSaving(true)
     setError(null)
-    const payload: AnkiLevelAnswer[] = questions.map((item) => ({
-      questionId: item.id,
-      given: answers[item.id] ?? [],
-    }))
     try {
-      const result = await api.recordAnkiLevel({ chapterId, level, answers: payload })
-      navigate(`/app/medgame/${chapterId}/niveau/${level}/bilan`, {
-        state: { result, questions, answers },
-      })
+      await onSubmit(answers)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enregistrement impossible. Réessaie.')
     } finally {
@@ -101,19 +74,11 @@ export function LevelRunner({
     onExit()
   }
 
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-line bg-surface p-8 text-center text-[13px] text-mute">
-        Préparation du niveau…
-      </div>
-    )
-  }
-
   if (!question) {
     return (
       <div className="rounded-2xl border border-line bg-surface p-8 text-center">
         <p className="text-[13px] text-mute">
-          Ce chapitre n'a pas assez de questions pour ouvrir un niveau.
+          Ce niveau n'a pas assez de questions pour être ouvert.
         </p>
         <button
           type="button"
@@ -135,7 +100,7 @@ export function LevelRunner({
         onClick={leave}
         className="inline-flex items-center gap-1.5 text-[12px] font-medium text-mute hover:text-accent"
       >
-        <ArrowLeft size={14} /> Carte des niveaux
+        <ArrowLeft size={14} /> {backLabel}
       </button>
 
       {error && (
@@ -244,7 +209,8 @@ export function LevelRunner({
           </button>
 
           <p className="mt-3 text-[11px] leading-relaxed text-mute">
-            Les 5 questions d'abord, sans correction. Tu soumets, le bilan arrive.
+            Les {questions.length} questions d’abord, sans correction. Tu soumets, le bilan
+            arrive.
           </p>
         </div>
       </article>
