@@ -70,7 +70,10 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         configureWebView();
+        // Le mode portrait limitera les anciennes pages mises en cache : on purge
+        // aussi l'historique et les données de formulaire avant le chargement à froid.
         webView.clearCache(true);
+        webView.clearHistory();
         webView.clearFormData();
         webView.loadUrl(freshUrl(getString(R.string.web_url)));
     }
