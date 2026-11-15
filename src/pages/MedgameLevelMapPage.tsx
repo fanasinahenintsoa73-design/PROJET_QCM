@@ -49,6 +49,11 @@ export default function MedgameLevelMapPage() {
     setStartingId(board.progress.id)
     setError('')
     try {
+      window.sessionStorage.removeItem(`medgame.level.abandoned.${board.progress.id}`)
+    } catch {
+      // Navigateur sans stockage session.
+    }
+    try {
       const state = await api.startMedgameRun(board.progress.id)
       navigate(`/app/medgame/parcours/${board.progress.id}/niveau/${state.run.currentLevel}`)
     } catch (err) {
@@ -195,9 +200,14 @@ export default function MedgameLevelMapPage() {
                   chapterId={progress.chapterIds.join('_')}
                   planche={index + 1}
                   playableLevel={playableLevel}
-                  onSelect={(level) =>
+                  onSelect={(level) => {
+                    try {
+                      window.sessionStorage.removeItem(`medgame.level.abandoned.${progress.id}`)
+                    } catch {
+                      // Navigateur sans stockage session.
+                    }
                     navigate(`/app/medgame/parcours/${progress.id}/niveau/${level}`)
-                  }
+                  }}
                 />
               </div>
 

@@ -69,13 +69,24 @@ export default function MedgameLevelResultPage() {
   const { result } = state
   const isLastLevel = result.level >= result.totalLevels
 
+  function clearAbandonedKey() {
+    try {
+      window.sessionStorage.removeItem(`medgame.level.abandoned.${progressId}`)
+    } catch {
+      // Navigateur sans stockage session.
+    }
+  }
+
   async function replay() {
     if (busy || !progressId) return
     setBusy(true)
     setError('')
+    clearAbandonedKey()
     try {
       const started = await api.startMedgameRun(progressId)
-      navigate(`/app/medgame/parcours/${progressId}/niveau/${started.run.currentLevel}`)
+      navigate(`/app/medgame/parcours/${progressId}/niveau/${started.run.currentLevel}`, {
+        replace: true,
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Le niveau n’a pas pu être relancé.')
       setBusy(false)
@@ -116,8 +127,12 @@ export default function MedgameLevelResultPage() {
               ? () => void replay()
               : state.completed
                 ? () => navigate('/app/medgame/parcours')
-                : () =>
-                    navigate(`/app/medgame/parcours/${progressId}/niveau/${result.level + 1}`)
+                : () => {
+                    clearAbandonedKey()
+                    navigate(`/app/medgame/parcours/${progressId}/niveau/${result.level + 1}`, {
+                      replace: true,
+                    })
+                  }
           }
           secondaryLabel="Carte des niveaux"
           onSecondary={() => navigate('/app/medgame/parcours')}

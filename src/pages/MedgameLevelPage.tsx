@@ -26,6 +26,13 @@ export default function MedgameLevelPage() {
 
   const load = useCallback(async () => {
     try {
+      // Après un abandon confirmé, les anciennes entrées d'historique du
+      // niveau ne doivent plus pouvoir ouvrir le QCM.
+      const abandonedKey = `medgame.level.abandoned.${progressId}`
+      if (typeof window !== 'undefined' && window.sessionStorage.getItem(abandonedKey) === '1') {
+        window.location.replace('/app/medgame/parcours')
+        return
+      }
       const overview = await api.getMedgameOverview()
       const board = overview.boards.find((item) => item.progress.id === progressId)
       if (!board) {
@@ -54,23 +61,31 @@ export default function MedgameLevelPage() {
   // Une sortie avant soumission doit demander confirmation, comme Pres Concours.
   useEffect(() => {
     if (!state || finished.current || guardPushed.current) return
-    window.history.pushState({ medgameLevel: true }, '', window.location.href)
+    window.history.pushState(
+      { ...window.history.state, medgameLevelGuard: progressId },
+      '',
+      window.location.href,
+    )
     guardPushed.current = true
-  }, [state])
+  }, [state, progressId])
 
   useEffect(() => {
     const onPopState = () => {
       if (!state || finished.current || allowExit.current) return
-      window.history.pushState({ medgameLevel: true }, '', window.location.href)
+      window.history.pushState(
+        { ...window.history.state, medgameLevelGuard: progressId },
+        '',
+        window.location.href,
+      )
       setShowQuit(true)
     }
     const onClick = (event: MouseEvent) => {
       if (!state || finished.current || allowExit.current) return
-      const anchor = (event.target as Element | null)?.closest?.('a[href]')
+      const anchor = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null
       if (!anchor) return
-      const href = anchor.getAttribute('href') ?? ''
-      if (!href.startsWith('/')) return
-      const nextPath = href.split('?')[0].split('#')[0]
+      const url = new URL(anchor.href, window.location.href)
+      if (url.origin !== window.location.origin) return
+      if (url.hash && url.pathname === window.location.pathname) return
       event.preventDefault()
       event.stopPropagation()
       event.stopImmediatePropagation()
@@ -82,7 +97,7 @@ export default function MedgameLevelPage() {
       window.removeEventListener('popstate', onPopState)
       document.removeEventListener('click', onClick, true)
     }
-  }, [state])
+  }, [state, progressId])
 
   useEffect(() => {
     const onAndroidBack = () => {
@@ -93,8 +108,9 @@ export default function MedgameLevelPage() {
   }, [state])
 
   useEffect(() => {
-    if (!state || finished.current) return
+    if (!state) return
     const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (finished.current) return
       event.preventDefault()
       event.returnValue = ''
     }
@@ -137,6 +153,7 @@ export default function MedgameLevelPage() {
     }
 
     navigate(`/app/medgame/parcours/${progressId}/niveau/${result.level}/bilan`, {
+      replace: true,
       state: {
         result: bilan,
         questions,
@@ -201,7 +218,12 @@ export default function MedgameLevelPage() {
         onAbandoned={() => {
           finished.current = true
           allowExit.current = true
-          navigate('/app/medgame/parcours', { replace: true })
+          try {
+            window.sessionStorage.setItem(`medgame.level.abandoned.${progressId}`, '1')
+          } catch {
+            // Navigateurs sans stockage session : on force quand même la sortie.
+          }
+          window.location.replace('/app/medgame/parcours')
         }}
       />
     </div>
