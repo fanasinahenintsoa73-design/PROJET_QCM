@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
   BookOpen,
-  Download,
   FileText,
   Filter,
   FolderOpen,
@@ -146,10 +145,7 @@ export default function ContentLibraryPage({ kind }: { kind: Kind }) {
             </p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-[12px] text-mute">
-            <span className="flex items-center gap-2">
-              <Download size={14} className="text-accent" /> Consultation uniquement
-            </span>
-            <span className="mt-1 block text-ink">Téléchargement désactivé</span>
+            <span className="text-ink">Consultation uniquement</span>
           </div>
         </div>
 
