@@ -2,8 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Archive,
-  ArchiveRestore,
   Ban,
   Copy,
   Eye,
@@ -24,7 +22,7 @@ import { useToast } from '@/components/ui/Toast'
 import { copyText } from '@/lib/downloadTickets'
 import { getGeneratedTickets, setGeneratedTickets } from '@/lib/generatedTicketsSession'
 import { cn, formatDateLong, formatDateTime } from '@/lib/utils'
-import type { GeneratedTicket, TicketItem, TicketType } from '@/types'
+import type { GeneratedTicket, TicketItem } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
 
@@ -109,8 +107,6 @@ export default function AdminTicketsPage() {
   const [busyCode, setBusyCode] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
-  const [archiving, setArchiving] = useState(false)
-  const [unarchiving, setUnarchiving] = useState(false)
   // Menu des actions d'un ticket : rendu dans un portail, hors du tableau.
   // Dans le tableau il était rogné (le conteneur du tableau défile
   // horizontalement et coupe tout ce qui déborde verticalement).
@@ -127,37 +123,27 @@ export default function AdminTicketsPage() {
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
 
   // Un seul type de ticket désormais : le parcours 30 séries (Pres Concours + MEDGAME).
-  const archivedView = searchParams.get('vue') === 'archives'
   const filterParam = searchParams.get('statut')
-  const activeFilter = !archivedView && isTicketFilter(filterParam) ? filterParam : null
+  const activeFilter = isTicketFilter(filterParam) ? filterParam : null
   const normalizedSearch = search.trim().toUpperCase()
 
-  const seriesCount = tickets.filter((item) => !item.archivedAt).length
-  const archivedCount = tickets.filter((item) => item.archivedAt !== null).length
-
-  const activeTypeTickets = tickets
+  const ticketCount = tickets.length
 
   const counts = useMemo(() => {
-    const current = activeTypeTickets.filter((item) => !item.archivedAt)
     return {
-      available: current.filter((item) => matchesTicketFilter(item, 'available')).length,
-      inProgress: current.filter((item) => matchesTicketFilter(item, 'inProgress')).length,
-      finished: current.filter((item) => matchesTicketFilter(item, 'finished')).length,
-      suspended: current.filter((item) => matchesTicketFilter(item, 'suspended')).length,
+      available: tickets.filter((item) => matchesTicketFilter(item, 'available')).length,
+      inProgress: tickets.filter((item) => matchesTicketFilter(item, 'inProgress')).length,
+      finished: tickets.filter((item) => matchesTicketFilter(item, 'finished')).length,
+      suspended: tickets.filter((item) => matchesTicketFilter(item, 'suspended')).length,
     } satisfies Record<FilterKey, number>
-  }, [activeTypeTickets])
+  }, [tickets])
 
   const visibleTickets = useMemo(() => {
-    // Vue Archives : les tickets archivés du parcours affiché. Sinon : les
-    // tickets actifs du même parcours.
-    const base = activeTypeTickets.filter((item) =>
-      archivedView ? item.archivedAt !== null : item.archivedAt === null,
-    )
-    const filtered = activeFilter ? base.filter((item) => matchesTicketFilter(item, activeFilter)) : base
+    const filtered = activeFilter ? tickets.filter((item) => matchesTicketFilter(item, activeFilter)) : tickets
     return normalizedSearch
       ? filtered.filter((item) => item.code.toUpperCase().includes(normalizedSearch))
       : filtered
-  }, [tickets, activeTypeTickets, activeFilter, archivedView, normalizedSearch])
+  }, [tickets, activeFilter, normalizedSearch])
 
   const menuItem = menu ? tickets.find((item) => item.code === menu.code) ?? null : null
 
@@ -171,7 +157,7 @@ export default function AdminTicketsPage() {
 
   useEffect(() => {
     setSelected(new Set())
-  }, [activeFilter, archivedView, normalizedSearch])
+  }, [activeFilter, normalizedSearch])
 
   useEffect(() => {
     if (activeFilter) setSearch('')
@@ -242,20 +228,11 @@ export default function AdminTicketsPage() {
     void load()
   }, [load])
 
-  function updateParams(next: {
-    type?: TicketType
-    statut?: FilterKey | null
-    vue?: 'archives' | null
-  }) {
+  function updateParams(next: { statut?: FilterKey | null }) {
     const params = new URLSearchParams(searchParams)
-    if (next.type !== undefined) params.set('type', next.type)
     if (next.statut !== undefined) {
       if (next.statut === null) params.delete('statut')
       else params.set('statut', next.statut)
-    }
-    if (next.vue !== undefined) {
-      if (next.vue === null) params.delete('vue')
-      else params.set('vue', next.vue)
     }
     setSearchParams(params, { replace: true })
   }
@@ -292,42 +269,12 @@ export default function AdminTicketsPage() {
     }
   }
 
-  async function handleArchive(codes: string[]) {
-    if (codes.length === 0) return
-    setArchiving(true)
-    try {
-      await api.archiveTickets(codes)
-      toast(`${codes.length} ticket${codes.length > 1 ? 's' : ''} archivé${codes.length > 1 ? 's' : ''}.`)
-      setSelected(new Set())
-      await load()
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'L’archivage a échoué.', 'error')
-    } finally {
-      setArchiving(false)
-    }
-  }
-
-  async function handleUnarchive(codes: string[]) {
-    if (codes.length === 0) return
-    setUnarchiving(true)
-    try {
-      await api.unarchiveTickets(codes)
-      toast(`${codes.length} ticket${codes.length > 1 ? 's' : ''} désarchivé${codes.length > 1 ? 's' : ''}.`)
-      setSelected(new Set())
-      await load()
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Le désarchivage a échoué.', 'error')
-    } finally {
-      setUnarchiving(false)
-    }
-  }
-
   function requestDelete(codes: string[]) {
     const targets = tickets.filter((item) => codes.includes(item.code))
     if (targets.length === 0) return
     if (!targets.every(isNeverUsed)) {
       toast(
-        'La sélection contient un ticket déjà utilisé. Archive-le au lieu de le supprimer.',
+        'La sélection contient un ticket déjà utilisé.',
         'error',
       )
       return
@@ -414,7 +361,7 @@ export default function AdminTicketsPage() {
           </h1>
           <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-mute">
             Un ticket = un étudiant. Génère les ID et numéros, puis suis l’activité. Un ticket
-            utilisé ne se supprime pas : il s’archive.
+            utilisé ne peut pas être supprimé.
           </p>
         </div>
         <Button variant="outline" onClick={() => void load()} loading={loading}>
@@ -461,21 +408,12 @@ export default function AdminTicketsPage() {
           <div className="flex gap-5">
             <span className="inline-flex items-center gap-2 border-b-2 border-accent pb-3 text-[13px] font-medium text-accent">
               Tickets
-              <span className="rounded-full bg-cloud px-2 py-0.5 text-[10px] text-mute">{seriesCount}</span>
+              <span className="rounded-full bg-cloud px-2 py-0.5 text-[10px] text-mute">{ticketCount}</span>
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => updateParams({ vue: archivedView ? null : 'archives', statut: null })}
-            className="inline-flex items-center gap-1.5 pb-3 text-[12px] font-medium text-mute transition hover:text-accent"
-          >
-            <Archive size={14} />
-            {archivedView ? 'Tickets actifs' : `Archives (${archivedCount})`}
-          </button>
         </div>
 
-        {!archivedView ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {FILTERS.map((filter) => {
               const active = activeFilter === filter.key
               return (
@@ -483,7 +421,7 @@ export default function AdminTicketsPage() {
                   key={filter.key}
                   type="button"
                   onClick={() =>
-                    updateParams({ statut: activeFilter === filter.key ? null : filter.key, vue: null })
+                    updateParams({ statut: activeFilter === filter.key ? null : filter.key })
                   }
                   aria-pressed={active}
                   className={cn(
@@ -504,25 +442,7 @@ export default function AdminTicketsPage() {
                 </button>
               )
             })}
-          </div>
-        ) : (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
-            <Archive size={15} className="text-mute" />
-            <p className="text-[12px] text-mute">
-              Les tickets archivés de ce parcours sont masqués des listes actives. Le compte continue
-              de fonctionner normalement : ses données sont conservées et tu peux le réactiver à tout
-              moment.
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => updateParams({ vue: null })}
-            >
-              Retour aux tickets actifs
-            </Button>
-          </div>
-        )}
+        </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <div className="relative max-w-xs flex-1">
@@ -586,32 +506,13 @@ export default function AdminTicketsPage() {
               <p className={cn('text-[11px]', canDeleteSelected ? 'text-mute' : 'text-sale')}>
                 {canDeleteSelected
                   ? 'Suppression définitive possible uniquement pour les tickets jamais utilisés.'
-                  : 'La sélection contient un ticket déjà utilisé : la suppression est bloquée. Archive-le.'}
+                  : 'La sélection contient un ticket déjà utilisé : la suppression est bloquée.'}
               </p>
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
                 Annuler
               </Button>
-              {archivedView ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  loading={unarchiving}
-                  onClick={() => void handleUnarchive([...selected])}
-                >
-                  <ArchiveRestore size={13} /> Désarchiver
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  loading={archiving}
-                  onClick={() => void handleArchive([...selected])}
-                >
-                  <Archive size={13} /> Archiver
-                </Button>
-              )}
               <Button
                 variant="danger"
                 size="sm"
@@ -643,20 +544,16 @@ export default function AdminTicketsPage() {
         ) : visibleTickets.length === 0 ? (
           <div className="py-10 text-center">
             <p className="text-[14px] font-medium text-ink">
-              {archivedView
-                ? 'Aucun ticket archivé pour ce parcours.'
-                : activeFilter
-                  ? `Aucun ticket ${FILTER_TITLES[activeFilter].toLowerCase()}.`
-                  : normalizedSearch
-                    ? `Aucun ticket trouvé pour « ${normalizedSearch} ».`
-                    : 'Aucun ticket dans cette catégorie.'}
+              {activeFilter
+                ? `Aucun ticket ${FILTER_TITLES[activeFilter].toLowerCase()}.`
+                : normalizedSearch
+                  ? `Aucun ticket trouvé pour « ${normalizedSearch} ».`
+                  : 'Aucun ticket dans cette catégorie.'}
             </p>
             <p className="mt-1 text-[12px] text-mute">
-              {archivedView
-                ? 'Les tickets archivés apparaissent ici.'
-                : activeFilter
-                  ? 'Efface le filtre pour voir tous les tickets.'
-                  : 'Change de recherche ou génère un nouveau lot.'}
+              {activeFilter
+                ? 'Efface le filtre pour voir tous les tickets.'
+                : 'Change de recherche ou génère un nouveau lot.'}
             </p>
           </div>
         ) : (
@@ -716,11 +613,6 @@ export default function AdminTicketsPage() {
                           >
                             <Copy size={13} />
                           </button>
-                          {archivedView ? (
-                            <span className="rounded-full bg-cloud px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-mute">
-                              {item.type === 'anki' ? 'Anki' : 'Séries'}
-                            </span>
-                          ) : null}
                         </span>
                       </td>
                       <td className="py-3 pr-4">
@@ -883,7 +775,7 @@ export default function AdminTicketsPage() {
             >
               {isNeverUsed(detail)
                 ? 'Disponible · jamais utilisé. La suppression définitive est possible.'
-                : 'Déjà utilisé · suppression définitive bloquée. Archive-le pour le retirer des listes actives.'}
+                : 'Déjà utilisé · suppression définitive bloquée.'}
             </div>
 
             <div className="mt-5 flex justify-end">
@@ -1100,29 +992,6 @@ export default function AdminTicketsPage() {
                     )}
                   </button>
                 ) : null}
-                {menuItem.archivedAt ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenu(null)
-                      void handleUnarchive([menuItem.code])
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
-                  >
-                    <ArchiveRestore size={14} /> Désarchiver
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenu(null)
-                      void handleArchive([menuItem.code])
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud"
-                  >
-                    <Archive size={14} /> Archiver
-                  </button>
-                )}
                 {isNeverUsed(menuItem) ? (
                   <button
                     type="button"
