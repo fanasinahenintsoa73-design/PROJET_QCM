@@ -10,6 +10,7 @@ import { chaptersForTheme, PACE_THEMES } from '@/lib/themes'
 import { findChapterSubjects } from '@/lib/subjects'
 import { ChapterList } from '@/components/ChapterList'
 import { Button } from '@/components/ui/Button'
+import { MedgameSaveChaptersModal } from '@/components/MedgameSaveChaptersModal'
 import { usePageTitle } from '@/components/Layouts'
 
 /**
@@ -24,6 +25,7 @@ export default function MedgameChapterSelectionPage() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [runInProgress, setRunInProgress] = useState(false)
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
   useMedgameKeepAlive(activeRunId)
@@ -239,9 +241,9 @@ export default function MedgameChapterSelectionPage() {
                 size="lg"
                 className="mt-5 w-full justify-center"
                 disabled={!canLaunch || starting}
-                onClick={() => void launch()}
+                onClick={() => setConfirmOpen(true)}
               >
-                {starting ? 'Lancement…' : 'Lancer le parcours'} <ArrowRight size={16} />
+                {starting ? 'Enregistrement…' : 'Lancer le parcours'} <ArrowRight size={16} />
               </Button>
               {selected.size === 0 ? (
                 <p className="mt-2 text-center text-[11px] text-mute">
@@ -252,6 +254,15 @@ export default function MedgameChapterSelectionPage() {
           </div>
         )}
       </section>
+
+      <MedgameSaveChaptersModal
+        open={confirmOpen}
+        onClose={() => (starting ? undefined : setConfirmOpen(false))}
+        onConfirmed={() => void launch()}
+        chapterCount={selected.size}
+        starting={starting}
+        error={error}
+      />
     </div>
   )
 }

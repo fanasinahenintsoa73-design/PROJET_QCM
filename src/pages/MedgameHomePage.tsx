@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
@@ -77,6 +77,13 @@ export default function MedgameHomePage() {
   return (
     <div className="bg-canvas">
       <div className="mx-auto max-w-content px-5 py-10 sm:px-8 lg:px-10 lg:py-14">
+        <Link
+          to="/app"
+          aria-label="Retour au tableau de bord"
+          className="mb-4 inline-flex items-center gap-2 text-[13px] font-semibold text-mute transition hover:text-accent"
+        >
+          <ArrowLeft size={16} /> Retour au tableau de bord
+        </Link>
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">

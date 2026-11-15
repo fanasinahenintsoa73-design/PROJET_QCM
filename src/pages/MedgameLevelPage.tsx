@@ -223,7 +223,16 @@ export default function MedgameLevelPage() {
           } catch {
             // Navigateurs sans stockage session : on force quand même la sortie.
           }
-          window.location.replace('/app/medgame/parcours')
+          // On dépile le niveau ET sa garde (2 entrées) en revenant à la page
+          // précédente. Le marqueur sessionStorage empêche toute ré-entrée
+          // dans le QCM : `load()` redirige vers /app/medgame/parcours.
+          window.history.go(-2)
+          window.setTimeout(() => {
+            const { pathname } = window.location
+            if (pathname.includes('/app/medgame/parcours/') && pathname.includes('/niveau/')) {
+              navigate('/app/medgame/parcours', { replace: true })
+            }
+          }, 250)
         }}
       />
     </div>
