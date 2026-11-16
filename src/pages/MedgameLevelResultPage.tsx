@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePageTitle } from '@/components/Layouts'
 import { LevelBilan } from '@/components/anki/LevelBilan'
-import type { AnkiLevelResult, Question } from '@/types'
+import type { AnkiLevelResult, Question, SeriesQuota } from '@/types'
 
 type BilanState = {
   result: AnkiLevelResult
@@ -15,6 +15,8 @@ type BilanState = {
   runAlreadyConsumed?: boolean
   completed?: boolean
   failed?: boolean
+  /** Quota renvoyé par le serveur : il est à jour, sans rechargement. */
+  quota?: SeriesQuota
 }
 
 /**
@@ -145,6 +147,13 @@ export default function MedgameLevelResultPage() {
                 result.totalLevels - result.level > 1 ? 's' : ''
               } avant la fin du parcours.`}
         </p>
+
+        {state.quota ? (
+          <p className="mt-1 text-center text-[11px] leading-relaxed text-mute">
+            Il te reste {state.quota.remaining} série
+            {state.quota.remaining > 1 ? 's' : ''} sur {state.quota.limit}.
+          </p>
+        ) : null}
       </div>
     </div>
   )

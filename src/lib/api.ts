@@ -18,6 +18,7 @@ import type {
   Receipt,
   SeriesFeedback,
   SeriesFeedbackReview,
+  SeriesQuota,
   Subject,
   TicketInfo,
   TicketItem,
@@ -553,9 +554,14 @@ export const api = {
     medgame.heartbeatMedgameRun(runId)
   },
 
-  async abandonMedgameRun(runId: string): Promise<void> {
+  /**
+   * Abandonne une run MEDGAME et renvoie le quota partagé mis à jour (null en
+   * mode démonstration, où le quota vient du rechargement de la synthèse).
+   */
+  async abandonMedgameRun(runId: string): Promise<SeriesQuota | null> {
     if (isSupabaseConfigured) return remote.abandonMedgameRun(runId)
     medgame.abandonMedgameRun(runId)
+    return null
   },
 
   /* ---------------------------------------------------------------- */

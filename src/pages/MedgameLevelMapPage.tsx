@@ -36,6 +36,21 @@ export default function MedgameLevelMapPage() {
     void load()
   }, [load])
 
+  // Le quota partagé bouge ailleurs (fin de parcours MEDGAME, série Pres
+  // Concours) : on recharge l'aperçu quand l'onglet redevient visible ou
+  // reprend le focus, sinon le compteur affiché reste figé.
+  useEffect(() => {
+    const reload = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    window.addEventListener('focus', reload)
+    document.addEventListener('visibilitychange', reload)
+    return () => {
+      window.removeEventListener('focus', reload)
+      document.removeEventListener('visibilitychange', reload)
+    }
+  }, [load])
+
   const boards = overview?.boards ?? []
   // Les parcours doivent rester vivants : un battement toutes les 25 secondes.
   const activeRunId =

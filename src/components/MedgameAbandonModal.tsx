@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '@/lib/api'
 import { Modal } from '@/components/ui/Modal'
 import { buttonClasses } from '@/components/ui/Button'
+import type { SeriesQuota } from '@/types'
 
 /**
  * Demande de confirmation avant de quitter un niveau MEDGAME lancé.
@@ -15,7 +16,8 @@ export function MedgameAbandonModal({
 }: {
   open: boolean
   onClose: () => void
-  onAbandoned: () => void
+  /** Le quota à jour est transmis quand le serveur l'a renvoyé. */
+  onAbandoned: (quota?: SeriesQuota | null) => void
   runId: string | null
 }) {
   const [busy, setBusy] = useState(false)
@@ -27,8 +29,8 @@ export function MedgameAbandonModal({
     setError('')
 
     try {
-      await api.abandonMedgameRun(runId)
-      onAbandoned()
+      const quota = await api.abandonMedgameRun(runId)
+      onAbandoned(quota)
     } catch {
       setError('Impossible de quitter. Réessaie dans un instant.')
       setBusy(false)

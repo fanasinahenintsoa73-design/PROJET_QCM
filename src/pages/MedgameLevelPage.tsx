@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
 import { MedgameAbandonModal } from '@/components/MedgameAbandonModal'
 import { usePageTitle } from '@/components/Layouts'
@@ -16,6 +17,7 @@ export default function MedgameLevelPage() {
   usePageTitle('Niveau — MEDGAME — MEDQCM mada')
   const navigate = useNavigate()
   const { progressId = '' } = useParams()
+  const { refresh } = useAuth()
   const [state, setState] = useState<MedgameRunState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -135,6 +137,9 @@ export default function MedgameLevelPage() {
     const result = await api.submitMedgameLevel(state.run.id, payload)
     finished.current = true
     allowExit.current = true
+    // Le quota partagé peut avoir bougé (fin de parcours, échec) : on
+    // recharge la base pour que le compteur soit juste sur les autres pages.
+    void refresh()
 
     // La correction est complétée par le serveur : on enrichit les questions
     // avec la bonne réponse et l'explication avant d'afficher le bilan.
@@ -171,6 +176,7 @@ export default function MedgameLevelPage() {
         runAlreadyConsumed: state.run.consumedReason === 'resume_after_abandonment',
         completed: result.completed,
         failed: result.failed,
+        quota: result.quota,
       },
     })
   }
@@ -226,6 +232,8 @@ export default function MedgameLevelPage() {
         onAbandoned={() => {
           finished.current = true
           allowExit.current = true
+          // La série vient d'être consommée : le quota doit suivre partout.
+          void refresh()
           try {
             window.sessionStorage.setItem(`medgame.level.abandoned.${progressId}`, '1')
           } catch {

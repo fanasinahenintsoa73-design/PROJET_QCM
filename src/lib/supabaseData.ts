@@ -24,6 +24,7 @@ import type {
   Role,
   SeriesFeedback,
   SeriesFeedbackReview,
+  SeriesQuota,
   Subject,
   SubjectAssignment,
   TicketInfo,
@@ -1713,10 +1714,15 @@ export async function heartbeatMedgameRun(runId: string): Promise<void> {
   if (error) throw asFrenchError(error)
 }
 
-export async function abandonMedgameRun(runId: string): Promise<void> {
+/**
+ * Abandonne une run MEDGAME. La fonction renvoie le quota partagé à jour :
+ * l'étudiant voit immédiatement le nombre de séries restantes.
+ */
+export async function abandonMedgameRun(runId: string): Promise<SeriesQuota | null> {
   const client = requireSupabase()
-  const { error } = await client.rpc('medgame_abandon', { p_run_id: runId })
+  const { data, error } = await client.rpc('medgame_abandon', { p_run_id: runId })
   if (error) throw asFrenchError(error)
+  return (data ?? null) as SeriesQuota | null
 }
 
 /* ------------------------------------------------------------------ */
