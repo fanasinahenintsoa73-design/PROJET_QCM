@@ -7,7 +7,6 @@ import {
   GraduationCap,
   Phone,
   Star,
-  Sun,
   Trophy,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
@@ -41,8 +40,6 @@ import {
   cn,
   formatDate,
   scoreOnTen,
-  SERIES_LIMIT,
-  SERIES_LIMIT_MESSAGE,
   SERIES_SIZE,
 } from '@/lib/utils'
 import type { Attempt } from '@/types'
@@ -78,7 +75,6 @@ export default function PresConcoursDashboardPage() {
   )
   const todayAttempts = useMemo(() => attemptsOnDay(cycleAttempts), [cycleAttempts])
   const todayCount = todayAttempts.length
-  const dailyGoalReached = todayCount >= DAILY_SERIES_GOAL
 
   const subjectTitleById = useMemo(
     () => new Map(db.subjects.map((subject) => [subject.id, subject.title])),
@@ -147,13 +143,6 @@ export default function PresConcoursDashboardPage() {
 
   const badges = [
     {
-      id: 'day',
-      label: 'Série du jour',
-      description: 'Une série lancée aujourd’hui',
-      earned: todayCount > 0,
-      icon: Sun,
-    },
-    {
       id: 'five',
       label: '5 séries',
       description: 'Cinq séries terminées',
@@ -190,10 +179,7 @@ export default function PresConcoursDashboardPage() {
     0,
   )
   const average = averageScoreOnTen(completedAttempts)
-  const used = usage?.used ?? 0
-  const remainingSeries = usage?.remaining ?? SERIES_LIMIT
   const reached = usage?.reached ?? false
-  const seriesProgress = Math.min(100, (used / SERIES_LIMIT) * 100)
 
   return (
     <div className="bg-canvas">
@@ -220,48 +206,19 @@ export default function PresConcoursDashboardPage() {
 
       <section className="mx-auto max-w-content px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
         <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-          <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Mon cycle</p>
-              <p className="mt-2 flex items-baseline gap-2">
-                <span className="font-display text-[2.6rem] leading-none tracking-[-0.02em] text-ink">
-                  {used}
-                </span>
-                <span className="text-[14px] text-mute">/ {SERIES_LIMIT} séries</span>
-              </p>
-              <p className="mt-2 text-[12px] text-mute">
-                {remainingSeries > 0
-                  ? `${remainingSeries} série${remainingSeries > 1 ? 's' : ''} restante${remainingSeries > 1 ? 's' : ''} sur ce cycle`
-                  : 'Quota atteint pour ce cycle'}
-              </p>
-            </div>
-
-            <div
-              className="mt-5 h-2.5 overflow-hidden rounded-full bg-cloud"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={SERIES_LIMIT}
-              aria-valuenow={used}
-              aria-label={`${used} séries lancées sur ${SERIES_LIMIT}`}
-            >
-              <div
-                className={cn(
-                  'h-full rounded-full transition-[width] duration-500',
-                  reached ? 'bg-warning' : 'bg-accent',
-                )}
-                style={{ width: `${seriesProgress}%` }}
-              />
-            </div>
-
-            <dl className="mt-6 grid grid-cols-3 gap-3">
+          <div className="flex flex-col justify-center rounded-2xl border border-line bg-surface p-6 sm:p-8">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Mon cycle</p>
+            <dl className="mt-5 grid grid-cols-3 gap-3">
               {[
-                ['Lancées', String(used)],
+                ['Terminées', String(completedAttempts.length)],
                 ['Moyenne', completedAttempts.length ? `${formatTen(average)}/10` : '—'],
                 ['Meilleur', completedAttempts.length ? `${formatTen(best)}/10` : '—'],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[10px] uppercase tracking-[0.1em] text-mute">{label}</dt>
-                  <dd className="mt-1 text-[14px] font-medium tabular-nums text-ink">{value}</dd>
+                  <dd className="mt-1 text-[1.35rem] leading-none font-medium tabular-nums text-ink">
+                    {value}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -277,17 +234,17 @@ export default function PresConcoursDashboardPage() {
               className="pointer-events-none absolute -bottom-24 -right-4 h-52 w-52 rounded-full border border-white/10"
             />
             <div className="relative">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">
+                Objectif du jour
+              </p>
+              <p className="mt-3 font-display text-[2.7rem] leading-none tracking-[-0.02em]">
+                {todayCount}
+                <span className="text-[1.3rem] text-white/65"> / {DAILY_SERIES_GOAL}</span>
+              </p>
               {reached ? (
                 <>
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">
-                    Ticket terminé
-                  </p>
-                  <p className="mt-3 font-display text-[2.7rem] leading-none tracking-[-0.02em]">
-                    {SERIES_LIMIT}
-                    <span className="text-[1.3rem] text-white/65"> / {SERIES_LIMIT}</span>
-                  </p>
                   <p className="mt-3 text-[13px] leading-relaxed text-white/80">
-                    {SERIES_LIMIT_MESSAGE}
+                    Votre cycle est terminé. Contactez le docteur pour un nouveau ticket.
                   </p>
                   <p className="mt-4 flex items-start gap-2 rounded-xl bg-white/10 px-3.5 py-3 text-[12px] leading-relaxed text-white/90">
                     <Phone size={14} className="mt-0.5 shrink-0" />
@@ -296,32 +253,9 @@ export default function PresConcoursDashboardPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">
-                    Objectif du jour
-                  </p>
-                  <p className="mt-3 font-display text-[2.7rem] leading-none tracking-[-0.02em]">
-                    {todayCount}
-                    <span className="text-[1.3rem] text-white/65"> / {DAILY_SERIES_GOAL}</span>
-                  </p>
                   <p className="mt-3 text-[13px] leading-relaxed text-white/80">
                     {dailyGoalMessage(todayCount)}
                   </p>
-                  <div className="mt-5 flex gap-2" aria-hidden>
-                    {Array.from({ length: DAILY_SERIES_GOAL }).map((_, index) => (
-                      <span
-                        key={index}
-                        className={cn(
-                          'h-2 flex-1 rounded-full transition-colors',
-                          index < todayCount ? 'bg-white' : 'bg-white/20',
-                        )}
-                      />
-                    ))}
-                  </div>
-                  {dailyGoalReached ? (
-                    <p className="mt-5 inline-flex items-center gap-2 text-[11px] font-medium text-white/80">
-                      <Check size={13} strokeWidth={2.5} /> Objectif du jour atteint
-                    </p>
-                  ) : null}
                   <a
                     href="#ues"
                     className={buttonClasses('white', 'md', 'mt-6 w-full justify-center')}
@@ -455,7 +389,7 @@ export default function PresConcoursDashboardPage() {
                     )}
                   >
                     {blocked
-                      ? 'Ticket terminé, contactez le docteur'
+                      ? 'Indisponible pour ce cycle'
                       : available
                         ? attemptedThemeIds.has(theme.id)
                           ? 'Refaire une série'
