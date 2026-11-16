@@ -72,7 +72,7 @@ export default function QuizPage() {
   usePageTitle('Série en cours — MEDQCM mada')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { user, db } = useAuth()
+  const { user, db, refresh } = useAuth()
   const themeParam = searchParams.get('theme') ?? ''
   const ueParam = searchParams.get('ue') ?? ''
   const chaptersParam = searchParams.get('chapters') ?? ''
@@ -249,7 +249,7 @@ export default function QuizPage() {
           return
         }
         setPayload(
-          'attemptId' in quiz
+          'ueId' in quiz
             ? {
                 attemptId: quiz.attemptId,
                 ueId: quiz.ueId,
@@ -257,6 +257,7 @@ export default function QuizPage() {
                 questions: quiz.questions,
               }
             : {
+                attemptId: quiz.attemptId,
                 subject: quiz.subject,
                 questions: quiz.questions,
               },
@@ -328,10 +329,10 @@ export default function QuizPage() {
     setSubmitError('')
     finished.current = true
     try {
-      const result = payload.attemptId
+      const result = isChapterMode
         ? await api.saveChapterAttempt({
             userId: user.id,
-            attemptId: payload.attemptId,
+            attemptId: payload.attemptId!,
             answers,
           })
         : await api.saveAttempt({
@@ -340,6 +341,9 @@ export default function QuizPage() {
             questionIds: questions.map((question) => question.id),
             answers,
           })
+      // Le quota est recalculé côté serveur : on le recharge tout de suite pour
+      // que le compteur affiché suive immédiatement la série consommée.
+      void refresh()
       navigate(`/app/resultat/${result.attemptId}`, { replace: true })
     } catch (error) {
       finished.current = false
@@ -380,6 +384,9 @@ export default function QuizPage() {
       markJustAbandoned()
       setShowQuit(false)
       setQuitting(false)
+      // Le compteur de séries doit refléter l'abandon sans attendre le
+      // rafraîchissement automatique de la base.
+      void refresh()
       navigate('/app', { replace: true })
     }
   }

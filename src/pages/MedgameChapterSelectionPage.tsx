@@ -76,10 +76,35 @@ export default function MedgameChapterSelectionPage() {
 
   // Les questions disponibles : les énoncés répétés d'un chapitre à l'autre ne
   // comptent qu'une fois, comme dans la banque réellement tirée.
-  const bankSize = useMemo(
+  const localBankSize = useMemo(
     () => (selected.size > 0 ? medgameBankSize(db, [...selected]) : 0),
     [db, selected],
   )
+  // En production, les questions ne sont pas lisibles par l'étudiant : le
+  // décompte revient du serveur, avec l'estimation locale en repli.
+  const [serverBankSize, setServerBankSize] = useState<number | null>(null)
+  const bankSize = serverBankSize ?? localBankSize
+
+  useEffect(() => {
+    if (selected.size === 0) {
+      setServerBankSize(null)
+      return
+    }
+    let cancelled = false
+    void api
+      .getMedgameBankSize([...selected])
+      .then((size) => {
+        if (cancelled) return
+        setServerBankSize(size)
+      })
+      .catch(() => {
+        if (!cancelled) setServerBankSize(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selected])
+
   const levelCount = Math.ceil(bankSize / 5)
   const allSelected = chapters.length > 0 && selected.size === chapters.length
   const canLaunch = selected.size > 0 && bankSize > 0 && !runInProgress

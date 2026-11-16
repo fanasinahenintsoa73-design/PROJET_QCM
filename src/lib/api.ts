@@ -209,6 +209,7 @@ export const api = {
     return {
       assignmentId: started.assignment.id,
       assignmentExpiresAt: started.assignment.expiresAt,
+      attemptId: started.attempt?.id,
       subject: started.subject,
       // Le corrigé reste en base : il n'est jamais envoyé au navigateur
       // avant la soumission, même en mode démonstration.
@@ -515,6 +516,16 @@ export const api = {
     const studentId = demo.getSessionUserId()
     if (!studentId) throw new AppError('ACCESS_EXPIRED', 'Votre session a expiré.')
     return medgame.createMedgameProgress({ studentId, ueId, chapterIds })
+  },
+
+  /**
+   * Nombre de questions disponibles dans les chapitres choisis. Renvoie
+   * `null` quand le serveur ne sait pas encore répondre : l'appelant garde
+   * alors son estimation locale.
+   */
+  async getMedgameBankSize(chapterIds: string[]): Promise<number | null> {
+    if (isSupabaseConfigured) return remote.getMedgameBankSize(chapterIds)
+    return medgame.medgameBankSize(demo.getDB(), chapterIds)
   },
 
   async startMedgameRun(progressId: string): Promise<MedgameRunState> {

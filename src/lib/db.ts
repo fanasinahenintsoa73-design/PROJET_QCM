@@ -1127,6 +1127,12 @@ export function getUsableQuestions(subjectId: string, db: Database = getDB()): Q
 
 export interface StartedSeries {
   assignment: SubjectAssignment
+  /**
+   * Brouillon de la série, créé au lancement : il compte la série même si
+   * l'étudiant quitte sans répondre, et permet de reprendre la série après
+   * un rafraîchissement de la page.
+   */
+  attempt?: Attempt
   subject: Subject
   questions: Question[]
 }
@@ -1157,6 +1163,24 @@ export function startSeries(
     throw new AppError('THEME_NOT_FOUND', 'Ce thème est introuvable dans le catalogue.')
   }
 
+  // Reprend le brouillon identique après un rafraîchissement : la série ne doit
+  // pas être comptée deux fois.
+  const draft = db.attempts.find(
+    (attempt) =>
+      attempt.userId === userId &&
+      attempt.status === 'in_progress' &&
+      attempt.subjectId === subjectId &&
+      !attempt.ueId,
+  )
+  if (draft) {
+    return {
+      assignment,
+      attempt: draft,
+      subject,
+      questions: (draft.questionSnapshot ?? []).map(sanitized),
+    }
+  }
+
   const bank = getUsableQuestions(subjectId, db)
   if (bank.length < SERIES_SIZE) {
     throw new AppError(
@@ -1171,14 +1195,31 @@ export function startSeries(
     .map((id) => bank.find((question) => question.id === id))
     .filter((question): question is Question => Boolean(question))
 
+  // La tentative est créée au lancement : une série quittée sans être
+  // soumise compte quand même dans le quota.
+  const attempt: Attempt = {
+    id: uid('attempt'),
+    userId,
+    subjectId: subject.id,
+    questionIds: questions.map((question) => question.id),
+    answers: {},
+    score: 0,
+    total: questions.length,
+    createdAt: new Date().toISOString(),
+    status: 'in_progress',
+    questionSnapshot: questions.map((question) => ({
+      ...question,
+      options: { ...question.options },
+      correctAnswers: [...question.correctAnswers],
+    })),
+  }
+  commit({ ...db, attempts: [attempt, ...db.attempts] })
+
   return {
     assignment,
+    attempt,
     subject,
-    questions: questions.map((question) => ({
-      ...question,
-      correctAnswers: [],
-      explanation: '',
-    })),
+    questions: questions.map(sanitized),
   }
 }
 
@@ -1390,9 +1431,6 @@ export function saveAttempt(input: {
   if (!assignment) {
     throw new AppError('ACCESS_EXPIRED', 'Votre accès n’est plus actif. Contactez le docteur pour un nouveau ticket.')
   }
-  if (getSeriesUsage(input.userId, db).reached) {
-    throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
-  }
 
   const subject = db.subjects.find((candidate) => candidate.id === input.subjectId)
   if (!subject || subject.archived) {
@@ -1426,6 +1464,37 @@ export function saveAttempt(input: {
       total + (sameAnswer(input.answers[question.id] ?? [], question.correctAnswers) ? 1 : 0),
     0,
   )
+
+  // Le brouillon ouvert au lancement est mis à jour : la série n'est comptée
+  // qu'une fois, et la 30e série peut encore être soumise.
+  const draft = db.attempts.find(
+    (attempt) =>
+      attempt.userId === input.userId &&
+      attempt.status === 'in_progress' &&
+      attempt.subjectId === subject.id &&
+      !attempt.ueId,
+  )
+  if (draft) {
+    const updated: Attempt = {
+      ...draft,
+      answers: input.answers,
+      score,
+      total: input.questionIds.length,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+    }
+    commit({
+      ...db,
+      attempts: db.attempts.map((candidate) =>
+        candidate.id === updated.id ? updated : candidate,
+      ),
+    })
+    return updated
+  }
+
+  if (getSeriesUsage(input.userId, db).reached) {
+    throw new AppError('SERIES_LIMIT_REACHED', SERIES_LIMIT_MESSAGE)
+  }
 
   const attempt: Attempt = {
     id: uid('attempt'),

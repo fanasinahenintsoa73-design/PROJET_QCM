@@ -264,6 +264,21 @@ const errorMessages: Record<string, string> = {
   FEEDBACK_FORBIDDEN: 'Cette action est réservée au docteur.',
   INVALID_FULL_NAME: 'Indiquez votre nom et prénom.',
   INVALID_EMAIL: 'Saisissez une adresse email valide.',
+  // MEDGAME
+  MEDGAME_RUN_ACTIVE:
+    'Une partie MEDGAME est déjà en cours dans cette UE : terminez-la ou abandonnez-la avant d’enregistrer de nouveaux chapitres.',
+  MEDGAME_EMPTY_BANK:
+    'Ces chapitres ne contiennent aucune question exploitable pour le moment.',
+  MEDGAME_NOT_FOUND: 'Cette partie MEDGAME est introuvable.',
+  MEDGAME_CLOSED: 'Cette partie MEDGAME est déjà terminée.',
+  MEDGAME_EMPTY_LEVEL: 'Ce niveau ne contient aucune question.',
+  // Séries Pres Concours
+  INVALID_CHAPTER: 'Sélectionnez au moins un chapitre avant de lancer la série.',
+  INVALID_COUNT: 'Le nombre de questions demandé est invalide.',
+  CHAPTER_UNAVAILABLE:
+    'Cette sélection ne contient pas encore assez de questions pour une série complète.',
+  ATTEMPT_CLOSED: 'Cette série est déjà terminée.',
+  ATTEMPT_INVALID: 'Cette série est introuvable ou a été altérée.',
 }
 
 function rawError(error: unknown): { message?: string; code?: string; details?: string } {
@@ -850,6 +865,12 @@ export async function removeSubject(subjectId: string): Promise<void> {
 export interface QuizPayload {
   assignmentId: string
   assignmentExpiresAt: string
+  /**
+   * Tentative ouverte au lancement de la série : elle permet de compter la
+   * série même si l'étudiant quitte sans répondre, et de reprendre la série
+   * après un rafraîchissement de la page.
+   */
+  attemptId?: string
   subject: Subject
   questions: Question[]
 }
@@ -915,6 +936,7 @@ export async function startQuiz(
   const payload = data as {
     assignmentId: string
     assignmentExpiresAt: string
+    attemptId?: string
     subject: {
       id: string
       title: string
@@ -928,6 +950,7 @@ export async function startQuiz(
   return {
     assignmentId: payload.assignmentId,
     assignmentExpiresAt: payload.assignmentExpiresAt,
+    attemptId: payload.attemptId,
     subject: {
       id: payload.subject.id,
       title: payload.subject.title,
@@ -1614,6 +1637,32 @@ export async function getMedgameOverview(): Promise<MedgameOverview> {
   const { data, error } = await client.rpc('medgame_overview')
   if (error) throw asFrenchError(error)
   return data as MedgameOverview
+}
+
+/**
+ * Nombre de questions réellement disponibles dans les chapitres choisis.
+ *
+ * Les questions ne sont pas lisibles par l'étudiant (politique RLS) : le
+ * décompte revient donc du serveur, qui applique la même règle que
+ * `medgame_create_progress` (énoncés dédoublonnés, une seule bonne réponse).
+ *
+ * Renvoie `null` quand la fonction n'est pas encore déployée : l'appelant
+ * garde alors son estimation locale.
+ */
+export async function getMedgameBankSize(
+  chapterIds: string[],
+): Promise<number | null> {
+  if (chapterIds.length === 0) return 0
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('medgame_bank_size', {
+    p_chapter_ids: chapterIds,
+  })
+  if (error) {
+    // Fonction absente sur une base pas encore migrée : estimation locale.
+    if (error.code === '42883' || error.code === 'PGRST202') return null
+    throw asFrenchError(error)
+  }
+  return typeof data === 'number' ? data : Number(data ?? 0)
 }
 
 export async function createMedgameProgress(
