@@ -9,7 +9,7 @@ export interface ChapterListEntry {
   id: string
   title: string
   /** Ligne secondaire : nombre de sujets, nombre de questions, etc. */
-  meta: string
+  meta?: string
   /** Chapitre indisponible : ligne verrouillée, non sélectionnable. */
   disabled?: boolean
   badge?: { label: string; tone: 'cloud' | 'accent' } | null
@@ -83,7 +83,9 @@ export function ChapterList({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[14px] font-medium text-ink">{entry.title}</span>
-                <span className="mt-0.5 block text-[11px] text-mute">{entry.meta}</span>
+                {entry.meta ? (
+                  <span className="mt-0.5 block text-[11px] text-mute">{entry.meta}</span>
+                ) : null}
               </span>
               {entry.badge ? (
                 <span

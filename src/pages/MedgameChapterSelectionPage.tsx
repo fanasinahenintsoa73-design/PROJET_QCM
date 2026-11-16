@@ -26,6 +26,7 @@ export default function MedgameChapterSelectionPage() {
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [runInProgress, setRunInProgress] = useState(false)
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
   useMedgameKeepAlive(activeRunId)
@@ -97,20 +98,22 @@ export default function MedgameChapterSelectionPage() {
     setSelected(allSelected ? new Set() : new Set(available.map((chapter) => chapter.id)))
   }
 
-  async function launch() {
+  async function save() {
     if (!theme || !canLaunch || starting) return
     setStarting(true)
     setError('')
     try {
-      const overview = await api.createMedgameProgress(theme.id, [...selected])
-      const board = overview.boards.find((item) => item.progress.ueId === theme.id)
-      if (!board) throw new Error('La planche n’a pas pu être créée.')
-      await api.startMedgameRun(board.progress.id)
-      navigate('/app/medgame/parcours')
+      // On enregistre la sélection sans créer de run : le niveau ne démarre
+      // que lorsque l'étudiant clique sur « Jouer le niveau suivant ».
+      await api.createMedgameProgress(theme.id, [...selected])
+      setSaved(true)
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Le parcours n’a pas pu être lancé. Réessaie.',
+        err instanceof Error
+          ? err.message
+          : 'Les chapitres n’ont pas pu être enregistrés. Réessaie.',
       )
+    } finally {
       setStarting(false)
     }
   }
@@ -173,8 +176,8 @@ export default function MedgameChapterSelectionPage() {
 
         {runInProgress ? (
           <div className="mb-6 rounded-xl border border-accent/20 bg-accent-soft/40 px-4 py-3 text-[13px] text-ink">
-            Une partie MEDGAME est déjà en cours dans cette UE. Termine-la ou abandonne-la avant de
-            lancer un nouveau parcours.
+            Une partie MEDGAME est déjà en cours dans cette UE. Termine-la ou abandonne-la avant
+            d’enregistrer de nouveaux chapitres.
           </div>
         ) : null}
 
@@ -198,7 +201,6 @@ export default function MedgameChapterSelectionPage() {
               entries={chapters.map((chapter) => ({
                 id: chapter.id,
                 title: chapter.title,
-                meta: `${chapter.questionCount} question${chapter.questionCount > 1 ? 's' : ''}`,
                 disabled: chapter.questionCount === 0,
                 badge: selected.has(chapter.id)
                   ? { label: 'Choisi', tone: 'accent' }
@@ -220,15 +222,18 @@ export default function MedgameChapterSelectionPage() {
               </p>
               <p className="mt-2 text-[12px] text-mute">
                 {canLaunch
-                  ? 'Votre sélection est prête pour lancer un parcours.'
+                  ? 'Votre sélection est prête à être enregistrée.'
                   : 'Sélectionnez au moins un chapitre contenant des questions.'}
               </p>
 
-              <div className="mt-5 rounded-xl bg-cloud px-3 py-2.5 text-[11px] leading-relaxed text-mute">
-                Tes {bankSize} questions forment {levelCount} niveau{levelCount > 1 ? 'x' : ''}{' '}
-                de 5. Chaque niveau est tiré au hasard dans tes chapitres : il faut 5/5 pour valider
-                un niveau. Une série est consommée à la fin du parcours.
-              </div>
+              {selected.size > 0 ? (
+                <div className="mt-5 rounded-xl bg-cloud px-3 py-2.5 text-[11px] leading-relaxed text-mute">
+                  Ton parcours contient {levelCount} niveau{levelCount > 1 ? 'x' : ''} de 5
+                  questions. Chaque niveau est tiré au hasard dans tes chapitres : il faut 5/5 pour
+                  valider un niveau. Chaque tentative de niveau compte 1 série, même en cas d’échec
+                  ou d’abandon.
+                </div>
+              ) : null}
 
               {selected.size > 0 && bankSize === 0 ? (
                 <p className="mt-3 text-[11px] leading-relaxed text-sale">
@@ -241,9 +246,14 @@ export default function MedgameChapterSelectionPage() {
                 size="lg"
                 className="mt-5 w-full justify-center"
                 disabled={!canLaunch || starting}
-                onClick={() => setConfirmOpen(true)}
+                onClick={() => {
+                  setSaved(false)
+                  setError('')
+                  setConfirmOpen(true)
+                }}
               >
-                {starting ? 'Enregistrement…' : 'Lancer le parcours'} <ArrowRight size={16} />
+                {starting ? 'Enregistrement…' : 'Enregistrer les chapitres'}{' '}
+                <ArrowRight size={16} />
               </Button>
               {selected.size === 0 ? (
                 <p className="mt-2 text-center text-[11px] text-mute">
@@ -258,10 +268,15 @@ export default function MedgameChapterSelectionPage() {
       <MedgameSaveChaptersModal
         open={confirmOpen}
         onClose={() => (starting ? undefined : setConfirmOpen(false))}
-        onConfirmed={() => void launch()}
+        onConfirmed={() => void save()}
         chapterCount={selected.size}
         starting={starting}
         error={error}
+        saved={saved}
+        onGoToGame={() => {
+          setConfirmOpen(false)
+          navigate('/app/medgame/parcours')
+        }}
       />
     </div>
   )
