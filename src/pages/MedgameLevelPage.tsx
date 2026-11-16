@@ -70,12 +70,18 @@ export default function MedgameLevelPage() {
   }, [state, progressId])
 
   useEffect(() => {
-    const onPopState = () => {
+    // L'URL du niveau est capturée AVANT tout « retour » : après popstate,
+    // window.location.href pointe déjà vers la page d'arrivée (« Mon jeu »).
+    const levelHref = window.location.href
+    const onPopState = (event: PopStateEvent) => {
       if (!state || finished.current || allowExit.current) return
+      // Lecture capturée AVANT le routeur : on bloque la navigation pour que
+      // la confirmation d'abandon s'affiche (même comportement qu'Android).
+      event.stopImmediatePropagation()
       window.history.pushState(
         { ...window.history.state, medgameLevelGuard: progressId },
         '',
-        window.location.href,
+        levelHref,
       )
       setShowQuit(true)
     }
@@ -91,10 +97,12 @@ export default function MedgameLevelPage() {
       event.stopImmediatePropagation()
       setShowQuit(true)
     }
-    window.addEventListener('popstate', onPopState)
+    // Phase capture : fenêtre = cible de popstate, les listeners capturés y
+    // passent avant ceux (non capturés) de react-router-dom.
+    window.addEventListener('popstate', onPopState, true)
     document.addEventListener('click', onClick, true)
     return () => {
-      window.removeEventListener('popstate', onPopState)
+      window.removeEventListener('popstate', onPopState, true)
       document.removeEventListener('click', onClick, true)
     }
   }, [state, progressId])
