@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -10,17 +10,26 @@ import {
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { chapterTitle, PACE_THEMES, themeTitle } from '@/lib/themes'
-import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { usePageTitle } from '@/components/Layouts'
-import { cn } from '@/lib/utils'
 import type { CourseSupport, ExamSubject } from '@/types'
 
 type Kind = 'supports' | 'subjects'
 type ContentItem = CourseSupport | ExamSubject
 
-function isImage(mime: string): boolean {
-  return mime.startsWith('image/')
+// pdf.js est volumineux : on ne le charge qu'à l'ouverture d'un PDF.
+const PdfViewer = lazy(() =>
+  import('@/components/PdfViewer').then((module) => ({ default: module.PdfViewer })),
+)
+
+function isImage(mime: string, fileName?: string): boolean {
+  if (mime.startsWith('image/')) return true
+  return Boolean(fileName && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileName))
+}
+
+function isPdf(mime: string, fileName?: string): boolean {
+  if (mime === 'application/pdf' || mime.endsWith('/pdf')) return true
+  return Boolean(fileName && fileName.toLowerCase().endsWith('.pdf'))
 }
 
 export default function ContentLibraryPage({ kind }: { kind: Kind }) {
@@ -221,7 +230,7 @@ export default function ContentLibraryPage({ kind }: { kind: Kind }) {
                       >
                         <div className="flex items-start gap-3">
                           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-                            {isImage(item.mimeType) ? (
+                            {isImage(item.mimeType, item.fileName) ? (
                               <ImageIcon size={16} />
                             ) : (
                               <FileText size={16} />
@@ -264,18 +273,36 @@ export default function ContentLibraryPage({ kind }: { kind: Kind }) {
             <span className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           </div>
         ) : viewUrl && viewing ? (
-          isImage(viewing.mimeType) ? (
+          isImage(viewing.mimeType, viewing.fileName) ? (
             <img
               src={viewUrl}
               alt={viewing.title}
               className="mx-auto max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
             />
+          ) : isPdf(viewing.mimeType, viewing.fileName) ? (
+            <Suspense
+              fallback={
+                <div className="flex min-h-[40vh] items-center justify-center">
+                  <span className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                </div>
+              }
+            >
+              <PdfViewer url={viewUrl} title={viewing.title} />
+            </Suspense>
           ) : (
-            <iframe
-              src={viewUrl}
-              title={viewing.title}
-              className="h-[70vh] w-full rounded-lg border border-line bg-white"
-            />
+            <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-center">
+              <p className="text-[13px] font-medium text-ink">
+                Ce document ne peut pas être affiché.
+              </p>
+              <a
+                href={viewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-[11px] font-medium text-ink transition hover:border-accent/40 hover:text-accent"
+              >
+                Ouvrir le fichier
+              </a>
+            </div>
           )
         ) : (
           <p className="py-10 text-center text-[13px] text-mute">

@@ -1730,12 +1730,13 @@ async function uploadContentFile(
   folder: string,
   fileName: string,
   dataUrl: string,
+  fallbackMime = 'application/pdf',
 ): Promise<string> {
   const client = requireSupabase()
   const blob = await (await fetch(dataUrl)).blob()
   const path = `${folder}/${crypto.randomUUID()}-${safeFileName(fileName)}`
   const { error } = await client.storage.from(CONTENT_BUCKET).upload(path, blob, {
-    contentType: blob.type,
+    contentType: blob.type || fallbackMime,
     upsert: false,
   })
   if (error) throw asFrenchError(error)
@@ -1773,9 +1774,10 @@ export async function saveCourseSupport(input: {
   storagePath?: string
 }): Promise<CourseSupport> {
   const client = requireSupabase()
+  const mimeType = input.mimeType || 'application/pdf'
   let storagePath = input.storagePath ?? null
   if (input.dataUrl) {
-    storagePath = await uploadContentFile('supports', input.fileName, input.dataUrl)
+    storagePath = await uploadContentFile('supports', input.fileName, input.dataUrl, mimeType)
   }
   if (!storagePath) throw new AppError('CONTENT_INVALID', 'Ajoutez un fichier PDF ou image.')
 
@@ -1785,7 +1787,7 @@ export async function saveCourseSupport(input: {
     title: input.title.trim(),
     description: input.description.trim(),
     storage_path: storagePath,
-    mime_type: input.mimeType,
+    mime_type: mimeType,
     file_name: input.fileName,
   }
   const { data, error } = input.id
@@ -1831,9 +1833,10 @@ export async function saveExamSubject(input: {
   storagePath?: string
 }): Promise<ExamSubject> {
   const client = requireSupabase()
+  const mimeType = input.mimeType || 'application/pdf'
   let storagePath = input.storagePath ?? null
   if (input.dataUrl) {
-    storagePath = await uploadContentFile('examens', input.fileName, input.dataUrl)
+    storagePath = await uploadContentFile('examens', input.fileName, input.dataUrl, mimeType)
   }
   if (!storagePath) throw new AppError('CONTENT_INVALID', 'Ajoutez un fichier PDF ou image.')
 
@@ -1843,7 +1846,7 @@ export async function saveExamSubject(input: {
     title: input.title.trim(),
     description: input.description.trim(),
     storage_path: storagePath,
-    mime_type: input.mimeType,
+    mime_type: mimeType,
     file_name: input.fileName,
   }
   const { data, error } = input.id

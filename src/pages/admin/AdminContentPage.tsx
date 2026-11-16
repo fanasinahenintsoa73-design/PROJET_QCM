@@ -129,7 +129,10 @@ export default function AdminContentPage({ kind }: { kind: Kind }) {
     try {
       const dataUrl = file ? await readFileAsDataUrl(file) : undefined
       const fileName = file?.name ?? existingFile?.name ?? 'document'
-      const mimeType = file?.type ?? existingFile?.mime ?? 'application/pdf'
+      // `file.type` peut être vide sur certains navigateurs : un `??` ne
+      // remplacerait pas la chaîne vide et le PDF serait stocké en
+      // `application/octet-stream`, impossible à afficher dans le viewer.
+      const mimeType = file?.type || existingFile?.mime || 'application/pdf'
       // Sans nouveau fichier, on conserve le chemin déjà stocké.
       const storagePath = file ? undefined : existingFile?.path
       if (isSupports) {

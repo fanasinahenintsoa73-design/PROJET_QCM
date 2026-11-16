@@ -113,6 +113,10 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                // Les iframes et sous-ressources (viewer PDF, fichiers signés
+                // Supabase, etc.) doivent rester dans la WebView. Seules les
+                // navigations principales sortent vers le navigateur.
+                if (!request.isForMainFrame()) return false;
                 String url = request.getUrl().toString();
                 if (isMedqcmUrl(url)) return false;
                 if (url.startsWith("intent://")) {

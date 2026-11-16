@@ -1,7 +1,4 @@
-import { getDocument, GlobalWorkerOptions, type PDFPageProxy } from 'pdfjs-dist'
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-
-GlobalWorkerOptions.workerSrc = workerSrc
+import { getDocument, type PDFPageProxy } from './pdfClient'
 
 interface PdfCell {
   text: string
