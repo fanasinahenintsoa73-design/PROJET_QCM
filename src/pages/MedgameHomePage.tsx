@@ -94,10 +94,10 @@ export default function MedgameHomePage() {
       <div className="mx-auto max-w-content px-5 py-10 sm:px-8 lg:px-10 lg:py-14">
         <Link
           to="/app"
-          aria-label="Retour au tableau de bord"
+          aria-label="Retour à la page d'accueil"
           className="mb-4 inline-flex items-center gap-2 text-[13px] font-semibold text-mute transition hover:text-accent"
         >
-          <ArrowLeft size={16} /> Retour au tableau de bord
+          <ArrowLeft size={16} /> Retour à la page d'accueil
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
