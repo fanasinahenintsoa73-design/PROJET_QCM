@@ -17,7 +17,7 @@ const entries = [
   {
     to: '/app/pres-concours',
     title: 'Pré-concours',
-    description: 'Tes séries de 10 questions, ton historique et tes étoiles.',
+    description: '10 questions au sort, selon les chapitres ou les matières que tu choisiras',
     icon: GraduationCap,
   },
   {
@@ -58,11 +58,6 @@ export default function DashboardPage() {
               <h1 className="mt-3 font-display text-[clamp(2.2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-ink">
                 Bonjour PACES.
               </h1>
-              <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
-                Pré-concours tire une série de 10 questions dans les chapitres que tu choisis.
-                MEDGAME reprend ces mêmes questions, mélangées en niveaux de 5 questions à valider
-                5/5. Les deux parcours partagent les mêmes 30 séries.
-              </p>
             </div>
             <StatusPill tone={reached ? 'warning' : 'success'} dot>
               {reached ? 'Quota atteint' : 'Accès actif'}
