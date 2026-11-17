@@ -40,6 +40,7 @@ import {
 } from '@/lib/utils'
 
 const LEVEL_SIZE = 5
+const LEVEL_COUNT = 8
 
 function toQuota(userId: string): SeriesQuota {
   const usage = getSeriesUsage(userId)
@@ -258,20 +259,30 @@ export function createMedgameProgress(input: {
     )
   }
 
+  // Un parcours compte toujours 8 niveaux de 5 questions, soit 40 tirages.
+  // Si la banque est plus petite, on complète par des tirages aléatoires avec
+  // remise : chaque niveau propose 5 questions, même avec peu de questions.
+  const targetCount = LEVEL_COUNT * LEVEL_SIZE
+  const drawn: Question[] = []
+  while (drawn.length < targetCount) {
+    drawn.push(...shuffle(bank))
+  }
+  const pool = drawn.slice(0, targetCount)
+
   const now = new Date().toISOString()
   const progress: MedgameProgress = {
     id: uid('medprogress'),
     studentId: input.studentId,
     ueId: input.ueId,
     chapterIds,
-    questionIds: bank.map((question) => question.id),
-    questionSnapshots: bank.map((question) => ({
+    questionIds: pool.map((question) => question.id),
+    questionSnapshots: pool.map((question) => ({
       ...question,
       options: { ...question.options },
       correctAnswers: [...question.correctAnswers],
     })),
     levelStars: {},
-    levelCount: Math.ceil(bank.length / LEVEL_SIZE),
+    levelCount: LEVEL_COUNT,
     currentLevel: 1,
     status: 'active',
     createdAt: now,

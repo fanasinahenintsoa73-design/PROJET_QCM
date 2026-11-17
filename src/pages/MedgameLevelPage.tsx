@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '@/lib/api'
+import { goToResult } from '@/lib/resultHistory'
 import { useAuth } from '@/lib/auth'
 import { useMedgameKeepAlive } from '@/lib/useMedgameKeepAlive'
 import { MedgameAbandonModal } from '@/components/MedgameAbandonModal'
@@ -165,9 +166,11 @@ export default function MedgameLevelPage() {
       totalLevels: state.progress.levelCount,
     }
 
-    navigate(`/app/medgame/parcours/${progressId}/niveau/${result.level}/bilan`, {
-      replace: true,
-      state: {
+    const resultPath = `/app/medgame/parcours/${progressId}/niveau/${result.level}/bilan`
+    goToResult(
+      navigate,
+      resultPath,
+      {
         result: bilan,
         questions,
         answers,
@@ -178,7 +181,9 @@ export default function MedgameLevelPage() {
         failed: result.failed,
         quota: result.quota,
       },
-    })
+      'medgameLevelGuard',
+      resultPath,
+    )
   }
 
   if (loading) {

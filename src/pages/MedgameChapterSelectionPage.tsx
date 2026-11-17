@@ -105,7 +105,7 @@ export default function MedgameChapterSelectionPage() {
     }
   }, [selected])
 
-  const levelCount = Math.ceil(bankSize / 5)
+  const levelCount = 8
   const allSelected = chapters.length > 0 && selected.size === chapters.length
   const canLaunch = selected.size > 0 && bankSize > 0 && !runInProgress
 
@@ -253,8 +253,8 @@ export default function MedgameChapterSelectionPage() {
 
               {selected.size > 0 ? (
                 <div className="mt-5 rounded-xl bg-cloud px-3 py-2.5 text-[11px] leading-relaxed text-mute">
-                  Ton parcours contient {levelCount} niveau{levelCount > 1 ? 'x' : ''} de 5
-                  questions. Chaque niveau est tiré au hasard dans tes chapitres : il faut 5/5 pour
+                  Ton parcours contient {levelCount} niveaux de 5 questions, tirées au hasard dans
+                  tes chapitres (répétées au besoin si la banque est plus petite). Il faut 5/5 pour
                   valider un niveau. Chaque tentative de niveau compte 1 série, même en cas d’échec
                   ou d’abandon.
                 </div>

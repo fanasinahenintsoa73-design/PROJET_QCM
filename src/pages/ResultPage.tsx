@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles, Star, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
@@ -16,7 +16,6 @@ const RATING_LABELS = ['À revoir', 'Moyen', 'Bien', 'Très bien', 'Excellent']
 export default function ResultPage() {
   usePageTitle('Résultat de la série — MEDQCM mada')
   const { attemptId } = useParams<{ attemptId: string }>()
-  const navigate = useNavigate()
   const { user, db } = useAuth()
 
   const [review, setReview] = useState<AttemptReview | null>(null)
@@ -29,7 +28,6 @@ export default function ResultPage() {
   const [feedbackSkipped, setFeedbackSkipped] = useState(false)
   const [feedbackSaving, setFeedbackSaving] = useState(false)
   const [feedbackError, setFeedbackError] = useState('')
-  const guardPushed = useRef(false)
 
   useEffect(() => {
     if (!attemptId) {
@@ -104,26 +102,6 @@ export default function ResultPage() {
   const originLabel = ue?.title ?? subject?.title ?? 'UE de QCM'
   const chapterLabel = chapters.length ? chapters.join(' · ') : 'Chapitre non précisé'
   const questions = review?.questions ?? []
-
-  // Le bouton retour (navigateur ou Android) ne doit jamais ramener au QCM :
-  // après la soumission, il mène à l'accueil Pré-concours. On pousse une entrée
-  // sentinelle pour intercepter le popstate avant que React Router ne change de
-  // route — même procédé que dans QuizPage.
-  useEffect(() => {
-    if (!attempt || !ownsAttempt || guardPushed.current) return
-    window.history.pushState({ medqcmResult: true }, '', window.location.href)
-    guardPushed.current = true
-  }, [attempt, ownsAttempt])
-
-  useEffect(() => {
-    if (!attempt || !ownsAttempt) return
-    const onPopState = () => {
-      window.history.pushState({ medqcmResult: true }, '', window.location.href)
-      navigate('/app/pres-concours', { replace: true })
-    }
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [attempt, ownsAttempt, navigate])
 
   if (loading) {
     return (

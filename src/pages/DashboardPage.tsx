@@ -23,7 +23,7 @@ const entries = [
   {
     to: '/app/medgame',
     title: 'MEDGAME',
-    description: 'Choisis une UE, tes chapitres, et franchis les niveaux de 5 questions.',
+    description: 'Choisis une UE ou un chapitre et accède jusqu’au niveau 8.',
     icon: Gamepad2,
   },
   {

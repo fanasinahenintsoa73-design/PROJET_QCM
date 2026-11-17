@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, Phone, ShieldCheck } from 'l
 import { useAuth } from '@/lib/auth'
 import { doctorContactLine } from '@/lib/contact'
 import { api } from '@/lib/api'
+import { goToResult } from '@/lib/resultHistory'
 import { getSeriesUsage } from '@/lib/db'
 import type { Question, Subject } from '@/types'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -344,7 +345,13 @@ export default function QuizPage() {
       // Le quota est recalculé côté serveur : on le recharge tout de suite pour
       // que le compteur affiché suive immédiatement la série consommée.
       void refresh()
-      navigate(`/app/resultat/${result.attemptId}`, { replace: true })
+      goToResult(
+        navigate,
+        `/app/resultat/${result.attemptId}`,
+        undefined,
+        'medqcmQuiz',
+        `/app/resultat/${result.attemptId}`,
+      )
     } catch (error) {
       finished.current = false
       setSaving(false)
