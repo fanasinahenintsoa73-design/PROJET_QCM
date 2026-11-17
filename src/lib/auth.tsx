@@ -27,7 +27,14 @@ import { isDoctorPortal } from '@/lib/portal'
 import { api } from '@/lib/api'
 import { ticketLoginEmail } from '@/lib/tickets'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
-import { emptyDatabase, fetchDatabase, fetchProfile } from '@/lib/supabaseData'
+import {
+  emptyDatabase,
+  fetchDatabase,
+  fetchProfile,
+  ticketLoginCheck,
+  ticketLoginFailure,
+  ticketLoginSuccess,
+} from '@/lib/supabaseData'
 
 type LoginOutcome =
   | { ok: true; user: User; homePath: string }
@@ -397,7 +404,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ticketLogin = useCallback(
     async (code: string, secret: string): Promise<LoginOutcome> => {
       // Le numéro d'enregistrement est le mot de passe du compte du ticket.
-      const result = await login(ticketLoginEmail(code), secret, 'student')
+      const email = ticketLoginEmail(code)
+
+      // Verrou progressif : on refuse avant même d'appeler Supabase Auth si
+      // le ticket est temporairement bloqué (5 échecs, fenêtre croissante).
+      if (isSupabaseConfigured) {
+        const gate = await ticketLoginCheck(email)
+        if (gate?.blocked) return { ok: false, error: gate.message }
+      }
+
+      const result = await login(email, secret, 'student')
+
+      if (isSupabaseConfigured) {
+        if (result.ok) {
+          // Connexion réussie : on remet le compteur à zéro.
+          await ticketLoginSuccess(email)
+        } else {
+          // Échec : on l'enregistre ; si c'est le 5e, on renvoie le message
+          // de temporisation à la place de l'erreur générique de mot de passe.
+          const gate = await ticketLoginFailure(email)
+          if (gate?.blocked) return { ok: false, error: gate.message }
+        }
+      }
+
       if (!result.ok) return result
       const info = await api.myTicketInfo().catch(() => null)
       if (info?.status === 'suspended') {

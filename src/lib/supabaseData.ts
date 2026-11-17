@@ -574,6 +574,50 @@ export async function signIn(email: string, password: string): Promise<User> {
   return fetchProfile(data.user.id)
 }
 
+/* ------------------------------------------------------------------ */
+/* Verrou progressif de la connexion par ticket (passe 2 sécurité)      */
+/* ------------------------------------------------------------------ */
+
+export interface TicketLoginGate {
+  blocked: boolean
+  retrySeconds: number
+  message: string
+}
+
+/** Contrôle avant la tentative : le ticket est-il temporairement verrouillé ? */
+export async function ticketLoginCheck(email: string): Promise<TicketLoginGate | null> {
+  try {
+    const client = requireSupabase()
+    const { data, error } = await client.rpc('ticket_login_check', { p_email: email })
+    if (error) return null // Migration absente : on ne bloque pas l'étudiant.
+    return data as TicketLoginGate
+  } catch {
+    return null
+  }
+}
+
+/** Enregistre un échec et renvoie l'état du verrou (éventuellement déclenché). */
+export async function ticketLoginFailure(email: string): Promise<TicketLoginGate | null> {
+  try {
+    const client = requireSupabase()
+    const { data, error } = await client.rpc('ticket_login_failure', { p_email: email })
+    if (error) return null
+    return data as TicketLoginGate
+  } catch {
+    return null
+  }
+}
+
+/** Connexion réussie : remise à zéro du compteur et du niveau d'escalade. */
+export async function ticketLoginSuccess(email: string): Promise<void> {
+  try {
+    const client = requireSupabase()
+    await client.rpc('ticket_login_success', { p_email: email })
+  } catch {
+    // Migration absente ou erreur réseau : on ne bloque pas l'étudiant.
+  }
+}
+
 export async function signOut() {
   const client = requireSupabase()
   await revokeActiveSession()
