@@ -122,7 +122,7 @@ export default function AdminTicketsPage() {
   const lastBatch = getGeneratedTickets()
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
 
-  // Un seul type de ticket désormais : le parcours 30 séries (Pres Concours + MEDGAME).
+  // Un seul type de ticket désormais : le parcours 30 séries (Pré-concours + MEDGAME).
   const filterParam = searchParams.get('statut')
   const activeFilter = isTicketFilter(filterParam) ? filterParam : null
   const normalizedSearch = search.trim().toUpperCase()

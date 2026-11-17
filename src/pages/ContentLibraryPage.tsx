@@ -34,7 +34,7 @@ function isPdf(mime: string, fileName?: string): boolean {
 
 export default function ContentLibraryPage({ kind }: { kind: Kind }) {
   const isSupports = kind === 'supports'
-  usePageTitle(isSupports ? 'Supports du cours — MEDQCM mada' : 'Sujets concours — MEDQCM mada')
+  usePageTitle(isSupports ? 'Supports du cours — MEDQCM mada' : 'Sujets de concours — MEDQCM mada')
   const [items, setItems] = useState<ContentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -142,7 +142,7 @@ export default function ContentLibraryPage({ kind }: { kind: Kind }) {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
               {isSupports ? <BookOpen size={12} /> : <FileText size={12} />}
-              {isSupports ? 'Supports du cours' : 'Sujets concours 2014–2026'}
+              {isSupports ? 'Supports du cours' : 'Sujets de concours 2014–2026'}
             </span>
             <h1 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.035em] text-ink">
               {isSupports ? 'Les documents du cours.' : 'Les sujets d’examen.'}
@@ -265,7 +265,7 @@ export default function ContentLibraryPage({ kind }: { kind: Kind }) {
         open={Boolean(viewing)}
         onClose={closeViewer}
         title={viewing?.title ?? 'Document'}
-        eyebrow={isSupports ? 'Support du cours' : 'Sujet concours'}
+        eyebrow={isSupports ? 'Support du cours' : 'Sujet de concours'}
         size="xl"
       >
         {viewLoading ? (

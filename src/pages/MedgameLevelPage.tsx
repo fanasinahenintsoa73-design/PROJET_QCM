@@ -60,7 +60,7 @@ export default function MedgameLevelPage() {
   // Tant que le niveau est ouvert, le parcours reste vivant.
   useMedgameKeepAlive(state?.run?.status === 'in_progress' ? state.run.id : null)
 
-  // Une sortie avant soumission doit demander confirmation, comme Pres Concours.
+  // Une sortie avant soumission doit demander confirmation, comme Pré-concours.
   useEffect(() => {
     if (!state || finished.current || guardPushed.current) return
     window.history.pushState(

@@ -273,7 +273,7 @@ const errorMessages: Record<string, string> = {
   MEDGAME_NOT_FOUND: 'Cette partie MEDGAME est introuvable.',
   MEDGAME_CLOSED: 'Cette partie MEDGAME est déjà terminée.',
   MEDGAME_EMPTY_LEVEL: 'Ce niveau ne contient aucune question.',
-  // Séries Pres Concours
+  // Séries Pré-concours
   INVALID_CHAPTER: 'Sélectionnez au moins un chapitre avant de lancer la série.',
   INVALID_COUNT: 'Le nombre de questions demandé est invalide.',
   CHAPTER_UNAVAILABLE:
@@ -474,7 +474,7 @@ export async function fetchDatabase(currentProfile?: User): Promise<Database> {
   }
 
   // Séries consommées par MEDGAME : elles partagent le quota de 30 séries
-  // avec Pres Concours, donc le compteur du tableau de bord doit les inclure.
+  // avec Pré-concours, donc le compteur du tableau de bord doit les inclure.
   let medgameSeriesUsed = 0
   if (!professor) {
     const { count, error: consumptionError } = await client
@@ -1726,7 +1726,7 @@ export async function abandonMedgameRun(runId: string): Promise<SeriesQuota | nu
 }
 
 /* ------------------------------------------------------------------ */
-/* Supports du cours et sujets concours                                */
+/* Supports du cours et sujets de concours                                */
 /* ------------------------------------------------------------------ */
 
 const CONTENT_BUCKET = 'course-content'

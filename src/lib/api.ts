@@ -565,7 +565,7 @@ export const api = {
   },
 
   /* ---------------------------------------------------------------- */
-  /* Supports du cours et sujets concours                             */
+  /* Supports du cours et sujets de concours                             */
   /* ---------------------------------------------------------------- */
 
   async listCourseSupports(): Promise<CourseSupport[]> {

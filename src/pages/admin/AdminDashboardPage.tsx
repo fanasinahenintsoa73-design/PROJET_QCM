@@ -143,7 +143,7 @@ export default function AdminDashboardPage() {
           <h1 className="display text-[clamp(2.75rem,6vw,4.5rem)]">Page d’accueil.</h1>
           <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-mute">
             {user ? `Bonjour ${user.firstName}. ` : ''}
-            Un seul ticket, 30 séries partagées entre Pres Concours et MEDGAME. Chaque ticket est
+            Un seul ticket, 30 séries partagées entre Pré-concours et MEDGAME. Chaque ticket est
             un étudiant. Un ticket utilisé ne se supprime pas : il s’archive.
           </p>
         </div>
@@ -159,7 +159,7 @@ export default function AdminDashboardPage() {
 
           <TicketBlock
             title="30 séries partagées"
-            description="Un ticket, un étudiant, jusqu’à 30 séries réparties librement entre Pres Concours et MEDGAME. Disponible, en cours, terminé ou suspendu."
+            description="Un ticket, un étudiant, jusqu’à 30 séries réparties librement entre Pré-concours et MEDGAME. Disponible, en cours, terminé ou suspendu."
             counts={seriesCounts}
             activeCount={seriesActive}
             links={seriesLinks}

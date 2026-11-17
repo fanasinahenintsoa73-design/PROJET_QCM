@@ -267,7 +267,7 @@ export interface AnkiReviewCard {
   options: Partial<QuestionOptions>
 }
 
-/** Quota partagé Pres Concours + MEDGAME. */
+/** Quota partagé Pré-concours + MEDGAME. */
 export interface SeriesQuota {
   used: number
   limit: number

@@ -16,7 +16,7 @@ import { StatusPill } from '@/components/ui/StatusPill'
 const entries = [
   {
     to: '/app/pres-concours',
-    title: 'Pres Concours',
+    title: 'Pré-concours',
     description: 'Tes séries de 10 questions, ton historique et tes étoiles.',
     icon: GraduationCap,
   },
@@ -34,7 +34,7 @@ const entries = [
   },
   {
     to: '/app/sujets',
-    title: 'Sujets concours 2014–2026',
+    title: 'Sujets de concours 2014–2026',
     description: 'Les sujets d’examen classés par année et par UE.',
     icon: FileText,
   },
@@ -59,7 +59,7 @@ export default function DashboardPage() {
                 Bonjour PACES.
               </h1>
               <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-mute">
-                Pres Concours tire une série de 10 questions dans les chapitres que tu choisis.
+                Pré-concours tire une série de 10 questions dans les chapitres que tu choisis.
                 MEDGAME reprend ces mêmes questions, mélangées en niveaux de 5 questions à valider
                 5/5. Les deux parcours partagent les mêmes 30 séries.
               </p>

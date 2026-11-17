@@ -2,7 +2,7 @@ import { Check, ListChecks, LockKeyhole } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
- * Liste de chapitres partagée entre Pres Concours et MEDGAME.
+ * Liste de chapitres partagée entre Pré-concours et MEDGAME.
  * Une seule grammaire visuelle pour un même geste : choisir des chapitres.
  */
 export interface ChapterListEntry {

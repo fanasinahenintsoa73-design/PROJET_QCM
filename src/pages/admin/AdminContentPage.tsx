@@ -23,7 +23,7 @@ const YEARS = Array.from({ length: 13 }, (_, index) => 2026 - index)
 
 export default function AdminContentPage({ kind }: { kind: Kind }) {
   const isSupports = kind === 'supports'
-  usePageTitle(isSupports ? 'Supports du cours — Admin' : 'Sujets concours — Admin')
+  usePageTitle(isSupports ? 'Supports du cours — Admin' : 'Sujets de concours — Admin')
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [items, setItems] = useState<Array<CourseSupport | ExamSubject>>([])
@@ -189,10 +189,10 @@ export default function AdminContentPage({ kind }: { kind: Kind }) {
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">
             {isSupports ? <BookOpen size={12} /> : <FileText size={12} />}
-            {isSupports ? 'Supports du cours' : 'Sujets concours 2014–2026'}
+            {isSupports ? 'Supports du cours' : 'Sujets de concours 2014–2026'}
           </span>
           <h1 className="mt-3 font-display text-[clamp(1.8rem,3.5vw,2.7rem)] leading-tight tracking-[-0.03em] text-ink">
-            {isSupports ? 'Gérer les supports' : 'Gérer les sujets concours'}
+            {isSupports ? 'Gérer les supports' : 'Gérer les sujets de concours'}
           </h1>
           <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-mute">
             {isSupports

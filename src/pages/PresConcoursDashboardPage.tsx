@@ -60,7 +60,7 @@ function attemptThemeId(attempt: Attempt, subjectTitleById: Map<string, string>)
 
 export default function PresConcoursDashboardPage() {
   const { user, db } = useAuth()
-  usePageTitle('Pres Concours — MEDQCM mada')
+  usePageTitle('Pré-concours — MEDQCM mada')
   const [filter, setFilter] = useState('all')
 
   const usage = user ? getSeriesUsage(user.id, db) : undefined

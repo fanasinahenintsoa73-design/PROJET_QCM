@@ -17,7 +17,7 @@ const navItems: AdminNavItem[] = [
   { to: '/admin/tickets', label: 'Tickets', icon: Ticket },
   { to: '/admin/themes', label: 'Sujets', icon: BookOpen },
   { to: '/admin/supports', label: 'Supports', icon: Library },
-  { to: '/admin/sujets-concours', label: 'Sujets concours', mobileLabel: 'Concours', icon: FileText },
+  { to: '/admin/sujets-concours', label: 'Sujets de concours', mobileLabel: 'Concours', icon: FileText },
   { to: '/admin/avis', label: 'Avis', icon: Star },
 ]
 

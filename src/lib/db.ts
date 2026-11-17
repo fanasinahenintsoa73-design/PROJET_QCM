@@ -82,7 +82,7 @@ function migrateDatabase(database: Database): Database {
 
   // Les bases de démonstration créées avant les chapitres ne portent qu'un
   // sujet par UE, sans chapterId. Sans cette migration, MEDGAME affiche
-  // « 0 chapitre disponible » et Pres Concours ne retrouve plus ses sujets.
+  // « 0 chapitre disponible » et Pré-concours ne retrouve plus ses sujets.
   // On rattache chaque ancien sujet au premier chapitre de son UE : le contenu
   // reste intact et les deux parcours retrouvent immédiatement leurs questions.
   const subjects = database.subjects.map((subject) => {
@@ -1151,7 +1151,7 @@ export function startSeries(
   if (getActiveRun(userId)) {
     throw new AppError(
       'MEDGAME_RUN_ACTIVE',
-      'Une partie MEDGAME est en cours. Terminez-la ou abandonnez-la avant de lancer Pres Concours.',
+      'Une partie MEDGAME est en cours. Terminez-la ou abandonnez-la avant de lancer Pré-concours.',
     )
   }
   if (getSeriesUsage(userId, db).reached) {
@@ -1266,7 +1266,7 @@ export function startChapterSeries(
   if (getActiveRun(userId)) {
     throw new AppError(
       'MEDGAME_RUN_ACTIVE',
-      'Une partie MEDGAME est en cours. Terminez-la ou abandonnez-la avant de lancer Pres Concours.',
+      'Une partie MEDGAME est en cours. Terminez-la ou abandonnez-la avant de lancer Pré-concours.',
     )
   }
 
@@ -1955,7 +1955,7 @@ export function myTicketInfo(): TicketInfo | null {
 }
 
 /* ------------------------------------------------------------------ */
-/* Supports du cours et sujets concours (mode démonstration)           */
+/* Supports du cours et sujets de concours (mode démonstration)           */
 /* ------------------------------------------------------------------ */
 
 const CONTENT_KEY = 'medqcm.content.v1'
