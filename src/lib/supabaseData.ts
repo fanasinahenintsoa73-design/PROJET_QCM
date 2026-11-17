@@ -286,6 +286,11 @@ function rawError(error: unknown): { message?: string; code?: string; details?: 
   return (error ?? {}) as { message?: string; code?: string; details?: string }
 }
 
+/** Message renvoyé par Supabase Auth pour de vrais mauvais identifiants.
+ *  Sert de marqueur fiable pour ne compter que ceux-ci dans le verrou ticket
+ *  (une coupure réseau ne doit pas consommer d'essai). */
+export const INVALID_CREDENTIALS_MESSAGE = 'Email ou mot de passe incorrect.'
+
 function messageFrom(error: unknown): string {
   const value = rawError(error)
   const raw = value.message?.trim() || value.details?.trim() || 'Une erreur est survenue.'
@@ -294,7 +299,7 @@ function messageFrom(error: unknown): string {
   if (value.code === '23505') {
     return 'Cette opération existe déjà. Vérifiez la demande ou l’attribution en cours.'
   }
-  if (/invalid login credentials/i.test(raw)) return 'Email ou mot de passe incorrect.'
+  if (/invalid login credentials/i.test(raw)) return INVALID_CREDENTIALS_MESSAGE
   if (/email not confirmed/i.test(raw)) {
     return 'Confirmez votre adresse email avant de vous connecter.'
   }

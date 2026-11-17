@@ -28,6 +28,7 @@ import { api } from '@/lib/api'
 import { ticketLoginEmail } from '@/lib/tickets'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import {
+  INVALID_CREDENTIALS_MESSAGE,
   emptyDatabase,
   fetchDatabase,
   fetchProfile,
@@ -419,12 +420,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (result.ok) {
           // Connexion réussie : on remet le compteur à zéro.
           await ticketLoginSuccess(email)
-        } else {
-          // Échec : on l'enregistre ; si c'est le 5e, on renvoie le message
-          // de temporisation à la place de l'erreur générique de mot de passe.
+        } else if (result.error === INVALID_CREDENTIALS_MESSAGE) {
+          // Seuls les vrais mauvais identifiants consomment un essai. Une
+          // coupure réseau, une erreur serveur ou une interruption ne doivent
+          // jamais bloquer un étudiant honnête (5 pannes = 10 min sinon).
           const gate = await ticketLoginFailure(email)
           if (gate?.blocked) return { ok: false, error: gate.message }
         }
+        // Toute autre erreur (réseau, serveur) est renvoyée telle quelle, sans
+        // toucher au compteur de tentatives.
       }
 
       if (!result.ok) return result
