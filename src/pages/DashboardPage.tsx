@@ -54,8 +54,7 @@ export default function DashboardPage() {
         <div className="mx-auto max-w-content px-5 py-10 sm:px-8 sm:py-14 lg:px-10">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-[12px] text-mute">PACES · Espace étudiant</p>
-              <h1 className="mt-3 font-display text-[clamp(2.2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+              <h1 className="font-display text-[clamp(2.2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-ink">
                 Bonjour PACES.
               </h1>
             </div>
