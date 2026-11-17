@@ -38,13 +38,19 @@ declare
   v_subject_b uuid := gen_random_uuid();
   i int;
 begin
-  insert into public.profiles (id, role, first_name, last_name, email, status)
-  values (v_user, 'student', 'Quota', 'Test', 'quota_concurrency_test@medqcm.local', 'active');
+  -- Le profil est cree automatiquement par le trigger sur auth.users :
+  -- il faut donc d'abord creer l'utilisateur Auth, puis mettre a jour le profil.
+  insert into auth.users (id, email, is_sso_user, is_anonymous)
+  values (v_user, 'quota_concurrency_test@medqcm.local', false, false);
 
-  insert into public.subjects (id, title, month_label)
+  update public.profiles set role = 'student', first_name = 'Quota', last_name = 'Test', status = 'active'
+  where id = v_user;
+
+  -- question_count est obligatoire (constraint subjects_question_count_check).
+  insert into public.subjects (id, title, month_label, question_count)
   values
-    (v_subject_a, 'Test concurrence A', 'Test'),
-    (v_subject_b, 'Test concurrence B', 'Test');
+    (v_subject_a, 'Test concurrence A', 'Test', 10),
+    (v_subject_b, 'Test concurrence B', 'Test', 10);
 
   for i in 1..10 loop
     insert into public.questions (subject_id, number, matiere, statement, options, correct_answers)
@@ -136,18 +142,13 @@ select public.series_quota_used(
 -- ---------------------------------------------------------------------------
 -- 4. Nettoyage (à exécuter enfin)
 -- ---------------------------------------------------------------------------
--- La suppression du profil entraîne en cascade celle des attempts et de
--- l'assignment (foreign keys on delete cascade). Les thèmes et leurs questions
--- sont supprimés explicitement ensuite.
+-- L'ordre est important :
+--   1. supprimer l'utilisateur Auth -> cascade profil -> assignment + attempts ;
+--   2. supprimer les thèmes -> cascade questions.
 do $$
-declare
-  v_user uuid;
 begin
-  select id into v_user
-  from public.profiles where email = 'quota_concurrency_test@medqcm.local';
-
+  delete from auth.users where email = 'quota_concurrency_test@medqcm.local';
   delete from public.subjects where title in ('Test concurrence A', 'Test concurrence B');
-  delete from public.profiles where id = v_user;
 
   raise notice 'Nettoyage effectué.';
 end $$;
