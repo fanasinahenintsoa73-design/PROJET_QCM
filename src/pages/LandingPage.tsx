@@ -91,6 +91,11 @@ export function LandingPage() {
           </p>
 
           <p className="text-[16px] leading-[1.65] text-mute">
+            Retrouvez également les supports du cours et les sujets de concours, pour réviser et
+            vous entraîner dans les meilleures conditions.
+          </p>
+
+          <p className="text-[16px] leading-[1.65] text-mute">
             Je vous souhaite beaucoup de courage et surtout une excellente réussite !
           </p>
         </div>
