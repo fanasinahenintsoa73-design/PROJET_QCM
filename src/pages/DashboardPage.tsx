@@ -49,12 +49,12 @@ export default function DashboardPage() {
   const reached = usage?.reached ?? false
 
   return (
-    <div className="bg-canvas">
-      <section className="border-b border-line">
-        <div className="mx-auto max-w-content px-5 py-10 sm:px-8 sm:py-14 lg:px-10">
+    <div className="bg-[#f7f8f5]">
+      <section className="border-b border-[#e8ece8]">
+        <div className="mx-auto max-w-content px-5 py-12 sm:px-8 sm:py-16 lg:px-10">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="font-display text-[clamp(2.2rem,4.5vw,3.4rem)] leading-[1.05] tracking-[-0.03em] text-ink">
+              <h1 className="font-display text-[clamp(2.4rem,5vw,3.7rem)] leading-[1.02] tracking-[-0.025em] text-ink">
                 Bonjour PACES.
               </h1>
             </div>
@@ -66,12 +66,12 @@ export default function DashboardPage() {
       </section>
 
       <section className="mx-auto max-w-content px-5 py-8 sm:px-8 sm:py-10 lg:px-10">
-        <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
+        <div className="rounded-[16px] border border-[#e8ece8] bg-surface p-6 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-mute">Quota partagé</p>
+              <p className="text-[11px] uppercase tracking-[0.1em] text-mute">Quota partagé</p>
               <p className="mt-1 flex items-baseline gap-2">
-                <span className="font-display text-[2.2rem] leading-none tracking-[-0.02em] text-ink">
+                <span className="font-display text-[1.35rem] leading-none tracking-[-0.02em] text-ink">
                   {used}
                 </span>
                 <span className="text-[13px] text-mute">/ {SERIES_LIMIT} séries utilisées</span>
@@ -92,14 +92,14 @@ export default function DashboardPage() {
           />
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-9 grid gap-5 sm:grid-cols-2">
           {entries.map((entry) => {
             const Icon = entry.icon
             return (
               <Link
                 key={entry.to}
                 to={entry.to}
-                className="group flex min-h-[180px] flex-col justify-between rounded-2xl border border-line bg-surface p-5 transition duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-soft sm:p-6"
+                className="group flex min-h-[180px] flex-col justify-between rounded-[16px] border border-[#e8ece8] bg-surface p-6 transition duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-soft sm:p-7"
               >
                 <div>
                   <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent-soft text-accent">
