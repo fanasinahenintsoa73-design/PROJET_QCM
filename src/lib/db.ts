@@ -25,6 +25,7 @@ import type {
 } from '@/types'
 import { makeTicketSecret, ticketLoginEmail } from '@/lib/tickets'
 import { getActiveRun, getMedgameConsumptionCount, resetMedgameCycle } from '@/lib/medgameStore'
+import { removeSeriesFeedback } from '@/lib/feedback'
 import { createSeedDatabase, PROFESSOR_FIRST_NAME, PROFESSOR_LAST_NAME, randomQuestionIds } from '@/lib/seed'
 import {
   PACE_THEMES,
@@ -1784,7 +1785,8 @@ export function generateTickets(count: number, _type: TicketType = 'series'): Ge
  *
  * L'identifiant du ticket est conservé (l'étudiant garde son code), mais le
  * numéro d'enregistrement change : l'ancien ne fonctionne plus. Un nouveau
- * cycle de 30 séries est ouvert.
+ * cycle de 30 séries est ouvert, et l'historique du cycle précédent est effacé
+ * (séries, avis et consommations MEDGAME) pour ne pas accumuler les données.
  */
 export function renewTicket(code: string): GeneratedTicket {
   const records = loadDemoTickets()
@@ -1819,7 +1821,13 @@ export function renewTicket(code: string): GeneratedTicket {
   // archivés et runs refermés.
   resetMedgameCycle(record.userId)
 
-  commit({ ...db, users, assignments })
+  // Le cycle précédent est effacé : les séries et leurs avis ne doivent pas
+  // s'accumuler d'un renouvellement à l'autre.
+  const removedAttempts = db.attempts.filter((attempt) => attempt.userId === record.userId)
+  for (const attempt of removedAttempts) removeSeriesFeedback(attempt.id)
+  const attempts = db.attempts.filter((attempt) => attempt.userId !== record.userId)
+
+  commit({ ...db, users, assignments, attempts })
   saveDemoTickets(records)
   return { code: record.code, secret, type: record.type }
 }

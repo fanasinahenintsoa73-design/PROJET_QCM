@@ -857,7 +857,8 @@ export default function AdminTicketsPage() {
                 </h2>
                 <p className="mt-2 text-[12px] leading-relaxed text-mute">
                   L’identifiant est inchangé, mais le numéro d’enregistrement a changé : l’ancien
-                  ne fonctionne plus. Le quota repart à 30 séries.
+                  ne fonctionne plus. Le quota repart à 30 séries. L’historique du cycle précédent
+                  (résultats et avis) a été effacé.
                 </p>
                 <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
                   <div className="min-w-0">
@@ -905,8 +906,9 @@ export default function AdminTicketsPage() {
                   quota repart à 30 séries.
                 </p>
                 <div className="mt-3 rounded-xl border border-line bg-cloud px-4 py-3 text-[12px] leading-relaxed text-mute">
-                  Le parcours MEDGAME en cours est refermé et les séries déjà utilisées sont remises
-                  à zéro.
+                  Le parcours MEDGAME en cours est refermé et l’historique du cycle précédent
+                  (séries, résultats, avis, consommations MEDGAME) est effacé définitivement pour
+                  libérer l’espace.
                 </div>
                 <div className="mt-5 flex justify-end gap-2">
                   <Button
