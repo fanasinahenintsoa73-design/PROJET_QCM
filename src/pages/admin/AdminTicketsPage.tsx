@@ -638,7 +638,6 @@ export default function AdminTicketsPage() {
                       <td className="py-3 pr-4">
                         <span className="inline-flex flex-wrap items-center gap-1.5">
                           <StatusPill tone={display.tone}>{display.label}</StatusPill>
-                          {item.archivedAt ? <StatusPill tone="neutral">Archivé</StatusPill> : null}
                         </span>
                       </td>
                       <td className="py-3 pr-4 text-mute">
@@ -955,43 +954,39 @@ export default function AdminTicketsPage() {
                 >
                   <Eye size={14} /> Vérifier l’état
                 </button>
-                {!menuItem.archivedAt ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenu(null)
-                      requestRenew(menuItem)
-                    }}
-                    disabled={busyCode === menuItem.code}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
-                  >
-                    <RefreshCw size={14} /> Renouveler l’accès
-                  </button>
-                ) : null}
-                {!menuItem.archivedAt ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenu(null)
-                      void handleStatus(
-                        menuItem,
-                        menuItem.status === 'suspended' ? 'active' : 'suspended',
-                      )
-                    }}
-                    disabled={busyCode === menuItem.code}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
-                  >
-                    {menuItem.status === 'suspended' ? (
-                      <>
-                        <Play size={14} /> Réactiver
-                      </>
-                    ) : (
-                      <>
-                        <Ban size={14} /> Suspendre
-                      </>
-                    )}
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenu(null)
+                    requestRenew(menuItem)
+                  }}
+                  disabled={busyCode === menuItem.code}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
+                >
+                  <RefreshCw size={14} /> Renouveler l’accès
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenu(null)
+                    void handleStatus(
+                      menuItem,
+                      menuItem.status === 'suspended' ? 'active' : 'suspended',
+                    )
+                  }}
+                  disabled={busyCode === menuItem.code}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
+                >
+                  {menuItem.status === 'suspended' ? (
+                    <>
+                      <Play size={14} /> Réactiver
+                    </>
+                  ) : (
+                    <>
+                      <Ban size={14} /> Suspendre
+                    </>
+                  )}
+                </button>
                 {isNeverUsed(menuItem) ? (
                   <button
                     type="button"

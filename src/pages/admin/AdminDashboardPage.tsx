@@ -13,7 +13,6 @@ type TicketCounts = {
   inProgress: number
   finished: number
   suspended: number
-  archived: number
 }
 
 function countTickets(tickets: TicketItem[]): TicketCounts {
@@ -22,15 +21,8 @@ function countTickets(tickets: TicketItem[]): TicketCounts {
     inProgress: 0,
     finished: 0,
     suspended: 0,
-    archived: 0,
   }
   for (const item of tickets) {
-    // Un ticket archivé est mis de côté : il ne fait plus partie des listes
-    // actives, mais son compte continue de fonctionner.
-    if (item.archivedAt) {
-      counts.archived += 1
-      continue
-    }
     if (item.status === 'suspended') {
       counts.suspended += 1
       continue
@@ -127,13 +119,6 @@ export default function AdminDashboardPage() {
     { key: 'inProgress', label: 'En cours', note: 'Séries en cours', dot: 'bg-info' },
     { key: 'finished', label: 'Terminés', note: '30 séries terminées', dot: 'bg-stone' },
     { key: 'suspended', label: 'Suspendus', note: 'Accès fermé', dot: 'bg-sale' },
-    {
-      key: 'archived',
-      label: 'Archivés',
-      note: 'Mis de côté, le compte continue',
-      dot: 'bg-mute',
-      href: '/admin/tickets?vue=archives',
-    },
   ] as const
 
   return (
@@ -144,7 +129,7 @@ export default function AdminDashboardPage() {
           <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-mute">
             {user ? `Bonjour ${user.firstName}. ` : ''}
             Un seul ticket, 30 séries partagées entre Pré-concours et MEDGAME. Chaque ticket est
-            un étudiant. Un ticket utilisé ne se supprime pas : il s’archive.
+            un étudiant.
           </p>
         </div>
       </section>
