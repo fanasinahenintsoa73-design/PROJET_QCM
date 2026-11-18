@@ -1721,6 +1721,20 @@ function nextTicketNumber(records: DemoTicket[], prefix = 'PACES'): number {
   return max + 1
 }
 
+/**
+ * Tire un code PACES#### encore libre (4 chiffres = 10 000 codes).
+ * Les codes des comptes supprimés redeviennent disponibles : on ne fait plus
+ * grandir indéfiniment le numéro séquentiel.
+ */
+function randomAvailableTicketCode(records: DemoTicket[], prefix = 'PACES'): string {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const num = Math.floor(Math.random() * 10000)
+    const code = `${prefix}${String(num).padStart(4, '0')}`
+    if (!records.some((record) => record.code === code)) return code
+  }
+  throw new Error('Aucun code de ticket disponible.')
+}
+
 /** Génère un lot de tickets (mode démonstration). */
 export function generateTickets(count: number, _type: TicketType = 'series'): GeneratedTicket[] {
   if (!Number.isInteger(count) || count < 1 || count > 500) {
@@ -1734,11 +1748,10 @@ export function generateTickets(count: number, _type: TicketType = 'series'): Ge
   const now = new Date()
   const prefix = 'PACES'
   const expiresAt: string | null = null
-  let next = nextTicketNumber(records, prefix)
 
   for (let i = 0; i < count; i += 1) {
-    const digits = String(next).padStart(4, '0')
-    const code = `${prefix}${digits}`
+    const code = randomAvailableTicketCode(records, prefix)
+    const digits = code.slice(prefix.length)
     const secret = makeTicketSecret()
     const userId = uid('u')
     users.push({
@@ -1773,7 +1786,6 @@ export function generateTickets(count: number, _type: TicketType = 'series'): Ge
       logins: [],
     })
     created.push({ code, secret, type: 'series' })
-    next += 1
   }
 
   commit({ ...db, users, assignments })
