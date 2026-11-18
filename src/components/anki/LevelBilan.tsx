@@ -30,6 +30,7 @@ export function LevelBilan({
   secondaryTo,
   onPrimary,
   onSecondary,
+  hideActions = false,
 }: {
   chapterId: string
   level: number
@@ -45,6 +46,7 @@ export function LevelBilan({
   secondaryTo?: string
   onPrimary?: () => void
   onSecondary?: () => void
+  hideActions?: boolean
 }) {
   const passed = result.passed
   const missing = result.total - result.correct
@@ -229,26 +231,28 @@ export function LevelBilan({
           })}
         </div>
 
-        <div className="mt-5 space-y-2.5">
-          {onPrimary ? (
-            <button type="button" onClick={onPrimary} className={primaryClass}>
-              {primaryLabel}
-            </button>
-          ) : (
-            <Link to={primaryHref} className={primaryClass}>
-              {primaryLabel}
-            </Link>
-          )}
-          {onSecondary ? (
-            <button type="button" onClick={onSecondary} className={secondaryClass}>
-              {secondaryLabel}
-            </button>
-          ) : (
-            <Link to={secondaryHref} className={secondaryClass}>
-              {secondaryLabel}
-            </Link>
-          )}
-        </div>
+        {hideActions ? null : (
+          <div className="mt-5 space-y-2.5">
+            {onPrimary ? (
+              <button type="button" onClick={onPrimary} className={primaryClass}>
+                {primaryLabel}
+              </button>
+            ) : (
+              <Link to={primaryHref} className={primaryClass}>
+                {primaryLabel}
+              </Link>
+            )}
+            {onSecondary ? (
+              <button type="button" onClick={onSecondary} className={secondaryClass}>
+                {secondaryLabel}
+              </button>
+            ) : (
+              <Link to={secondaryHref} className={secondaryClass}>
+                {secondaryLabel}
+              </Link>
+            )}
+          </div>
+        )}
       </div>
     </article>
   )

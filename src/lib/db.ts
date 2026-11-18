@@ -9,6 +9,7 @@ import type {
   AnkiLevelResult,
   AnkiReviewCard,
   Attempt,
+  CompletedHistoryItem,
   CourseSupport,
   Database,
   ExamSubject,
@@ -24,8 +25,7 @@ import type {
   User,
 } from '@/types'
 import { makeTicketSecret, ticketLoginEmail } from '@/lib/tickets'
-import { getActiveRun, getMedgameConsumptionCount, resetMedgameCycle } from '@/lib/medgameStore'
-import { removeSeriesFeedback } from '@/lib/feedback'
+import { getActiveRun, getMedgameConsumptionCount } from '@/lib/medgameStore'
 import { createSeedDatabase, PROFESSOR_FIRST_NAME, PROFESSOR_LAST_NAME, randomQuestionIds } from '@/lib/seed'
 import {
   PACE_THEMES,
@@ -52,6 +52,7 @@ import {
 
 const DB_KEY = 'medqcm.db.v3'
 const SESSION_KEY = 'medqcm.session.v1'
+const COMPLETED_HISTORY_KEY = 'medqcm.completed-history.v1'
 const CHANGE_EVENT = 'medqcm:change'
 
 let cache: Database | null = null
@@ -1780,56 +1781,102 @@ export function generateTickets(count: number, _type: TicketType = 'series'): Ge
   return created
 }
 
-/**
- * Renouvelle l'accès d'un ticket (mode démonstration).
- *
- * L'identifiant du ticket est conservé (l'étudiant garde son code), mais le
- * numéro d'enregistrement change : l'ancien ne fonctionne plus. Un nouveau
- * cycle de 30 séries est ouvert, et l'historique du cycle précédent est effacé
- * (séries, avis et consommations MEDGAME) pour ne pas accumuler les données.
- */
-export function renewTicket(code: string): GeneratedTicket {
-  const records = loadDemoTickets()
-  const record = records.find((candidate) => candidate.code === code)
-  if (!record) throw new Error('Ticket introuvable.')
-  if (record.archivedAt) throw new Error('Désarchive le ticket avant de le renouveler.')
+/* ------------------------------------------------------------------ */
+/* Comptes terminés (mode démonstration)                               */
+/* ------------------------------------------------------------------ */
 
-  const db = getDB()
-  const secret = makeTicketSecret()
-  record.secret = secret
-  // Le ticket reste utilisé (l'étudiant a un accès actif) : il ne doit plus
-  // être supprimable, seulement renouvelé ou archivé.
-  record.status = 'used'
+function readCompletedHistory(): CompletedHistoryItem[] {
+  try {
+    const raw = localStorage.getItem(COMPLETED_HISTORY_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? (parsed as CompletedHistoryItem[]) : []
+  } catch {
+    return []
+  }
+}
 
-  const users = db.users.map((user) =>
-    user.id === record.userId ? { ...user, password: secret } : user,
+function writeCompletedHistory(items: CompletedHistoryItem[]) {
+  try {
+    localStorage.setItem(COMPLETED_HISTORY_KEY, JSON.stringify(items))
+  } catch {
+    /* in-memory only */
+  }
+}
+
+/** Liste des comptes terminés, du plus récent au plus ancien (démo). */
+export function listCompletedHistory(): CompletedHistoryItem[] {
+  return [...readCompletedHistory()].sort(
+    (a, b) =>
+      new Date(b.completedAt ?? b.deletedAt).getTime() -
+      new Date(a.completedAt ?? a.deletedAt).getTime(),
   )
+}
 
-  const now = new Date()
-  const assignments = [
-    ...db.assignments,
-    {
-      id: uid('assign'),
-      userId: record.userId,
-      subjectId: null,
-      startedAt: now.toISOString(),
-      expiresAt: addDays(now, 36500).toISOString(),
-    },
-  ]
+/** Supprime une ligne de l'historique des comptes terminés (démo). */
+export function deleteCompletedHistory(id: string): void {
+  writeCompletedHistory(readCompletedHistory().filter((item) => item.id !== id))
+}
 
-  // Le cycle MEDGAME repart de zéro : consommations purgées, parcours
-  // archivés et runs refermés.
-  resetMedgameCycle(record.userId)
+/**
+ * Si le compte de la session a terminé ses 30 séries, enregistre un résumé
+ * léger dans l'historique du docteur puis supprime le compte et ses données
+ * (mode démonstration). Ne fait rien si le cycle n'est pas terminé.
+ */
+export function finalizeCompletedAccount(): void {
+  const userId = getSessionUserId()
+  if (!userId) return
+  const db = getDB()
+  if (!getSeriesUsage(userId, db).reached) return
 
-  // Le cycle précédent est effacé : les séries et leurs avis ne doivent pas
-  // s'accumuler d'un renouvellement à l'autre.
-  const removedAttempts = db.attempts.filter((attempt) => attempt.userId === record.userId)
-  for (const attempt of removedAttempts) removeSeriesFeedback(attempt.id)
-  const attempts = db.attempts.filter((attempt) => attempt.userId !== record.userId)
+  const record = loadDemoTickets().find((candidate) => candidate.userId === userId)
+  if (!record) return
 
-  commit({ ...db, users, assignments, attempts })
-  saveDemoTickets(records)
-  return { code: record.code, secret, type: record.type }
+  const assignment = getCurrentAssignment(userId, db)
+  const attempts = getCurrentCycleAttempts(userId, db, assignment)
+  const series = attempts
+    .filter((attempt) => (attempt.status ?? 'completed') === 'completed')
+    .map((attempt) => ({
+      date: attempt.completedAt ?? attempt.createdAt,
+      kind: 'series' as const,
+      ue: attempt.ueId ?? null,
+      chapters: attempt.chapterIds ?? [],
+      score: attempt.score,
+      total: attempt.total,
+    }))
+  const deletedAt = new Date().toISOString()
+  const item: CompletedHistoryItem = {
+    id: uid('hist'),
+    ticketCode: record.code,
+    studentLabel: record.code,
+    startedAt: assignment?.startedAt ?? null,
+    completedAt: deletedAt,
+    deletedAt,
+    series,
+    average: series.length
+      ? Math.round(
+          (series.reduce(
+            (sum, row) => sum + (row.total ? ((row.score ?? 0) / row.total) * 100 : 0),
+            0,
+          ) /
+            series.length) *
+            100,
+        ) / 100
+      : 0,
+    createdAt: deletedAt,
+  }
+  writeCompletedHistory([item, ...readCompletedHistory()])
+
+  // Suppression du compte et de toutes ses données, comme en production.
+  const userIds = new Set([userId])
+  saveDemoTickets(loadDemoTickets().filter((candidate) => candidate.userId !== userId))
+  commit({
+    ...db,
+    users: db.users.filter((user) => !userIds.has(user.id)),
+    assignments: db.assignments.filter((a) => !userIds.has(a.userId)),
+    attempts: db.attempts.filter((attempt) => !userIds.has(attempt.userId)),
+  })
+  clearSession()
 }
 
 /** Tous les tickets (mode démonstration). */

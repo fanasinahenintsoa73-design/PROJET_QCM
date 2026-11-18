@@ -417,3 +417,28 @@ export interface Database {
    */
   medgameSeriesUsed?: number
 }
+
+/** Une ligne du résumé d'une série terminée, conservé pour le docteur. */
+export interface CompletedSeriesRow {
+  date: string
+  kind: 'series' | 'medgame'
+  ue?: string | null
+  chapters?: string[]
+  score?: number | null
+  total?: number | null
+  level?: number | null
+  correct?: number | null
+}
+
+/** Trace anonyme d'un compte terminé, consultable et supprimable par le docteur. */
+export interface CompletedHistoryItem {
+  id: string
+  ticketCode: string
+  studentLabel: string
+  startedAt: string | null
+  completedAt: string | null
+  deletedAt: string
+  series: CompletedSeriesRow[]
+  average: number
+  createdAt: string
+}

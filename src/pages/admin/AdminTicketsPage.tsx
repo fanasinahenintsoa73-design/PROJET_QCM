@@ -22,7 +22,7 @@ import { useToast } from '@/components/ui/Toast'
 import { copyText } from '@/lib/downloadTickets'
 import { getGeneratedTickets, setGeneratedTickets } from '@/lib/generatedTicketsSession'
 import { cn, formatDateLong, formatDateTime } from '@/lib/utils'
-import type { GeneratedTicket, TicketItem } from '@/types'
+import type { TicketItem } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
 
@@ -88,8 +88,13 @@ function matchesTicketFilter(item: TicketItem, filter: FilterKey): boolean {
   return item.seriesUsed < 30 && !started
 }
 
-function isNeverUsed(item: TicketItem): boolean {
-  return !item.usedAt && item.seriesUsed === 0 && item.ankiChapters === 0
+/**
+ * Un compte abandonné peut être supprimé par le docteur : le cycle n'est pas
+ * terminé (moins de 30 séries). Les comptes terminés sont supprimés
+ * automatiquement après la 30e série et ne figurent plus ici.
+ */
+function canDelete(item: TicketItem): boolean {
+  return item.seriesUsed < 30 && item.ankiChapters === 0
 }
 
 export default function AdminTicketsPage() {
@@ -115,9 +120,6 @@ export default function AdminTicketsPage() {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [detail, setDetail] = useState<TicketItem | null>(null)
   const [deleteTargets, setDeleteTargets] = useState<TicketItem[]>([])
-  const [renewTarget, setRenewTarget] = useState<TicketItem | null>(null)
-  const [renewed, setRenewed] = useState<GeneratedTicket | null>(null)
-  const [renewing, setRenewing] = useState(false)
 
   const lastBatch = getGeneratedTickets()
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
@@ -151,7 +153,7 @@ export default function AdminTicketsPage() {
     () => tickets.filter((item) => selected.has(item.code)),
     [tickets, selected],
   )
-  const canDeleteSelected = selectedTickets.length > 0 && selectedTickets.every(isNeverUsed)
+  const canDeleteSelected = selectedTickets.length > 0 && selectedTickets.every(canDelete)
   const allVisibleSelected =
     visibleTickets.length > 0 && visibleTickets.every((item) => selected.has(item.code))
 
@@ -272,9 +274,9 @@ export default function AdminTicketsPage() {
   function requestDelete(codes: string[]) {
     const targets = tickets.filter((item) => codes.includes(item.code))
     if (targets.length === 0) return
-    if (!targets.every(isNeverUsed)) {
+    if (!targets.every(canDelete)) {
       toast(
-        'La sélection contient un ticket déjà utilisé.',
+        'La sélection contient un compte terminé (30/30) : il est supprimé automatiquement.',
         'error',
       )
       return
@@ -296,26 +298,6 @@ export default function AdminTicketsPage() {
       toast(err instanceof Error ? err.message : 'La suppression a échoué.', 'error')
     } finally {
       setDeleting(false)
-    }
-  }
-
-  function requestRenew(item: TicketItem) {
-    setRenewTarget(item)
-    setRenewed(null)
-  }
-
-  async function performRenew() {
-    if (!renewTarget) return
-    setRenewing(true)
-    try {
-      const result = await api.renewTicket(renewTarget.code)
-      setRenewed(result)
-      toast(`Accès de ${renewTarget.code} renouvelé.`)
-      await load()
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Le renouvellement a échoué.', 'error')
-    } finally {
-      setRenewing(false)
     }
   }
 
@@ -505,8 +487,8 @@ export default function AdminTicketsPage() {
               </p>
               <p className={cn('text-[11px]', canDeleteSelected ? 'text-mute' : 'text-sale')}>
                 {canDeleteSelected
-                  ? 'Suppression définitive possible uniquement pour les tickets jamais utilisés.'
-                  : 'La sélection contient un ticket déjà utilisé : la suppression est bloquée.'}
+                  ? 'Suppression définitive possible pour les comptes abandonnés (moins de 30 séries).'
+                  : 'La sélection contient un compte terminé (30/30) : supprimé automatiquement.'}
               </p>
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -767,14 +749,14 @@ export default function AdminTicketsPage() {
             <div
               className={cn(
                 'mt-4 rounded-xl border px-4 py-3 text-[12px]',
-                isNeverUsed(detail)
+                canDelete(detail)
                   ? 'border-success/20 bg-accent-soft/50 text-accent'
                   : 'border-sale/20 bg-danger-soft text-sale',
               )}
             >
-              {isNeverUsed(detail)
-                ? 'Disponible · jamais utilisé. La suppression définitive est possible.'
-                : 'Déjà utilisé · suppression définitive bloquée.'}
+              {canDelete(detail)
+                ? 'Compte abandonné (moins de 30 séries) · suppression définitive possible.'
+                : 'Cycle terminé (30/30) · le compte est supprimé automatiquement avec son historique.'}
             </div>
 
             <div className="mt-5 flex justify-end">
@@ -801,9 +783,9 @@ export default function AdminTicketsPage() {
               Supprimer définitivement ?
             </h2>
             <p className="mt-2 text-[12px] leading-relaxed text-mute">
-              {deleteTargets.length} ticket{deleteTargets.length > 1 ? 's' : ''} jamais utilisé
-              {deleteTargets.length > 1 ? 's' : ''}. Cette action supprime le compte étudiant et
-              toutes ses données.
+              {deleteTargets.length} compte{deleteTargets.length > 1 ? 's' : ''} abandonné
+              {deleteTargets.length > 1 ? 's' : ''} (moins de 30 séries). Cette action supprime le
+              compte étudiant et toutes ses données.
             </p>
             <ul className="mt-3 max-h-40 divide-y divide-line overflow-y-auto rounded-lg border border-line">
               {deleteTargets.map((item) => {
@@ -832,101 +814,6 @@ export default function AdminTicketsPage() {
                 Supprimer définitivement
               </Button>
             </div>
-          </div>
-        </div>
-      ) : null}
-
-      {renewTarget ? (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-ink/30 px-4 py-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="ticket-renew-title"
-        >
-          <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-5 shadow-xl">
-            {renewed ? (
-              <>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">
-                  Accès renouvelé
-                </p>
-                <h2
-                  id="ticket-renew-title"
-                  className="mt-1 font-display text-[24px] tracking-[-0.02em] text-ink"
-                >
-                  {renewTarget.code}
-                </h2>
-                <p className="mt-2 text-[12px] leading-relaxed text-mute">
-                  L’identifiant est inchangé, mais le numéro d’enregistrement a changé : l’ancien
-                  ne fonctionne plus. Le quota repart à 30 séries. L’historique du cycle précédent
-                  (résultats et avis) a été effacé.
-                </p>
-                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-cloud px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-mute">
-                      Nouveau numéro d’enregistrement
-                    </p>
-                    <p className="mt-1 font-mono text-[18px] tracking-[0.18em] text-ink">
-                      {renewed.secret}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void handleCopySecret(renewed.secret)}
-                  >
-                    <Copy size={13} /> Copier
-                  </Button>
-                </div>
-                <p className="mt-3 text-[12px] leading-relaxed text-mute">
-                  Communique ce nouveau numéro à l’étudiant : il remplace celui qu’il utilisait.
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <Button
-                    onClick={() => {
-                      setRenewTarget(null)
-                      setRenewed(null)
-                    }}
-                  >
-                    Fermer
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2
-                  id="ticket-renew-title"
-                  className="font-display text-[24px] tracking-[-0.02em] text-ink"
-                >
-                  Renouveler l’accès ?
-                </h2>
-                <p className="mt-2 text-[12px] leading-relaxed text-mute">
-                  L’identifiant{' '}
-                  <span className="font-mono text-ink">{renewTarget.code}</span> est conservé, mais
-                  un nouveau numéro d’enregistrement est généré : l’ancien ne fonctionne plus. Le
-                  quota repart à 30 séries.
-                </p>
-                <div className="mt-3 rounded-xl border border-line bg-cloud px-4 py-3 text-[12px] leading-relaxed text-mute">
-                  Le parcours MEDGAME en cours est refermé et l’historique du cycle précédent
-                  (séries, résultats, avis, consommations MEDGAME) est effacé définitivement pour
-                  libérer l’espace.
-                </div>
-                <div className="mt-5 flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setRenewTarget(null)
-                      setRenewed(null)
-                    }}
-                    disabled={renewing}
-                  >
-                    Annuler
-                  </Button>
-                  <Button loading={renewing} onClick={() => void performRenew()}>
-                    Renouveler l’accès
-                  </Button>
-                </div>
-              </>
-            )}
           </div>
         </div>
       ) : null}
@@ -960,17 +847,6 @@ export default function AdminTicketsPage() {
                   type="button"
                   onClick={() => {
                     setMenu(null)
-                    requestRenew(menuItem)
-                  }}
-                  disabled={busyCode === menuItem.code}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-cloud disabled:opacity-50"
-                >
-                  <RefreshCw size={14} /> Renouveler l’accès
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenu(null)
                     void handleStatus(
                       menuItem,
                       menuItem.status === 'suspended' ? 'active' : 'suspended',
@@ -989,7 +865,7 @@ export default function AdminTicketsPage() {
                     </>
                   )}
                 </button>
-                {isNeverUsed(menuItem) ? (
+                {canDelete(menuItem) ? (
                   <button
                     type="button"
                     onClick={() => {

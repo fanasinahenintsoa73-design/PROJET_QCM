@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles, Star, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
+import { getSeriesUsage } from '@/lib/db'
 import type { AttemptReview } from '@/lib/supabaseData'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
@@ -16,7 +17,8 @@ const RATING_LABELS = ['À revoir', 'Moyen', 'Bien', 'Très bien', 'Excellent']
 export default function ResultPage() {
   usePageTitle('Résultat de la série — MEDQCM mada')
   const { attemptId } = useParams<{ attemptId: string }>()
-  const { user, db } = useAuth()
+  const { user, db, logout } = useAuth()
+  const cycleComplete = Boolean(user && getSeriesUsage(user.id, db).reached)
 
   const [review, setReview] = useState<AttemptReview | null>(null)
   const [loading, setLoading] = useState(true)
@@ -179,13 +181,19 @@ export default function ResultPage() {
     <div className="bg-canvas">
       <div className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-3 px-5 py-3 text-[12px] sm:px-8 lg:px-10">
-          <Link to="/app" className="inline-flex items-center gap-2 text-mute transition hover:text-accent">
-            <ArrowLeft size={14} /> Mon cycle
-          </Link>
-          <span className="text-mute">Résultat de la série</span>
-          <Link to="/app#series" className="text-mute transition hover:text-accent">
-            Mes séries
-          </Link>
+          {cycleComplete ? (
+            <span className="text-mute">Résultat de la série</span>
+          ) : (
+            <>
+              <Link to="/app" className="inline-flex items-center gap-2 text-mute transition hover:text-accent">
+                <ArrowLeft size={14} /> Mon cycle
+              </Link>
+              <span className="text-mute">Résultat de la série</span>
+              <Link to="/app#series" className="text-mute transition hover:text-accent">
+                Mes séries
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -466,47 +474,77 @@ export default function ResultPage() {
       </section>
 
       <section className="mx-auto max-w-content px-5 pb-16 sm:px-8 lg:px-10">
-        <div className="relative overflow-hidden rounded-2xl bg-accent px-6 py-8 text-white sm:px-10 sm:py-10">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border border-white/15"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -bottom-24 right-10 h-56 w-56 rounded-full border border-white/10"
-          />
-          <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">La suite</p>
-              <h2 className="mt-3 max-w-xl font-display text-[clamp(1.9rem,4vw,2.8rem)] leading-[1.05] tracking-[-0.02em]">
-                {feedbackSent ? 'Merci. Gardez le rythme.' : 'Gardez le rythme.'}
+        {cycleComplete ? (
+          <div className="relative overflow-hidden rounded-2xl bg-ink px-6 py-9 text-white sm:px-10 sm:py-12">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border border-white/10"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-24 right-10 h-56 w-56 rounded-full border border-white/10"
+            />
+            <div className="relative max-w-2xl">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">Cycle terminé</p>
+              <h2 className="mt-3 font-display text-[clamp(1.9rem,4vw,2.8rem)] leading-[1.08] tracking-[-0.02em]">
+                Tes 30 séries sont terminées.
               </h2>
-              <p className="mt-3 max-w-md text-[13px] leading-relaxed text-white/85">
-                {feedbackSent
-                  ? 'Votre avis est enregistré. La prochaine série vous attend.'
-                  : 'Chaque série terminée vous rapproche de votre objectif. La suivante vous attend.'}
+              <p className="mt-3 text-[14px] leading-relaxed text-white/80">
+                Achète un nouveau ticket auprès du docteur comme précédemment. Tu peux maintenant
+                te déconnecter : ton compte et tes données seront supprimés.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <ButtonLink
-                to={redoHref}
-                variant="white"
-                size="lg"
-                className="w-full justify-center sm:w-auto"
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[13px] font-semibold text-ink transition hover:bg-white/90"
               >
-                <RotateCcw size={16} /> Refaire une série
-              </ButtonLink>
-              <ButtonLink
-                to="/app#ues"
-                variant="white-outline"
-                size="lg"
-                className="w-full justify-center sm:w-auto"
-              >
-                Choisir une autre UE <ArrowRight size={16} />
-              </ButtonLink>
+                Se déconnecter
+              </button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="relative overflow-hidden rounded-2xl bg-accent px-6 py-8 text-white sm:px-10 sm:py-10">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border border-white/15"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-24 right-10 h-56 w-56 rounded-full border border-white/10"
+            />
+            <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-white/70">La suite</p>
+                <h2 className="mt-3 max-w-xl font-display text-[clamp(1.9rem,4vw,2.8rem)] leading-[1.05] tracking-[-0.02em]">
+                  {feedbackSent ? 'Merci. Gardez le rythme.' : 'Gardez le rythme.'}
+                </h2>
+                <p className="mt-3 max-w-md text-[13px] leading-relaxed text-white/85">
+                  {feedbackSent
+                    ? 'Votre avis est enregistré. La prochaine série vous attend.'
+                    : 'Chaque série terminée vous rapproche de votre objectif. La suivante vous attend.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <ButtonLink
+                  to={redoHref}
+                  variant="white"
+                  size="lg"
+                  className="w-full justify-center sm:w-auto"
+                >
+                  <RotateCcw size={16} /> Refaire une série
+                </ButtonLink>
+                <ButtonLink
+                  to="/app#ues"
+                  variant="white-outline"
+                  size="lg"
+                  className="w-full justify-center sm:w-auto"
+                >
+                  Choisir une autre UE <ArrowRight size={16} />
+                </ButtonLink>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   )

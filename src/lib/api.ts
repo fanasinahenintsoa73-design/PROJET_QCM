@@ -7,6 +7,7 @@ import type {
   AnkiLevelAnswer,
   AnkiLevelResult,
   AnkiReviewCard,
+  CompletedHistoryItem,
   CourseSupport,
   ExamSubject,
   GeneratedTicket,
@@ -79,6 +80,14 @@ export const api = {
   },
 
   async logout(): Promise<void> {
+    // Si le cycle est terminé, on archive le résumé puis on supprime le compte
+    // avant de fermer la session. Un échec ne doit jamais bloquer la sortie.
+    try {
+      if (isSupabaseConfigured) await remote.finalizeCompletedAccount()
+      else demo.finalizeCompletedAccount()
+    } catch (error) {
+      console.warn('[logout] finalisation du compte terminée impossible', error)
+    }
     if (isSupabaseConfigured) {
       await remote.signOut()
       return
@@ -440,13 +449,16 @@ export const api = {
     return demo.listTickets()
   },
 
-  /**
-   * Renouvelle l'accès d'un ticket (docteur uniquement) : même identifiant,
-   * nouveau numéro d'enregistrement et 30 séries neuves.
-   */
-  async renewTicket(code: string): Promise<GeneratedTicket> {
-    if (isSupabaseConfigured) return remote.renewTicket(code)
-    return demo.renewTicket(code)
+  /** Historique des comptes terminés (docteur uniquement). */
+  async listCompletedHistory(): Promise<CompletedHistoryItem[]> {
+    if (isSupabaseConfigured) return remote.listCompletedHistory()
+    return demo.listCompletedHistory()
+  },
+
+  /** Supprime une ligne de l'historique des comptes terminés (docteur). */
+  async deleteCompletedHistory(id: string): Promise<void> {
+    if (isSupabaseConfigured) return remote.deleteCompletedHistory(id)
+    return demo.deleteCompletedHistory(id)
   },
 
   /** Suspend un ticket, ou le réactive (statut 'active'). */

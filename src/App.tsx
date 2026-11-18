@@ -33,6 +33,7 @@ import { CourseSupportsPage, ExamSubjectsPage } from '@/pages/ContentLibraryPage
 import ResultPage from '@/pages/ResultPage'
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage'
 import AdminTicketsPage from '@/pages/admin/AdminTicketsPage'
+import AdminHistoryPage from '@/pages/admin/AdminHistoryPage'
 import AdminFeedbackPage from '@/pages/admin/AdminFeedbackPage'
 import { AdminCourseSupportsPage, AdminExamSubjectsPage } from '@/pages/admin/AdminContentPage'
 import NotFoundPage from '@/pages/NotFoundPage'
@@ -160,6 +161,7 @@ function DoctorRoutes() {
           <Route path="/admin/sujet" element={<Navigate to="/admin/themes" replace />} />
           <Route path="/admin/etudiants" element={<Navigate to="/admin/tickets" replace />} />
           <Route path="/admin/tickets" element={<AdminTicketsPage />} />
+          <Route path="/admin/historique" element={<AdminHistoryPage />} />
           <Route
             path="/admin/tickets/generes"
             element={

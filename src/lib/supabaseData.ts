@@ -9,6 +9,8 @@ import type {
   AnkiLevelResult,
   AnkiReviewCard,
   Attempt,
+  CompletedHistoryItem,
+  CompletedSeriesRow,
   CourseSupport,
   Database,
   ExamSubject,
@@ -627,6 +629,55 @@ export async function signOut() {
   const client = requireSupabase()
   await revokeActiveSession()
   await client.auth.signOut()
+}
+
+/** Enregistre l'historique puis supprime le compte si les 30 séries sont terminées. */
+export async function finalizeCompletedAccount(): Promise<boolean> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('finalize_completed_account')
+  if (error) throw asFrenchError(error)
+  return Boolean(data)
+}
+
+interface CompletedHistoryRow {
+  id: string
+  ticket_code: string
+  student_label: string
+  started_at: string | null
+  completed_at: string | null
+  deleted_at: string
+  series_summary: unknown
+  average: number | null
+  created_at: string
+}
+
+function mapCompletedHistory(row: CompletedHistoryRow): CompletedHistoryItem {
+  return {
+    id: row.id,
+    ticketCode: row.ticket_code,
+    studentLabel: row.student_label,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    deletedAt: row.deleted_at,
+    series: Array.isArray(row.series_summary)
+      ? (row.series_summary as CompletedSeriesRow[])
+      : [],
+    average: row.average ?? 0,
+    createdAt: row.created_at,
+  }
+}
+
+export async function listCompletedHistory(): Promise<CompletedHistoryItem[]> {
+  const client = requireSupabase()
+  const { data, error } = await client.rpc('list_completed_history')
+  if (error) throw asFrenchError(error)
+  return ((data ?? []) as CompletedHistoryRow[]).map(mapCompletedHistory)
+}
+
+export async function deleteCompletedHistory(id: string): Promise<void> {
+  const client = requireSupabase()
+  const { error } = await client.rpc('delete_completed_history', { p_id: id })
+  if (error) throw asFrenchError(error)
 }
 
 export interface StudentRegistration {
@@ -1268,21 +1319,6 @@ export async function generateTickets(
     secret: row.secret,
     type: row.type ?? type,
   }))
-}
-
-/**
- * Renouvelle l'accès d'un ticket (docteur uniquement).
- *
- * L'identifiant est conservé, mais un nouveau numéro d'enregistrement est
- * généré : l'ancien ne fonctionne plus. Le quota de 30 séries repart de zéro.
- */
-export async function renewTicket(code: string): Promise<GeneratedTicket> {
-  const client = requireSupabase()
-  const { data, error } = await client.rpc('renew_ticket', { p_code: code })
-  if (error) throw asFrenchError(error)
-  const row = ((data ?? []) as Array<{ code: string; secret: string }>)[0]
-  if (!row) throw new AppError('RENEWAL_FAILED', 'Le renouvellement a échoué.')
-  return { code: row.code, secret: row.secret, type: 'series' }
 }
 
 /** Tous les tickets (docteur uniquement). */

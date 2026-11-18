@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 import { usePageTitle } from '@/components/Layouts'
 import { LevelBilan } from '@/components/anki/LevelBilan'
 import type { AnkiLevelResult, Question, SeriesQuota } from '@/types'
@@ -28,12 +29,14 @@ export default function MedgameLevelResultPage() {
   usePageTitle('Bilan du niveau — MEDGAME — MEDQCM mada')
   const location = useLocation()
   const navigate = useNavigate()
+  const { logout } = useAuth()
   const { progressId: progressIdParam = '' } = useParams()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const state = (location.state ?? null) as BilanState | null
   const progressId = state?.progressId ?? progressIdParam
+  const cycleComplete = Boolean(state?.quota?.reached && state?.completed)
 
   const note = useMemo(() => {
     if (!state) return null
@@ -138,22 +141,45 @@ export default function MedgameLevelResultPage() {
           }
           secondaryLabel="Carte des niveaux"
           onSecondary={() => navigate('/app/medgame/parcours')}
+          hideActions={cycleComplete}
         />
 
-        <p className="mt-4 text-center text-[11px] leading-relaxed text-mute">
-          {isLastLevel
-            ? 'Dernier niveau du parcours.'
-            : `Il reste ${result.totalLevels - result.level} niveau${
-                result.totalLevels - result.level > 1 ? 's' : ''
-              } avant la fin du parcours.`}
-        </p>
+        {cycleComplete ? (
+          <div className="mt-5 rounded-2xl bg-ink px-6 py-8 text-white sm:px-10">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-white/60">Cycle terminé</p>
+            <h2 className="mt-3 font-display text-[clamp(1.7rem,3.5vw,2.4rem)] leading-[1.08] tracking-[-0.02em]">
+              Tes 30 séries sont terminées.
+            </h2>
+            <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-white/80">
+              Achète un nouveau ticket auprès du docteur comme précédemment. Tu peux maintenant te
+              déconnecter : ton compte et tes données seront supprimés.
+            </p>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[13px] font-semibold text-ink transition hover:bg-white/90"
+            >
+              Se déconnecter
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="mt-4 text-center text-[11px] leading-relaxed text-mute">
+              {isLastLevel
+                ? 'Dernier niveau du parcours.'
+                : `Il reste ${result.totalLevels - result.level} niveau${
+                    result.totalLevels - result.level > 1 ? 's' : ''
+                  } avant la fin du parcours.`}
+            </p>
 
-        {state.quota ? (
-          <p className="mt-1 text-center text-[11px] leading-relaxed text-mute">
-            Il te reste {state.quota.remaining} série
-            {state.quota.remaining > 1 ? 's' : ''} sur {state.quota.limit}.
-          </p>
-        ) : null}
+            {state.quota ? (
+              <p className="mt-1 text-center text-[11px] leading-relaxed text-mute">
+                Il te reste {state.quota.remaining} série
+                {state.quota.remaining > 1 ? 's' : ''} sur {state.quota.limit}.
+              </p>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   )
