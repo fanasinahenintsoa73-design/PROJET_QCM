@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Ban,
+  ChevronDown,
   Copy,
   Eye,
   MoreHorizontal,
@@ -22,7 +23,7 @@ import { useToast } from '@/components/ui/Toast'
 import { copyText } from '@/lib/downloadTickets'
 import { getGeneratedTickets, setGeneratedTickets } from '@/lib/generatedTicketsSession'
 import { cn, formatDateLong, formatDateTime } from '@/lib/utils'
-import type { TicketItem } from '@/types'
+import type { CompletedHistoryItem, CompletedSeriesRow, TicketItem } from '@/types'
 
 const MAX_TICKETS_PER_BATCH = 500
 
@@ -48,6 +49,23 @@ const FILTER_TITLES: Record<FilterKey, string> = {
 
 function isTicketFilter(value: string | null): value is FilterKey {
   return value !== null && FILTERS.some((filter) => filter.key === value)
+}
+
+function seriesLabel(row: CompletedSeriesRow): string {
+  const parts: string[] = []
+  if (row.ue) parts.push(row.ue)
+  if (row.chapters && row.chapters.length > 0) parts.push(row.chapters.join(', '))
+  return parts.length > 0 ? parts.join(' · ') : '—'
+}
+
+function seriesScore(row: CompletedSeriesRow): string {
+  if (row.kind === 'medgame') {
+    if (row.correct != null && row.total != null) return `${row.correct}/${row.total} bonnes réponses`
+    if (row.level != null) return `Niveau ${row.level}`
+    return 'Terminé'
+  }
+  if (row.score != null && row.total != null) return `${row.score}/${row.total}`
+  return 'Terminé'
 }
 
 function isAnkiExpired(item: TicketItem): boolean {
@@ -120,6 +138,11 @@ export default function AdminTicketsPage() {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [detail, setDetail] = useState<TicketItem | null>(null)
   const [deleteTargets, setDeleteTargets] = useState<TicketItem[]>([])
+  // Historique des comptes terminés, affiché dans le filtre « Terminé ».
+  const [history, setHistory] = useState<CompletedHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyExpanded, setHistoryExpanded] = useState<Set<string>>(new Set())
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null)
 
   const lastBatch = getGeneratedTickets()
   const batchSecrets = new Map(lastBatch.map((ticket) => [ticket.code, ticket.secret]))
@@ -229,6 +252,43 @@ export default function AdminTicketsPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      setHistory(await api.listCompletedHistory())
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'L’historique n’a pas pu être chargé.', 'error')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    if (activeFilter === 'finished') void loadHistory()
+  }, [activeFilter, loadHistory])
+
+  async function handleDeleteHistory(item: CompletedHistoryItem) {
+    setDeletingHistoryId(item.id)
+    try {
+      await api.deleteCompletedHistory(item.id)
+      toast('Historique supprimé.')
+      await loadHistory()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'La suppression a échoué.', 'error')
+    } finally {
+      setDeletingHistoryId(null)
+    }
+  }
+
+  function toggleHistory(id: string) {
+    setHistoryExpanded((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   function updateParams(next: { statut?: FilterKey | null }) {
     const params = new URLSearchParams(searchParams)
@@ -476,6 +536,89 @@ export default function AdminTicketsPage() {
               Effacer le filtre
             </Button>
           </div>
+        ) : null}
+
+        {activeFilter === 'finished' ? (
+          <section className="mt-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display text-[19px] tracking-[-0.01em] text-ink">
+                  Historique des comptes terminés
+                </h2>
+                <p className="mt-0.5 text-[12px] text-mute">
+                  Séries des étudiants partis après 30 séries. Supprime une ligne pour libérer de la place.
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => void loadHistory()} disabled={historyLoading}>
+                <RefreshCw size={14} className={cn(historyLoading && 'animate-spin')} />
+                Actualiser
+              </Button>
+            </div>
+
+            {historyLoading && history.length === 0 ? (
+              <p className="mt-4 text-[13px] text-mute">Chargement de l’historique…</p>
+            ) : history.length === 0 ? (
+              <p className="mt-4 rounded-xl border border-line bg-surface px-4 py-6 text-center text-[13px] text-mute">
+                Aucun compte terminé pour le moment.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-2.5">
+                {history.map((item) => {
+                  const expanded = historyExpanded.has(item.id)
+                  return (
+                    <div key={item.id} className="rounded-xl border border-line bg-surface">
+                      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleHistory(item.id)}
+                          aria-expanded={expanded}
+                          aria-label={expanded ? 'Réduire le détail' : 'Voir le détail'}
+                          className="grid h-7 w-7 place-items-center rounded-md text-mute transition hover:bg-cloud hover:text-ink"
+                        >
+                          <ChevronDown size={16} className={cn('transition-transform', expanded && 'rotate-180')} />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium text-ink">
+                            {item.studentLabel || item.ticketCode}
+                          </p>
+                          <p className="text-[11px] text-mute">
+                            {item.series.length} série{item.series.length > 1 ? 's' : ''} · moyenne{' '}
+                            {item.average.toFixed(1)} / 100
+                            {item.completedAt ? ` · terminé le ${formatDateTime(item.completedAt)}` : ''}
+                          </p>
+                        </div>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => void handleDeleteHistory(item)}
+                          disabled={deletingHistoryId === item.id}
+                        >
+                          <Trash2 size={14} />
+                          {deletingHistoryId === item.id ? 'Suppression…' : 'Supprimer'}
+                        </Button>
+                      </div>
+                      {expanded ? (
+                        <ul className="divide-y divide-line border-t border-line px-4 py-1">
+                          {item.series.map((row, index) => (
+                            <li key={`${item.id}-${index}`} className="flex flex-wrap items-center gap-2 py-2 text-[12px]">
+                              <span className="font-medium text-ink">
+                                {row.kind === 'medgame' ? 'MEDGAME checker' : 'Pré-concours'}
+                              </span>
+                              <span className="text-mute">{seriesLabel(row)}</span>
+                              <span className="ml-auto text-ink">{seriesScore(row)}</span>
+                              {row.date ? (
+                                <span className="w-full text-[11px] text-mute">{formatDateTime(row.date)}</span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
         ) : null}
 
         {selected.size > 0 ? (

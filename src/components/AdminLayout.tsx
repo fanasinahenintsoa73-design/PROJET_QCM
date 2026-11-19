@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { BookOpen, FileText, History, LayoutDashboard, Library, LogOut, Star, Ticket } from 'lucide-react'
+import { BookOpen, FileText, LayoutDashboard, Library, LogOut, Star, Ticket } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 import { fullName, initials } from '@/lib/utils'
@@ -15,7 +15,6 @@ type AdminNavItem = {
 const navItems: AdminNavItem[] = [
   { to: '/admin', label: 'Page d’accueil', icon: LayoutDashboard, end: true },
   { to: '/admin/tickets', label: 'Tickets', icon: Ticket },
-  { to: '/admin/historique', label: 'Historique', icon: History },
   { to: '/admin/themes', label: 'Sujets', icon: BookOpen },
   { to: '/admin/supports', label: 'Supports', icon: Library },
   { to: '/admin/sujets-concours', label: 'Sujets de concours', mobileLabel: 'Concours', icon: FileText },
