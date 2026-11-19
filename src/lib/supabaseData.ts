@@ -1827,7 +1827,7 @@ export async function abandonMedgameRun(runId: string): Promise<SeriesQuota | nu
 }
 
 /* ------------------------------------------------------------------ */
-/* Supports du cours et sujets de concours                                */
+/* Supports de cours et sujets de concours                                */
 /* ------------------------------------------------------------------ */
 
 const CONTENT_BUCKET = 'course-content'

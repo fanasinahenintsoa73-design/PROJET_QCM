@@ -2022,7 +2022,7 @@ export function myTicketInfo(): TicketInfo | null {
 }
 
 /* ------------------------------------------------------------------ */
-/* Supports du cours et sujets de concours (mode démonstration)           */
+/* Supports de cours et sujets de concours (mode démonstration)           */
 /* ------------------------------------------------------------------ */
 
 const CONTENT_KEY = 'medqcm.content.v1'

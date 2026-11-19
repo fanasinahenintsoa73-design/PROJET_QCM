@@ -28,7 +28,7 @@ const entries = [
   },
   {
     to: '/app/supports',
-    title: 'Supports du cours',
+    title: 'Supports de cours',
     description: 'Les documents de cours déposés par le docteur, à consulter dans l’application.',
     icon: Library,
   },
