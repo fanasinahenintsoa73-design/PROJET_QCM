@@ -32,6 +32,7 @@ import {
   emptyDatabase,
   fetchDatabase,
   fetchProfile,
+  accountExists,
   ticketLoginCheck,
   ticketLoginFailure,
   ticketLoginSuccess,
@@ -103,8 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async (options?: { syncFeedbacks?: boolean }) => {
     if (!isSupabaseConfigured || !supabase) return
     lastFullRefreshAt.current = Date.now()
+    let sessionUserId: string | null = null
     try {
       const { data } = await supabase.auth.getSession()
+      sessionUserId = data.session?.user?.id ?? null
       if (!data.session?.user) {
         if (!mounted.current) return
         setRemoteDb(emptyDatabase())
@@ -141,6 +144,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       if (!mounted.current) return
+      // Le compte a pu être supprimé entre deux rafraîchissements (purge
+      // automatique à la 30e série) : le JWT reste valide ~1 h après. Dans ce
+      // cas, forcer la déconnexion pour qu'aucun accès ne subsiste, même la
+      // dernière page de message.
+      let accountRemoved = false
+      if (sessionUserId) {
+        try {
+          accountRemoved = !(await accountExists(sessionUserId))
+        } catch {
+          // Erreur réseau : on ne déconnecte pas sur une simple incertitude.
+        }
+      }
+      if (accountRemoved) {
+        await supabase.auth.signOut().catch(() => undefined)
+        setRemoteDb(emptyDatabase())
+        setRemoteUser(null)
+        setTicketInfo(null)
+        setTicketBlocked(false)
+        if (!isDoctorPortal) navigate('/acces')
+        return
+      }
       console.error('Chargement du compte impossible.', error)
       setRemoteDb(emptyDatabase())
       setRemoteUser(null)

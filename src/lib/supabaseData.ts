@@ -327,6 +327,22 @@ export function asFrenchError(error: unknown): Error {
 /* Profil & snapshot                                                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Vrai si le profil existe encore. Sert à détecter un compte supprimé entre
+ * deux rafraîchissements (purge automatique après la 30e série) : le JWT peut
+ * rester valide environ une heure après la suppression du compte.
+ */
+export async function accountExists(userId: string): Promise<boolean> {
+  const client = requireSupabase()
+  const { data, error } = await client
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw asFrenchError(error)
+  return Boolean(data)
+}
+
 export async function fetchProfile(userId: string, attempts = 4): Promise<User> {
   const client = requireSupabase()
   let lastError: unknown = null
