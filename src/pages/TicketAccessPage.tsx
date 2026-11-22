@@ -12,6 +12,52 @@ import { doctorContactLine } from '@/lib/contact'
 
 const DOCTOR_PHOTO = '/docteur.jpg'
 
+// Le message long est partagé entre le panneau desktop et la fenêtre
+// plein écran ouverte depuis le en-tête compact sur mobile.
+function DoctorMessage() {
+  return (
+    <div className="space-y-4 font-display text-[15px] leading-[1.75] text-white/90 sm:text-[16px] sm:leading-[1.8]">
+      <p className="text-[17px] italic text-white sm:text-[18px]">Chers PACES,</p>
+
+      <p>
+        Cette application est conçue pour vous accompagner dans vos révisions et vous aider
+        à réussir le concours de passage en L2. Nous espérons qu’elle vous sera d’une grande
+        aide tout au long de votre préparation.
+      </p>
+
+      <p>
+        Ne cherchez pas seulement à retenir les bonnes réponses, cherchez avant tout à
+        comprendre le pourquoi de chaque affirmation, qu’elle soit juste ou fausse !
+      </p>
+
+      <blockquote className="relative rounded-xl border-l-2 border-white/70 bg-white/10 px-5 py-4 italic text-white">
+        <span className="absolute -top-2 left-3 font-display text-4xl leading-none text-white/40">
+          “
+        </span>
+        La clé de la réussite en PACES : avoir suivi tous les cours en classe, comprendre
+        les cours, les mémoriser, s’entraîner avec des QCM, puis réviser tous les jours.
+      </blockquote>
+
+      <p>
+        Gardez confiance en vous, soyez persévérants et ne baissez jamais les bras. Chaque
+        effort compte et chaque jour de révision vous rapproche de votre objectif !
+      </p>
+
+      <p>
+        Des QCM à votre rythme : 30 séries de dix questions, ou le mode MEDGAME, chapitre par
+        chapitre.
+      </p>
+
+      <p>
+        Retrouvez également les supports de cours et les sujets de concours, pour réviser et
+        vous entraîner dans les meilleures conditions.
+      </p>
+
+      <p className="text-white">Je vous souhaite beaucoup de courage et surtout une excellente réussite !</p>
+    </div>
+  )
+}
+
 export function TicketAccessPage() {
   usePageTitle('Accès ticket — MEDQCM mada')
   const { user, access, ticketBlocked, ticketLogin, logout } = useAuth()
@@ -23,13 +69,17 @@ export function TicketAccessPage() {
   const [submitting, setSubmitting] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
   const [photoError, setPhotoError] = useState(false)
+  const [messageOpen, setMessageOpen] = useState(false)
 
-  // Fermeture de la photo en plein écran avec la touche Échap, et blocage
+  // Fermeture des fenêtres plein écran avec la touche Échap, et blocage
   // du défilement de la page derrière.
   useEffect(() => {
-    if (!photoOpen) return
+    if (!photoOpen && !messageOpen) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPhotoOpen(false)
+      if (event.key === 'Escape') {
+        setPhotoOpen(false)
+        setMessageOpen(false)
+      }
     }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -37,7 +87,7 @@ export function TicketAccessPage() {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = ''
     }
-  }, [photoOpen])
+  }, [photoOpen, messageOpen])
 
   // Une session déjà ouverte : on redirige selon l'état d'accès.
   if (user) {
@@ -98,7 +148,10 @@ export function TicketAccessPage() {
             <div className="mt-8 flex items-center gap-4 sm:gap-5">
               <button
                 type="button"
-                onClick={() => setPhotoOpen(true)}
+                onClick={() => {
+                  setMessageOpen(false)
+                  setPhotoOpen(true)
+                }}
                 aria-label="Voir la photo du docteur en entier"
                 className="relative shrink-0 overflow-hidden rounded-full border-2 border-white/70 bg-white/10 shadow-lg transition hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-accent"
               >
@@ -125,45 +178,28 @@ export function TicketAccessPage() {
               </div>
             </div>
 
-            {/* Message long, en paragraphes aérés et en police serif, comme une lettre */}
-            <div className="mt-8 space-y-4 font-display text-[15px] leading-[1.75] text-white/90 sm:text-[16px] sm:leading-[1.8]">
-              <p className="text-[17px] italic text-white sm:text-[18px]">Chers PACES,</p>
-
-              <p>
+            {/* Sur mobile : en-tête compact et bouton pour lire le message long en plein écran */}
+            <div className="mt-6 lg:hidden">
+              <p className="font-display text-[17px] italic text-white">Chers PACES,</p>
+              <p className="mt-2 text-[14px] leading-relaxed text-white/85">
                 Cette application est conçue pour vous accompagner dans vos révisions et vous aider
-                à réussir le concours de passage en L2. Nous espérons qu’elle vous sera d’une grande
-                aide tout au long de votre préparation.
+                à réussir le concours de passage en L2.
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPhotoOpen(false)
+                  setMessageOpen(true)
+                }}
+                className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/10 px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                Lire le message du docteur <ArrowRight size={15} />
+              </button>
+            </div>
 
-              <p>
-                Ne cherchez pas seulement à retenir les bonnes réponses, cherchez avant tout à
-                comprendre le pourquoi de chaque affirmation, qu’elle soit juste ou fausse !
-              </p>
-
-              <blockquote className="relative rounded-xl border-l-2 border-white/70 bg-white/10 px-5 py-4 italic text-white">
-                <span className="absolute -top-2 left-3 font-display text-4xl leading-none text-white/40">
-                  “
-                </span>
-                La clé de la réussite en PACES : avoir suivi tous les cours en classe, comprendre
-                les cours, les mémoriser, s’entraîner avec des QCM, puis réviser tous les jours.
-              </blockquote>
-
-              <p>
-                Gardez confiance en vous, soyez persévérants et ne baissez jamais les bras. Chaque
-                effort compte et chaque jour de révision vous rapproche de votre objectif !
-              </p>
-
-              <p>
-                Des QCM à votre rythme : 30 séries de dix questions, ou le mode MEDGAME, chapitre par
-                chapitre.
-              </p>
-
-              <p>
-                Retrouvez également les supports de cours et les sujets de concours, pour réviser et
-                vous entraîner dans les meilleures conditions.
-              </p>
-
-              <p className="text-white">Je vous souhaite beaucoup de courage et surtout une excellente réussite !</p>
+            {/* Sur desktop : le message long reste affiché directement dans le panneau */}
+            <div className="mt-8 hidden lg:block">
+              <DoctorMessage />
             </div>
 
             <div className="mt-7 hidden items-center gap-2 text-[12px] text-white/60 lg:flex">
@@ -258,6 +294,46 @@ export function TicketAccessPage() {
           </div>
         </section>
       </div>
+
+      {/* Message long du docteur, en plein écran depuis le en-tête mobile */}
+      {messageOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Message du docteur"
+          className="fixed inset-0 z-50 overflow-y-auto bg-accent text-white"
+        >
+          <button
+            type="button"
+            onClick={() => setMessageOpen(false)}
+            aria-label="Fermer le message"
+            className="fixed right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+          >
+            <X size={22} />
+          </button>
+          <div className="relative mx-auto max-w-[42rem] px-6 py-10 sm:px-10 sm:py-14">
+            <p className="text-[11px] font-semibold tracking-[0.18em] text-white/60">
+              MEDQCM MADA — L1 SANTÉ
+            </p>
+            <div className="mt-6 flex items-center gap-4">
+              <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white/70 bg-white/10 font-display text-xl">
+                {photoError ? 'Dr' : <img src={DOCTOR_PHOTO} alt="Docteur RAZAFIMANDIMBY J." onError={() => setPhotoError(true)} className="h-full w-full object-cover object-top" />}
+              </span>
+              <div>
+                <p className="text-[11px] font-medium tracking-[0.14em] text-white/60">
+                  UN MOT DU DOCTEUR
+                </p>
+                <h2 className="mt-1 font-display text-[clamp(1.35rem,4vw,1.9rem)] leading-[1.1] tracking-[-0.02em]">
+                  Docteur RAZAFIMANDIMBY J.
+                </h2>
+              </div>
+            </div>
+            <div className="mt-8">
+              <DoctorMessage />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Photo en entier, en plein écran */}
       {photoOpen ? (
