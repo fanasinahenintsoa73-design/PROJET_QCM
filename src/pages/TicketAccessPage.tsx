@@ -1,13 +1,45 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff, LockKeyhole, LogOut, Phone } from 'lucide-react'
-import { AuthShell } from '@/components/AuthShell'
+import { Logo } from '@/components/Logo'
 import { Field, Input } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/components/Layouts'
 import { doctorContactLine } from '@/lib/contact'
+
+function LoginShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-accent-deep">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-cover"
+        style={{ backgroundImage: "url('/login-bg.png')", backgroundPosition: 'center 45%' }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-b from-[#052c1a]/5 to-[#052c1a]/25"
+      />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-7">
+        <main className="flex flex-1 items-center justify-center py-10 sm:py-14">
+          <div className="w-full max-w-[440px] rounded-[28px] border border-white/60 bg-white/25 p-6 shadow-[0_16px_42px_rgba(4,36,20,0.18)] backdrop-blur-[18px] backdrop-saturate-[140%] sm:p-7">
+            <div className="flex items-center">
+              <Logo />
+            </div>
+            {children}
+          </div>
+        </main>
+
+        <div className="flex items-center justify-between gap-3 border-t border-white/40 pt-4 text-[11px] text-white drop-shadow">
+          <span>© {new Date().getFullYear()} MEDQCM mada</span>
+          <span>L1 santé</span>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function TicketAccessPage() {
   usePageTitle('Accès ticket — MEDQCM mada')
@@ -27,7 +59,7 @@ export function TicketAccessPage() {
     if (access === 'active') return <Navigate to="/app" replace />
     // Ancien compte e-mail (le parcours par ticket a remplacé l'inscription).
     return (
-      <AuthShell>
+      <LoginShell>
         <div>
           <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
             Ce compte n’est plus utilisé.
@@ -40,7 +72,7 @@ export function TicketAccessPage() {
             <LogOut size={15} /> Se déconnecter
           </Button>
         </div>
-      </AuthShell>
+      </LoginShell>
     )
   }
 
@@ -61,7 +93,7 @@ export function TicketAccessPage() {
   }
 
   return (
-    <AuthShell>
+    <LoginShell>
       <div>
         <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
           Accède à tes séries.
@@ -129,6 +161,6 @@ export function TicketAccessPage() {
           <LockKeyhole size={13} /> Un ticket correspond à une seule personne et à 30 séries.
         </div>
       </div>
-    </AuthShell>
+    </LoginShell>
   )
 }
