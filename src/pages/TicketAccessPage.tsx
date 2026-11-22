@@ -169,10 +169,7 @@ export function TicketAccessPage() {
                 )}
               </button>
               <div>
-                <p className="text-[11px] font-medium tracking-[0.14em] text-white/60">
-                  UN MOT DU DOCTEUR
-                </p>
-                <h2 className="mt-1 font-display text-[clamp(1.35rem,4vw,1.9rem)] leading-[1.1] tracking-[-0.02em]">
+                <h2 className="font-display text-[clamp(1.35rem,4vw,1.9rem)] leading-[1.1] tracking-[-0.02em]">
                   Docteur RAZAFIMANDIMBY J.
                 </h2>
               </div>
@@ -213,9 +210,6 @@ export function TicketAccessPage() {
         <section className="flex flex-col bg-surface px-6 py-8 sm:px-10 lg:px-14 lg:py-10">
           <div className="flex items-center justify-between gap-3">
             <Logo />
-            <span className="text-[11px] font-medium tracking-[0.06em] text-mute">
-              Espace étudiant
-            </span>
           </div>
 
           <main className="flex flex-1 items-center justify-center py-10 sm:py-14">
@@ -320,10 +314,7 @@ export function TicketAccessPage() {
                 {photoError ? 'Dr' : <img src={DOCTOR_PHOTO} alt="Docteur RAZAFIMANDIMBY J." onError={() => setPhotoError(true)} className="h-full w-full object-cover object-top" />}
               </span>
               <div>
-                <p className="text-[11px] font-medium tracking-[0.14em] text-white/60">
-                  UN MOT DU DOCTEUR
-                </p>
-                <h2 className="mt-1 font-display text-[clamp(1.35rem,4vw,1.9rem)] leading-[1.1] tracking-[-0.02em]">
+                <h2 className="font-display text-[clamp(1.35rem,4vw,1.9rem)] leading-[1.1] tracking-[-0.02em]">
                   Docteur RAZAFIMANDIMBY J.
                 </h2>
               </div>
