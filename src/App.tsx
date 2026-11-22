@@ -5,7 +5,6 @@ import { ToastProvider } from '@/components/ui/Toast'
 import { UpdateWatcher } from '@/components/UpdateWatcher'
 import { isDoctorPortal } from '@/lib/portal'
 import {
-  PublicLayout,
   StudentLayout,
   StatusLayout,
   RequireGuest,
@@ -17,7 +16,6 @@ import {
 } from '@/components/Layouts'
 import { AdminLayout } from '@/components/AdminLayout'
 import { LoginPage } from '@/pages/LoginPage'
-import { LandingPage } from '@/pages/LandingPage'
 import { TicketAccessPage } from '@/pages/TicketAccessPage'
 import { ExpirationPage } from '@/pages/ExpirationPage'
 import DashboardPage from '@/pages/DashboardPage'
@@ -70,10 +68,9 @@ function DemandesRedirect() {
 function StudentRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<PublicLayout />}>
-        <Route index element={<LandingPage />} />
-      </Route>
-      <Route path="/acces" element={<TicketAccessPage />} />
+      {/* La page d'accueil est directement la fusion du message du docteur et du login étudiant */}
+      <Route index element={<TicketAccessPage />} />
+      <Route path="/acces" element={<Navigate to="/" replace />} />
       <Route path="/inscription" element={<Navigate to="/acces" replace />} />
       <Route path="/connexion" element={<Navigate to="/acces" replace />} />
       <Route path="/en-attente" element={<Navigate to="/acces" replace />} />
