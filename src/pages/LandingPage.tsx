@@ -1,10 +1,69 @@
 import { ArrowRight, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ButtonLink } from '@/components/ui/Button'
 import { usePageTitle } from '@/components/Layouts'
 import { useAuth } from '@/lib/auth'
 
 const DOCTOR_PHOTO = '/docteur.jpg'
+const DOCTOR_BG = '/doctor-bg.jpg'
+
+const MESSAGE_LINES = [
+  'Chers PACES,',
+  'Cette application vous accompagne dans vos révisions de PACES pour réussir le concours de passage en L2, en cherchant avant tout à comprendre le pourquoi de chaque affirmation plutôt qu’à retenir les bonnes réponses.',
+  'Suivez et comprenez les cours, mémorisez-les, entraînez-vous avec des QCM et révisez chaque jour avec confiance et persévérance : trente séries de dix questions, le mode MEDGAME, les supports de cours et les sujets de concours sont là pour vous.',
+  'Je vous souhaite beaucoup de courage et surtout une excellente réussite !',
+]
+
+function TypedParagraph({
+  text,
+  greeting,
+  start,
+  onDone,
+}: {
+  text: string
+  greeting?: boolean
+  start: boolean
+  onDone: () => void
+}) {
+  const [shown, setShown] = useState('')
+
+  useEffect(() => {
+    if (!start) return
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reducedMotion) {
+      setShown(text)
+      onDone()
+      return
+    }
+    let index = 0
+    const timer = window.setInterval(() => {
+      index += 1
+      setShown(text.slice(0, index))
+      if (index >= text.length) {
+        window.clearInterval(timer)
+        onDone()
+      }
+    }, 26)
+    return () => window.clearInterval(timer)
+  }, [start, text, onDone])
+
+  const typing = start && shown.length < text.length
+
+  return (
+    <p
+      className={`font-display text-[15px] leading-[1.6] text-white [text-shadow:0_1px_5px_rgba(0,0,0,0.55)] sm:text-[17px] ${
+        greeting ? 'italic text-[17px] sm:text-[19px]' : ''
+      }`}
+    >
+      {shown}
+      {typing ? (
+        <span className="ml-0.5 inline-block h-[1em] w-[1.5px] animate-pulse bg-white align-[-2px]" />
+      ) : null}
+    </p>
+  )
+}
 
 export function LandingPage() {
   usePageTitle('MEDQCM mada — Chers PACES')
@@ -13,9 +72,9 @@ export function LandingPage() {
   const startHref = studentUser ? homePath : '/acces'
   const [photoOpen, setPhotoOpen] = useState(false)
   const [photoError, setPhotoError] = useState(false)
+  const [activeLine, setActiveLine] = useState(0)
+  const handleLineDone = useCallback(() => setActiveLine((current) => current + 1), [])
 
-  // Fermeture de la photo en plein écran avec la touche Échap, et blocage
-  // du défilement de la page derrière.
   useEffect(() => {
     if (!photoOpen) return
     const onKey = (event: KeyboardEvent) => {
@@ -30,18 +89,27 @@ export function LandingPage() {
   }, [photoOpen])
 
   return (
-    <section className="border-b border-line bg-surface">
-      <div className="mx-auto max-w-[42rem] px-5 py-12 sm:px-8 lg:py-16">
-        {/* Photo ronde à gauche, nom à droite */}
-        <div className="flex items-center gap-4 sm:gap-5">
+    <main className="relative min-h-screen overflow-hidden bg-accent-deep">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url('${DOCTOR_BG}')`, backgroundPosition: 'center 30%' }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-b from-[#042817]/35 via-[#042817]/15 to-[#042817]/40"
+      />
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[540px] flex-col px-5 pb-6 pt-6 sm:px-8 sm:pt-10">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setPhotoOpen(true)}
             aria-label="Voir la photo du docteur en entier"
-            className="relative shrink-0 overflow-hidden rounded-full border border-line bg-accent-soft shadow-soft transition hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            className="relative h-[60px] w-[60px] shrink-0 overflow-hidden rounded-full border-2 border-white/85 bg-accent-soft shadow-[0_5px_16px_rgba(0,0,0,0.22)] transition hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-accent-deep"
           >
             {photoError ? (
-              <span className="flex h-20 w-20 items-center justify-center font-display text-[22px] text-accent-deep sm:h-24 sm:w-24 sm:text-[26px]">
+              <span className="flex h-full w-full items-center justify-center font-display text-[20px] text-accent-deep">
                 Dr
               </span>
             ) : (
@@ -49,65 +117,44 @@ export function LandingPage() {
                 src={DOCTOR_PHOTO}
                 alt="Docteur RAZAFIMANDIMBY J."
                 onError={() => setPhotoError(true)}
-                className="h-20 w-20 object-cover object-top sm:h-24 sm:w-24"
+                className="h-full w-full object-cover object-top"
               />
             )}
           </button>
           <div>
-            <h1 className="font-display text-[clamp(1.6rem,5vw,2.4rem)] leading-[1.05] tracking-[-0.02em] text-ink">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/75">
+              Message du docteur
+            </p>
+            <h1 className="font-display text-[20px] leading-[1.1] text-white">
               Docteur RAZAFIMANDIMBY J.
             </h1>
           </div>
         </div>
 
-        {/* Long message, même police et même style que le corps de la lettre */}
-        <div className="mt-8 space-y-5">
-          <p className="text-[16px] leading-[1.65] text-mute">Chers PACES,</p>
-
-          <p className="text-[16px] leading-[1.65] text-mute">
-            Cette application est conçue pour vous accompagner dans vos révisions et vous aider
-            à réussir le concours de passage en L2. Nous espérons qu’elle vous sera d’une grande
-            aide tout au long de votre préparation.
-          </p>
-
-          <p className="text-[16px] leading-[1.65] text-mute">
-            Ne cherchez pas seulement à retenir les bonnes réponses, cherchez avant tout à
-            comprendre le pourquoi de chaque affirmation, qu’elle soit juste ou fausse !
-          </p>
-
-          <p className="text-[16px] leading-[1.65] text-mute">
-            « La clé de la réussite en PACES : avoir suivi tous les cours en classe, comprendre
-            les cours, les mémoriser, s’entraîner avec des QCM, puis réviser tous les jours. »
-          </p>
-
-          <p className="text-[16px] leading-[1.65] text-mute">
-            Gardez confiance en vous, soyez persévérants et ne baissez jamais les bras. Chaque
-            effort compte et chaque jour de révision vous rapproche de votre objectif !
-          </p>
-
-          <p className="text-[16px] leading-[1.65] text-mute">
-            Des QCM à votre rythme : 30 séries de dix questions, ou le mode MEDGAME, chapitre par
-            chapitre.
-          </p>
-
-          <p className="text-[16px] leading-[1.65] text-mute">
-            Retrouvez également les supports de cours et les sujets de concours, pour réviser et
-            vous entraîner dans les meilleures conditions.
-          </p>
-
-          <p className="text-[16px] leading-[1.65] text-mute">
-            Je vous souhaite beaucoup de courage et surtout une excellente réussite !
-          </p>
+        <div className="mt-11 flex-1 space-y-[17px]">
+          {MESSAGE_LINES.map((line, index) => (
+            <TypedParagraph
+              key={index}
+              text={line}
+              greeting={index === 0}
+              start={index <= activeLine}
+              onDone={handleLineDone}
+            />
+          ))}
         </div>
 
-        <div className="mt-10">
-          <ButtonLink to={startHref} size="lg" className="w-full sm:w-auto">
+        <div className="mt-8">
+          <ButtonLink to={startHref} size="lg" className="w-full">
             {studentUser ? 'Ouvrir mon espace' : 'Accéder'} <ArrowRight size={16} />
           </ButtonLink>
         </div>
+
+        <footer className="mt-5 flex items-center justify-between text-[10px] text-white/80">
+          <span>© 2026 MEDQCM mada</span>
+          <span>L1 santé</span>
+        </footer>
       </div>
 
-      {/* Photo en entier, en plein écran */}
       {photoOpen ? (
         <div
           role="dialog"
@@ -143,6 +190,6 @@ export function LandingPage() {
           )}
         </div>
       ) : null}
-    </section>
+    </main>
   )
 }

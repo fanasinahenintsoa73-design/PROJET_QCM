@@ -5,7 +5,6 @@ import { ToastProvider } from '@/components/ui/Toast'
 import { UpdateWatcher } from '@/components/UpdateWatcher'
 import { isDoctorPortal } from '@/lib/portal'
 import {
-  PublicLayout,
   StudentLayout,
   StatusLayout,
   RequireGuest,
@@ -70,9 +69,7 @@ function DemandesRedirect() {
 function StudentRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<PublicLayout />}>
-        <Route index element={<LandingPage />} />
-      </Route>
+      <Route index element={<LandingPage />} />
       <Route path="/acces" element={<TicketAccessPage />} />
       <Route path="/inscription" element={<Navigate to="/acces" replace />} />
       <Route path="/connexion" element={<Navigate to="/acces" replace />} />
