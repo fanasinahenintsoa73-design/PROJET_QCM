@@ -127,7 +127,7 @@ export default function DashboardPage() {
         </div>
 
         <div
-          className="mx-auto mt-9 w-[300px] touch-pan-y overflow-hidden"
+          className="mx-auto mt-9 w-full max-w-[350px] touch-pan-y overflow-hidden"
           role="group"
           aria-roledescription="carrousel"
           aria-label="Choisissez une option"
@@ -138,15 +138,15 @@ export default function DashboardPage() {
           }}
         >
           <div
-            className="flex transition-transform duration-300 ease-out motion-reduce:transition-none"
-            style={{ transform: `translateX(-${index * 300}px)` }}
+            className="flex w-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+            style={{ transform: `translateX(-${index * 100}%)` }}
           >
             {entries.map((entry, entryIndex) => {
               const Icon = entry.icon
               return (
                 <article
                   key={entry.to}
-                  className="flex h-[300px] w-[300px] shrink-0 flex-col justify-between rounded-[18px] border border-[#D7DED8] bg-white/75 p-5 shadow-[0_6px_18px_rgba(4,36,20,0.05)] backdrop-blur-[16px]"
+                  className="flex h-[300px] w-full shrink-0 flex-col justify-between rounded-[18px] border border-[#D7DED8] bg-white/75 p-5 shadow-[0_6px_18px_rgba(4,36,20,0.05)] backdrop-blur-[16px]"
                   aria-hidden={entryIndex !== index}
                 >
                   <div>
