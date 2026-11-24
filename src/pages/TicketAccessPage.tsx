@@ -24,7 +24,7 @@ function LoginShell({ children }: { children: ReactNode }) {
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-7">
         <main className="flex flex-1 items-center justify-center py-10 sm:py-14">
-          <div className="w-full max-w-[440px] rounded-[28px] border border-white/60 bg-white/25 p-6 shadow-[0_16px_42px_rgba(4,36,20,0.18)] backdrop-blur-[18px] backdrop-saturate-[140%] sm:p-7">
+          <div className="w-full max-w-[440px] rounded-[28px] border border-white/60 bg-white/40 p-6 shadow-[0_16px_42px_rgba(4,36,20,0.18)] backdrop-blur-[18px] backdrop-saturate-[140%] sm:p-7">
             <div className="flex items-center">
               <Logo />
             </div>
@@ -64,7 +64,7 @@ export function TicketAccessPage() {
           <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
             Ce compte n’est plus utilisé.
           </h1>
-          <p className="mt-3 max-w-sm text-[14px] leading-relaxed text-mute">
+          <p className="mt-3 max-w-sm text-[14px] leading-relaxed font-medium text-[#1F372A]">
             L’accès se fait maintenant par ticket : achète un ticket au docteur (ID +
             numéro d’enregistrement), puis reviens ici pour entrer.
           </p>
@@ -98,7 +98,7 @@ export function TicketAccessPage() {
         <h1 className="font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-ink sm:text-[3rem]">
           Accède à tes séries.
         </h1>
-        <p className="mt-3 max-w-sm text-[14px] leading-relaxed text-mute">
+        <p className="mt-3 max-w-sm text-[14px] leading-relaxed font-medium text-[#1F372A]">
           Entre l’ID et le numéro d’enregistrement de ton ticket pour retrouver
           les neuf thèmes PACES et tes corrections détaillées.
         </p>
@@ -118,6 +118,7 @@ export function TicketAccessPage() {
               id="ticket-access-code"
               type="text"
               autoComplete="username"
+              className="ticket-input"
               value={code}
               onChange={(event) => setCode(event.target.value.toUpperCase())}
               required
@@ -133,13 +134,13 @@ export function TicketAccessPage() {
                 placeholder="Numéro sur ton ticket"
                 value={secret}
                 onChange={(event) => setSecret(event.target.value.toUpperCase())}
-                className="pr-12"
+                className="pr-12 ticket-input"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowSecret((value) => !value)}
-                className="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-mute transition hover:bg-cloud hover:text-ink"
+                className="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-[#2C4A38] transition hover:bg-cloud hover:text-ink"
                 aria-label={showSecret ? 'Masquer le numéro' : 'Afficher le numéro'}
               >
                 {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -152,12 +153,12 @@ export function TicketAccessPage() {
           </Button>
         </form>
 
-        <div className="mt-7 flex items-start gap-2 border-t border-line pt-4 text-[12px] leading-relaxed text-mute">
+        <div className="mt-7 flex items-start gap-2 border-t border-line pt-4 text-[12px] leading-relaxed font-medium text-[#2C4A38]">
           <Phone size={13} className="mt-0.5 shrink-0" />
           <span>{doctorContactLine()}</span>
         </div>
 
-        <div className="mt-3 flex items-center gap-2 text-[12px] text-mute">
+        <div className="mt-3 flex items-center gap-2 text-[12px] font-medium text-[#2C4A38]">
           <LockKeyhole size={13} /> Un ticket correspond à une seule personne et à 30 séries.
         </div>
       </div>

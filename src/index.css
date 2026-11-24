@@ -147,6 +147,10 @@
     @apply text-stone;
   }
 
+  .form-input.ticket-input::placeholder {
+    color: #5A7063;
+  }
+
   .form-input:focus {
     @apply border-accent;
     box-shadow: 0 0 0 3px rgba(11, 107, 79, 0.12);
