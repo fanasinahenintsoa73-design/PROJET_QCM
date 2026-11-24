@@ -15,7 +15,7 @@ function LoginShell({ children }: { children: ReactNode }) {
       <div
         aria-hidden="true"
         className="absolute inset-0 bg-cover"
-        style={{ backgroundImage: "url('/login-bg.png')", backgroundPosition: 'center 45%' }}
+        style={{ backgroundImage: "url('/doctor-bg.jpg')", backgroundPosition: 'center 30%' }}
       />
       <div
         aria-hidden="true"
