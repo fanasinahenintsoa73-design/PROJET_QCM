@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
-  ArrowRight,
   FileText,
   Gamepad2,
   GraduationCap,
@@ -43,44 +42,42 @@ const entries = [
 
 export default function DashboardPage() {
   usePageTitle('Mon espace — MEDQCM mada')
-  const navigate = useNavigate()
   const { user, db } = useAuth()
   const usage = user ? getSeriesUsage(user.id, db) : undefined
   const used = usage?.used ?? 0
   const remaining = usage?.remaining ?? SERIES_LIMIT
   const reached = usage?.reached ?? false
 
-  const [index, setIndex] = useState(0)
-  const [cycle, setCycle] = useState(0)
-  const startX = useRef<number | null>(null)
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [visible, setVisible] = useState<boolean[]>(() =>
+    entries.map(() => prefersReducedMotion),
+  )
+  const blockRefs = useRef<(HTMLElement | null)[]>([])
 
   useEffect(() => {
     if (prefersReducedMotion) return
-    const id = window.setInterval(() => setIndex((current) => (current + 1) % entries.length), 2000)
-    return () => window.clearInterval(id)
-  }, [prefersReducedMotion, cycle])
-
-  function showOption(next: number) {
-    setIndex(next)
-    setCycle((current) => current + 1)
-  }
-
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    startX.current = event.clientX
-  }
-
-  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    if (startX.current === null) return
-    const distance = event.clientX - startX.current
-    startX.current = null
-    if (Math.abs(distance) < 40) return
-    const direction = distance < 0 ? 1 : -1
-    setIndex((current) => (current + direction + entries.length) % entries.length)
-    setCycle((current) => current + 1)
-  }
+    const observer = new IntersectionObserver(
+      (observed) => {
+        observed.forEach((item) => {
+          if (!item.isIntersecting) return
+          const index = Number((item.target as HTMLElement).dataset.index)
+          setVisible((current) => {
+            const next = [...current]
+            next[index] = true
+            return next
+          })
+          observer.unobserve(item.target)
+        })
+      },
+      { threshold: 0.18 },
+    )
+    blockRefs.current.forEach((element) => {
+      if (element) observer.observe(element)
+    })
+    return () => observer.disconnect()
+  }, [prefersReducedMotion])
 
   return (
     <div className="bg-canvas">
@@ -126,81 +123,48 @@ export default function DashboardPage() {
           />
         </div>
 
-        <div
-          className="mx-auto mt-9 w-full max-w-[350px] touch-pan-y overflow-hidden"
-          role="group"
-          aria-roledescription="carrousel"
-          aria-label="Choisissez une option"
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={() => {
-            startX.current = null
-          }}
-        >
-          <div
-            className="flex w-full transition-transform duration-300 ease-out motion-reduce:transition-none"
-            style={{ transform: `translateX(-${index * 100}%)` }}
-          >
-            {entries.map((entry, entryIndex) => {
-              const Icon = entry.icon
-              return (
-                <article
-                  key={entry.to}
-                  className="flex h-[300px] w-full shrink-0 flex-col justify-between rounded-[18px] border border-[#D7DED8] bg-white/75 p-5 shadow-[0_6px_18px_rgba(4,36,20,0.05)] backdrop-blur-[16px]"
-                  aria-hidden={entryIndex !== index}
-                >
-                  <div>
-                    <span className="grid h-[42px] w-[42px] place-items-center rounded-[13px] bg-accent-soft text-accent">
-                      <Icon size={22} />
-                    </span>
-                    <p className="mt-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-accent">
-                      Option {entryIndex + 1} sur {entries.length}
-                    </p>
-                    <h2 className="mt-1.5 font-display text-[25px] leading-[1.1] tracking-[-0.02em] text-ink">
-                      {entry.title}
-                    </h2>
-                    <p className="mt-2 text-[11.5px] leading-[1.45] text-mute">
-                      {entry.description}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigate(entry.to)}
-                    tabIndex={entryIndex === index ? 0 : -1}
-                    aria-label={`Continuer vers ${entry.title}`}
-                    className="flex h-[38px] items-center justify-center gap-1.5 rounded-[19px] bg-accent text-[12px] font-semibold text-white transition hover:bg-accent-deep"
-                  >
-                    Continuer <ArrowRight size={14} />
-                  </button>
-                </article>
-              )
-            })}
-          </div>
-        </div>
+        <p className="mt-8 text-center text-[12px] text-mute">
+          Fais défiler pour découvrir les quatre options
+        </p>
 
-        <div className="mt-[18px] flex justify-center gap-[7px]" role="tablist" aria-label="Options">
-          {entries.map((entry, entryIndex) => (
-            <button
-              key={entry.to}
-              type="button"
-              role="tab"
-              aria-selected={entryIndex === index}
-              aria-label={`Option ${entryIndex + 1} : ${entry.title}`}
-              onClick={() => showOption(entryIndex)}
-              className={
-                entryIndex === index
-                  ? 'h-[7px] w-5 rounded-[6px] bg-accent'
-                  : 'h-[7px] w-[7px] rounded-full bg-[#C9D5CD]'
-              }
-            />
-          ))}
+        <div className="mt-4 space-y-[18px]">
+          {entries.map((entry, entryIndex) => {
+            const Icon = entry.icon
+            return (
+              <article
+                key={entry.to}
+                ref={(element) => {
+                  blockRefs.current[entryIndex] = element
+                }}
+                data-index={entryIndex}
+                className={`flex min-h-[300px] flex-col justify-between rounded-[18px] bg-accent p-6 text-white shadow-[0_8px_20px_rgba(11,107,79,0.16)] transition-all duration-500 ease-out motion-reduce:transition-none sm:p-7 ${
+                  visible[entryIndex] ? 'translate-y-0 opacity-100' : 'translate-y-[22px] opacity-0'
+                }`}
+              >
+                <div>
+                  <span className="grid h-[44px] w-[44px] place-items-center rounded-[13px] bg-white/15">
+                    <Icon size={22} />
+                  </span>
+                  <p className="mt-3.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-white/75">
+                    Option {entryIndex + 1} sur {entries.length}
+                  </p>
+                  <h2 className="mt-1.5 font-display text-[25px] leading-[1.1] tracking-[-0.02em]">
+                    {entry.title}
+                  </h2>
+                  <p className="mt-2 max-w-prose text-[11.5px] leading-[1.45] text-white/85">
+                    {entry.description}
+                  </p>
+                </div>
+                <Link
+                  to={entry.to}
+                  className="mt-4 flex h-10 items-center justify-center rounded-[20px] bg-white text-[12px] font-semibold text-accent transition hover:bg-white/90"
+                >
+                  Continuer
+                </Link>
+              </article>
+            )
+          })}
         </div>
-        <p className="mt-2 text-center text-[10px] text-mute" aria-live="polite">
-          {index + 1} / {entries.length}
-        </p>
-        <p className="mt-3 text-center text-[10px] text-mute">
-          Glissez à gauche ou à droite pour changer d’option
-        </p>
       </section>
     </div>
   )
