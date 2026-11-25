@@ -123,11 +123,7 @@ export default function DashboardPage() {
           />
         </div>
 
-        <p className="mt-8 text-center text-[12px] text-mute">
-          Fais défiler pour découvrir les quatre options
-        </p>
-
-        <div className="mt-4 space-y-[18px]">
+        <div className="mt-8 space-y-[18px]">
           {entries.map((entry, entryIndex) => {
             const Icon = entry.icon
             return (
@@ -145,10 +141,7 @@ export default function DashboardPage() {
                   <span className="grid h-[44px] w-[44px] place-items-center rounded-[13px] bg-white/15">
                     <Icon size={22} />
                   </span>
-                  <p className="mt-3.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-white/75">
-                    Option {entryIndex + 1} sur {entries.length}
-                  </p>
-                  <h2 className="mt-1.5 font-display text-[25px] leading-[1.1] tracking-[-0.02em]">
+                  <h2 className="mt-3.5 font-display text-[25px] leading-[1.1] tracking-[-0.02em]">
                     {entry.title}
                   </h2>
                   <p className="mt-2 max-w-prose text-[11.5px] leading-[1.45] text-white/85">
