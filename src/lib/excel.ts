@@ -54,13 +54,51 @@ function isPdfFile(file: File) {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
 }
 
+// Limites imposées avant de confier un classeur à SheetJS (GHSA-4r6h-8v6p-xvw6,
+// GHSA-5pgg-2g8v-p4x9 : prototype pollution et ReDoS, sans correctif amont).
+const MAX_WORKBOOK_BYTES = 8 * 1024 * 1024
+const MAX_WORKBOOK_ROWS = 5000
+const MAX_WORKBOOK_COLS = 40
+const MAX_CELL_CHARS = 4000
+
+function sanitizeRow(row: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = Object.create(null)
+  for (const [key, value] of Object.entries(row)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue
+    safe[key] = typeof value === 'string' && value.length > MAX_CELL_CHARS
+      ? value.slice(0, MAX_CELL_CHARS)
+      : value
+  }
+  return safe
+}
+
 async function readExcelRows(file: File): Promise<Record<string, unknown>[]> {
+  if (file.size > MAX_WORKBOOK_BYTES) {
+    throw new Error('Classeur trop volumineux (8 Mo maximum).')
+  }
+  if (!/\.(xlsx|xls)$/i.test(file.name)) {
+    throw new Error('Format non pris en charge. Utilisez un classeur Excel (.xlsx ou .xls).')
+  }
+
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: 'array' })
   const sheetName = workbook.SheetNames[0]
   if (!sheetName) throw new Error('Le classeur ne contient aucune feuille.')
   const sheet = workbook.Sheets[sheetName]
-  return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false })
+
+  const ref = sheet['!ref']
+  if (ref) {
+    const range = XLSX.utils.decode_range(ref)
+    if (range.e.r - range.s.r + 1 > MAX_WORKBOOK_ROWS) {
+      throw new Error(`Classeur trop volumineux (${MAX_WORKBOOK_ROWS} lignes maximum).`)
+    }
+    if (range.e.c - range.s.c + 1 > MAX_WORKBOOK_COLS) {
+      throw new Error(`Classeur trop volumineux (${MAX_WORKBOOK_COLS} colonnes maximum).`)
+    }
+  }
+
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '', raw: false })
+  return rows.map((row) => sanitizeRow(row))
 }
 
 async function readRows(

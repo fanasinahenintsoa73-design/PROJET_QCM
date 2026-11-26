@@ -332,6 +332,31 @@ export default async function handler(req, res) {
     const auth = await authenticate(req)
     if (!auth) return sendJson(res, 401, { error: 'Session invalide.' })
 
+    // Limiteur partagé (RPC SECURITY DEFINER). Tant que la migration
+    // 20261126_notify_rate_limit.sql n'a pas été appliquée, la fonction
+    // n'existe pas (PGRST202) : on laisse passer avec un avertissement
+    // pour ne pas bloquer les inscriptions en production.
+    try {
+      const { data: allowed, error: limitError } = await auth.client.rpc(
+        'notify_rate_limit',
+        { p_type: type },
+      )
+      if (limitError?.code === 'PGRST202') {
+        console.warn('[notify] limiteur non installé (migration à exécuter)')
+      } else if (limitError) {
+        throw limitError
+      } else if (allowed === false) {
+        return sendJson(res, 429, {
+          error: 'Trop de notifications envoyées récemment. Réessayez dans quelques minutes.',
+        })
+      }
+    } catch (limitError) {
+      console.warn(
+        '[notify] vérification du limiteur impossible',
+        limitError instanceof Error ? limitError.message : limitError,
+      )
+    }
+
     const result =
       type === 'new_request'
         ? await notifyNewRequest(auth)

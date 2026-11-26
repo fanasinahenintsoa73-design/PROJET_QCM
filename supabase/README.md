@@ -305,6 +305,20 @@ pour vérifier le blocage et le renouvellement.
     and not rowsecurity
   order by tablename;
   ```
+- Limitation de débit des notifications : exécuter aussi
+  `supabase/migrations/20261126_notify_rate_limit.sql`. Elle crée
+  `public.notify_rate_limits` (RLS activé, aucun accès direct) et la fonction
+  `public.notify_rate_limit(text)` en `security definer` : 10 notifications par
+  tranche de 15 minutes et par étudiant authentifié, toutes actions confondues.
+  `/api/notify` l'appelle avant l'envoi. Sans cette migration, la fonction est
+  absente (PGRST202) et l'API continue avec un avertissement dans les logs.
+- Dépendances : `npm audit` ne signale plus que `xlsx` (GHSA-4r6h-8v6p-xvw6 et
+  GHSA-5pgg-2g8v-p4x9 : prototype pollution et ReDoS). Aucun correctif amont
+  compatible n'est publié. En attendant, `src/lib/excel.ts` limite la taille
+  des classeurs à 8 Mo, le nombre de lignes à 5000 et de colonnes à 40, tronque
+  les cellules à 4000 caractères et ignore les clés `__proto__`, `constructor`
+  et `prototype`. L'import reste réservé au docteur authentifié. À réévaluer le
+  26 février 2026 ou dès qu'une version corrigée de `xlsx` est disponible.
 - Le mot de passe du docteur est conservé dans
   `.secrets/doctor-credentials.txt`, hors dépôt. Le mot de passe actuel a été
   choisi lors de la mise en service et doit être remplacé avant de partager
