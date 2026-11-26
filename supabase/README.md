@@ -286,6 +286,25 @@ pour vérifier le blocage et le renouvellement.
   corrigés passent uniquement par `start_quiz` et `get_attempt_review`.
 - Les fonctions métier sont `security definer` avec `search_path = public`,
   `execute` révoqué pour `public`/`anon` et accordé à `authenticated`.
+- Migration à exécuter en production après l'alerte Supabase sur le RLS :
+
+  ```text
+  supabase/migrations/20261126_rls_hardening.sql
+  ```
+
+  Elle active le RLS sur `public.anki_level_progress` (et sur
+  `public.ticket_code_migration` si celle-ci existe encore) et révoque tout
+  accès direct depuis `anon`/`authenticated`. Aucune policy n'est ajoutée :
+  les lectures/écritures passent déjà par les fonctions `security definer`.
+  Pour vérifier, cette requête ne doit rien renvoyer :
+
+  ```sql
+  select schemaname, tablename
+  from pg_tables
+  where schemaname = 'public'
+    and not rowsecurity
+  order by tablename;
+  ```
 - Le mot de passe du docteur est conservé dans
   `.secrets/doctor-credentials.txt`, hors dépôt. Le mot de passe actuel a été
   choisi lors de la mise en service et doit être remplacé avant de partager
